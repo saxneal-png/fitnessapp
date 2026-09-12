@@ -1,0 +1,95 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-[#0B0F19] text-slate-100 antialiased overflow-x-hidden;
+  }
+}
+
+/* Custom glow effects */
+.glow-dionicio {
+  box-shadow: 0 0 25px -5px rgba(56, 189, 248, 0.35);
+}
+
+.glow-paula {
+  box-shadow: 0 0 25px -5px rgba(244, 114, 182, 0.35);
+}
+
+.glow-gold {
+  box-shadow: 0 0 25px -5px rgba(234, 179, 8, 0.35);
+}
+
+/* Custom Scrollbars */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: #111827;
+}
+::-webkit-scrollbar-thumb {
+  background: #374151;
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #4B5563;
+}
+
+/* Print CSS for A4 Sheet Weekly Planner */
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 12mm 15mm;
+  }
+
+  body {
+    background: #ffffff !important;
+    color: #000000 !important;
+    font-size: 11pt;
+  }
+
+  .no-print {
+    display: none !important;
+  }
+
+  .printable-page {
+    display: block !important;
+    background: #ffffff !important;
+    color: #000000 !important;
+    border: none !important;
+    box-shadow: none !important;
+    width: 100% !important;
+    padding: 0 !important;
+  }
+
+  .print-card {
+    border: 1px solid #d1d5db !important;
+    background: #ffffff !important;
+    color: #000000 !important;
+    page-break-inside: avoid;
+    box-shadow: none !important;
+  }
+
+  .print-text-dark {
+    color: #111827 !important;
+  }
+
+  .print-text-muted {
+    color: #4b5563 !important;
+  }
+
+  .print-badge {
+    border: 1px solid #9ca3af !important;
+    background: #f3f4f6 !important;
+    color: #111827 !important;
+  }
+
+  /* Force display of checkboxes in black/white */
+  input[type="checkbox"] {
+    border: 1.5px solid #000 !important;
+    appearance: auto !important;
+    -webkit-appearance: checkbox !important;
+  }
+}

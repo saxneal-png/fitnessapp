@@ -1,0 +1,39 @@
+name: Enviar Plan Semanal por Correo (Sábados)
+
+on:
+  schedule:
+    - cron: '0 12 * * 6' # Sábados 12:00 UTC (9:00 AM America/Santiago)
+  workflow_dispatch: # Permite ejecución manual para pruebas
+
+jobs:
+  send-email:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout del repositorio
+        uses: actions/checkout@v4
+
+      - name: Configurar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Instalar dependencias de automatización
+        run: |
+          cd automation
+          npm install
+
+      - name: Ejecutar script de envío de plan
+        env:
+          HOUSEHOLD_ID: ${{ secrets.HOUSEHOLD_ID || 'hogar-dionicio-paula' }}
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          DIONICIO_EMAIL: ${{ secrets.DIONICIO_EMAIL }}
+          PAULA_EMAIL: ${{ secrets.PAULA_EMAIL }}
+          EMAIL_FROM: ${{ secrets.EMAIL_FROM || 'onboarding@resend.dev' }}
+          SMTP_HOST: ${{ secrets.SMTP_HOST }}
+          SMTP_USER: ${{ secrets.SMTP_USER }}
+          SMTP_PASS: ${{ secrets.SMTP_PASS }}
+        run: |
+          cd automation
+          node send-weekly-plan.mjs

@@ -1,0 +1,33 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Helper function to check if user is authenticated
+    function isAuth() {
+      return request.auth != null;
+    }
+
+    // Helper function to check if user belongs to the household
+    function existsInHousehold(householdId, uid) {
+      return isAuth() && (
+        uid == request.auth.uid || 
+        exists(/databases/$(database)/documents/households/$(householdId)/members/$(request.auth.uid))
+      );
+    }
+
+    // Household document rules
+    match /households/{householdId} {
+      allow read: if isAuth();
+      allow write: if isAuth();
+      
+      // Members subcollection rules
+      match /members/{uid}/{document=**} {
+        // Read allowed for any authenticated member belonging to the same household (shared dashboard)
+        allow read: if isAuth() && existsInHousehold(householdId, uid);
+        
+        // Write strictly restricted to own user document and subcollections (logs, bodyweight)
+        allow write: if isAuth() && request.auth.uid == uid;
+      }
+    }
+  }
+}
