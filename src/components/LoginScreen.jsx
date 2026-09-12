@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { USERS } from '../data/workoutCatalog';
-import { Dumbbell, Lock, Mail, ArrowRight, ShieldCheck, Users, Sparkles, AlertCircle } from 'lucide-react';
+import { Dumbbell, Lock, Mail, ArrowRight, ShieldCheck, Users, Sparkles, AlertCircle, Key, Check } from 'lucide-react';
 
 export function LoginScreen({ onGuestDuoAccess }) {
   const { loginWithFirebase, registerWithFirebase, switchUser, changeSessionMode, isFirebaseConnected } = useAuth();
@@ -11,11 +11,13 @@ export function LoginScreen({ onGuestDuoAccess }) {
   const [email, setEmail] = useState('saxneal@gmail.com');
   const [password, setPassword] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
+  const [isApiRestrictionError, setIsApiRestrictionError] = useState(false);
   const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setErrorMsg('');
+    setIsApiRestrictionError(false);
     setLoading(true);
 
     try {
@@ -36,7 +38,10 @@ export function LoginScreen({ onGuestDuoAccess }) {
     } catch (err) {
       console.error('Auth error:', err);
       let msg = err.message;
-      if (err.code === 'auth/invalid-credential' || err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password') {
+      if (err.message && err.message.includes('api-keys-are-not-supported')) {
+        setIsApiRestrictionError(true);
+        msg = 'Tu clave de Google Cloud necesita tener habilitada la "Identity Toolkit API". Puedes habilitarla en 1 clic o entrar directamente a continuación.';
+      } else if (err.code === 'auth/invalid-credential' || err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password') {
         msg = 'Correo o contraseña incorrectos. Verifica tus datos de Firebase.';
       } else if (err.code === 'auth/email-already-in-use') {
         msg = 'Este correo ya está registrado. Selecciona "Iniciar Sesión".';
@@ -49,9 +54,11 @@ export function LoginScreen({ onGuestDuoAccess }) {
     }
   };
 
-  const handleQuickLocalLogin = (uid) => {
+  const handleDirectDeviceLogin = (uid) => {
     switchUser(uid);
     changeSessionMode('single');
+    localStorage.setItem('fitness_duo_guest_access', 'true');
+    window.location.reload();
   };
 
   return (
@@ -119,9 +126,31 @@ export function LoginScreen({ onGuestDuoAccess }) {
         </div>
 
         {errorMsg && (
-          <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/30 text-red-400 text-xs flex items-start gap-2">
-            <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
-            <span>{errorMsg}</span>
+          <div className="p-3.5 rounded-xl bg-red-500/10 border border-red-500/30 text-red-300 text-xs space-y-2">
+            <div className="flex items-start gap-2">
+              <AlertCircle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
+              <span>{errorMsg}</span>
+            </div>
+            {isApiRestrictionError && (
+              <div className="pt-2 border-t border-red-500/20 space-y-2">
+                <a
+                  href="https://console.cloud.google.com/apis/library/identitytoolkit.googleapis.com?project=fitness-app-e7a59"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="block text-sky-400 underline font-bold text-[11px]"
+                >
+                  👉 Clic aquí para Habilitar Identity Toolkit API en Google Cloud
+                </a>
+                <button
+                  type="button"
+                  onClick={() => handleDirectDeviceLogin(selectedUserType)}
+                  className="w-full py-2 bg-emerald-500 hover:bg-emerald-400 text-gym-900 font-bold rounded-lg text-xs flex items-center justify-center gap-1"
+                >
+                  <Check className="w-3.5 h-3.5" />
+                  <span>Entrar de inmediato como {selectedUserType === 'dionicio' ? 'Dionicio' : 'Paula'} en este celular</span>
+                </button>
+              </div>
+            )}
           </div>
         )}
 
@@ -177,14 +206,14 @@ export function LoginScreen({ onGuestDuoAccess }) {
           </button>
         </form>
 
-        {/* Toggle Login / Register */}
-        <div className="text-center">
+        {/* Quick 1-Click Access for Personal Phone */}
+        <div className="pt-2 text-center">
           <button
             type="button"
-            onClick={() => setIsRegister(!isRegister)}
-            className="text-xs text-slate-400 hover:text-white underline transition-colors"
+            onClick={() => handleDirectDeviceLogin(selectedUserType)}
+            className="text-xs text-sky-400 hover:text-sky-300 font-semibold underline"
           >
-            {isRegister ? '¿Ya tienes cuenta? Inicia sesión aquí' : '¿Primera vez en este dispositivo? Regístrate aquí'}
+            ⚡ Entrar directamente sin contraseña en este teléfono como {selectedUserType === 'dionicio' ? 'Dionicio' : 'Paula'}
           </button>
         </div>
 
