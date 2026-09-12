@@ -11,7 +11,8 @@ import {
   User, 
   Flame, 
   Sparkles,
-  Printer
+  Printer,
+  Utensils
 } from 'lucide-react';
 
 export function Navbar({ currentTab, setCurrentTab, onOpenConfig }) {
@@ -157,6 +158,18 @@ export function Navbar({ currentTab, setCurrentTab, onOpenConfig }) {
           >
             <Calendar className="w-4 h-4" />
             <span>Plan & Impresión A4</span>
+          </button>
+
+          <button
+            onClick={() => setCurrentTab('pantry')}
+            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs sm:text-sm font-semibold whitespace-nowrap transition-all ${
+              currentTab === 'pantry'
+                ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 shadow-sm'
+                : 'text-slate-400 hover:text-slate-200 hover:bg-gym-800/60'
+            }`}
+          >
+            <Utensils className="w-4 h-4" />
+            <span>Despensa & Menú</span>
           </button>
 
           <button

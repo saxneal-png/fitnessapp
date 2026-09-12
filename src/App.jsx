@@ -5,6 +5,7 @@ import { Timer } from './components/Timer';
 import { WorkoutLogger } from './components/WorkoutLogger';
 import { Dashboard } from './components/Dashboard';
 import { PrintablePlan } from './components/PrintablePlan';
+import { PantryPlanner } from './components/PantryPlanner';
 import { GeminiCoach } from './components/GeminiCoach';
 import { FirebaseConfigModal } from './components/FirebaseConfigModal';
 import { Heart, Sparkles, Dumbbell } from 'lucide-react';
@@ -29,6 +30,7 @@ function MainApp() {
         {currentTab === 'logger' && <WorkoutLogger />}
         {currentTab === 'dashboard' && <Dashboard />}
         {currentTab === 'planner' && <PrintablePlan />}
+        {currentTab === 'pantry' && <PantryPlanner />}
         {currentTab === 'coach' && <GeminiCoach />}
       </main>
 
