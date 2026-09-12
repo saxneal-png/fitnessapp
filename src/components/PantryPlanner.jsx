@@ -109,9 +109,11 @@ export function PantryPlanner() {
     if (apiKey) {
       try {
         const genAI = new GoogleGenerativeAI(apiKey);
-        const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+        const modelCandidates = ['gemini-1.5-flash-latest', 'gemini-2.0-flash', 'gemini-flash-latest', 'gemini-1.5-flash'];
+        let text = null;
+        let lastErr = null;
 
-        const prompt = `Actúa como un Nutricionista Deportivo de precisión. Diseña un plan de comidas de Lunes a Viernes para una pareja (Dionicio y Paula) que entrena de 19:00 a 20:00 con mancuernas y trotadora.
+        const prompt = `Actúa como un Nutricionista Deportivo de precisión. Diseña un plan de comidas de Lunes a Viernes para una pareja de principiantes (Dionicio y Paula) que entrena de 19:00 a 20:00 con mancuernas y trotadora.
 
 Ingredientes disponibles en su despensa/refrigerador:
 ${pantryItems.join(', ')}
@@ -129,8 +131,20 @@ Perfiles Nutricionales Estrictos:
 Instrucciones de formato:
 Devuelve un plan estructurado, apetitoso y fácil de preparar día por día (Lunes, Martes, Miércoles, Jueves, Viernes) con las porciones sugeridas para cada uno, además de 2 tips de meal-prep para ahorrar tiempo y una pequeña lista de compras de 3 o 4 ingredientes recomendados si hicieran falta.`;
 
-        const result = await model.generateContent(prompt);
-        const text = result.response.text();
+        for (const mName of modelCandidates) {
+          try {
+            const model = genAI.getGenerativeModel({ model: mName });
+            const result = await model.generateContent(prompt);
+            text = result.response.text();
+            if (text) break;
+          } catch (e) {
+            lastErr = e;
+            console.warn(`Intento de PantryPlanner con ${mName} falló:`, e.message);
+          }
+        }
+
+        if (!text) throw lastErr;
+
         setGeneratedMenu({
           generatedAt: new Date().toLocaleDateString('es-ES', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }),
           ingredientsUsed: pantryItems,

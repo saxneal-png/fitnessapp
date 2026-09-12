@@ -98,14 +98,26 @@ async function getGeminiWeeklySummary(userName, userLogs) {
   }
   try {
     const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
-    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
-    const prompt = `Genera un mensaje breve (2 párrafos, motivador y técnico) para el correo de pauta semanal de ${userName}.
-    Rutina: 19:00 a 20:00, mancuernas modulares 40kg y trotadora de 15 niveles.
-    Últimos registros: ${JSON.stringify(userLogs)}.
-    Enfócate en la sobrecarga progresiva segura (+1 o 2 kg o +1 rep) y la consistencia en pareja.`;
+    const modelCandidates = ['gemini-1.5-flash-latest', 'gemini-2.0-flash', 'gemini-flash-latest', 'gemini-1.5-flash'];
+    let text = null;
 
-    const res = await model.generateContent(prompt);
-    return res.response.text();
+    const prompt = `Genera un mensaje breve (2 párrafos, motivador y técnico) para el correo de pauta semanal de ${userName} (Nivel Principiante, Fase Semana 0).
+    Rutina: 19:00 a 20:00, mancuernas modulares 40kg y trotadora con inclinación.
+    Últimos registros: ${JSON.stringify(userLogs)}.
+    Enfócate en la calibración de Semana 0, mantener RPE 6-7 sin dolor y la consistencia en pareja.`;
+
+    for (const mName of modelCandidates) {
+      try {
+        const model = genAI.getGenerativeModel({ model: mName });
+        const res = await model.generateContent(prompt);
+        text = res.response.text();
+        if (text) break;
+      } catch (e) {
+        console.warn(`Intento con ${mName} en automatización falló:`, e.message);
+      }
+    }
+
+    return text || `¡Gran trabajo, ${userName}! Vamos por otra semana de progresión constante y coordinación en la estación dual.`;
   } catch (err) {
     console.warn('Error llamando a Gemini:', err.message);
     return `¡Gran trabajo, ${userName}! Vamos por otra semana de progresión constante y coordinación en la estación dual.`;

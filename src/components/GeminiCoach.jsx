@@ -71,13 +71,26 @@ REGLAS DE ORO PARA PRINCIPIANTES (SEMANA 0):
 4. Respuestas claras, concisas, estructuradas en viñetas y motivadoras.`;
 
       const genAI = new GoogleGenerativeAI(apiKey);
-      const model = genAI.getGenerativeModel({ 
-        model: 'gemini-1.5-flash',
-        systemInstruction: systemInstruction 
-      });
+      const modelCandidates = ['gemini-1.5-flash-latest', 'gemini-2.0-flash', 'gemini-flash-latest', 'gemini-1.5-flash'];
+      let responseText = null;
+      let lastErr = null;
 
-      const result = await model.generateContent(promptText);
-      const responseText = result.response.text();
+      for (const mName of modelCandidates) {
+        try {
+          const model = genAI.getGenerativeModel({ 
+            model: mName,
+            systemInstruction: systemInstruction 
+          });
+          const result = await model.generateContent(promptText);
+          responseText = result.response.text();
+          if (responseText) break;
+        } catch (e) {
+          lastErr = e;
+          console.warn(`Intento con modelo ${mName} falló:`, e.message);
+        }
+      }
+
+      if (!responseText) throw lastErr;
 
       setMessages((prev) => [
         ...prev,
