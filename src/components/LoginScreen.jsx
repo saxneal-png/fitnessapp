@@ -7,9 +7,9 @@ export function LoginScreen({ onGuestDuoAccess }) {
   const { loginWithFirebase, registerWithFirebase, switchUser, changeSessionMode, isFirebaseConnected } = useAuth();
   
   const [isRegister, setIsRegister] = useState(false);
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
   const [selectedUserType, setSelectedUserType] = useState('dionicio'); // 'dionicio' or 'paula'
+  const [email, setEmail] = useState('saxneal@gmail.com');
+  const [password, setPassword] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -26,7 +26,8 @@ export function LoginScreen({ onGuestDuoAccess }) {
       }
       
       // Map user identity based on email or selection
-      if (email.toLowerCase().includes('paula') || selectedUserType === 'paula') {
+      const emailLower = email.toLowerCase();
+      if (emailLower.includes('paula') || emailLower.includes('sandoval') || selectedUserType === 'paula') {
         switchUser('paula');
       } else {
         switchUser('dionicio');
@@ -36,7 +37,7 @@ export function LoginScreen({ onGuestDuoAccess }) {
       console.error('Auth error:', err);
       let msg = err.message;
       if (err.code === 'auth/invalid-credential' || err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password') {
-        msg = 'Correo o contraseña incorrectos. Si aún no te has registrado, selecciona "Crear Cuenta".';
+        msg = 'Correo o contraseña incorrectos. Verifica tus datos de Firebase.';
       } else if (err.code === 'auth/email-already-in-use') {
         msg = 'Este correo ya está registrado. Selecciona "Iniciar Sesión".';
       } else if (err.code === 'auth/weak-password') {
@@ -85,7 +86,7 @@ export function LoginScreen({ onGuestDuoAccess }) {
               type="button"
               onClick={() => {
                 setSelectedUserType('dionicio');
-                if (!email) setEmail('dionicio@duoencasa.com');
+                setEmail('saxneal@gmail.com');
               }}
               className={`p-3 rounded-2xl border flex flex-col items-center gap-1 transition-all ${
                 selectedUserType === 'dionicio'
@@ -95,14 +96,14 @@ export function LoginScreen({ onGuestDuoAccess }) {
             >
               <span className="text-2xl">👨‍💻</span>
               <span className="font-bold text-xs">Dionicio</span>
-              <span className="text-[10px] text-slate-500">180 cm • Ayuno</span>
+              <span className="text-[10px] text-slate-500">saxneal@gmail.com</span>
             </button>
 
             <button
               type="button"
               onClick={() => {
                 setSelectedUserType('paula');
-                if (!email) setEmail('paula@duoencasa.com');
+                setEmail('paula_sandoval@yahoo.es');
               }}
               className={`p-3 rounded-2xl border flex flex-col items-center gap-1 transition-all ${
                 selectedUserType === 'paula'
@@ -112,7 +113,7 @@ export function LoginScreen({ onGuestDuoAccess }) {
             >
               <span className="text-2xl">👩‍💼</span>
               <span className="font-bold text-xs">Paula</span>
-              <span className="text-[10px] text-slate-500">41 años • 160 cm</span>
+              <span className="text-[10px] text-slate-500">paula_sandoval@yahoo.es</span>
             </button>
           </div>
         </div>

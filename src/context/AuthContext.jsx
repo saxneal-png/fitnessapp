@@ -36,9 +36,10 @@ export function AuthProvider({ children }) {
         setFbUser(user);
         setAuthLoading(false);
         if (user && user.email) {
-          if (user.email.toLowerCase().includes('paula')) {
+          const emailLower = user.email.toLowerCase();
+          if (emailLower.includes('paula') || emailLower.includes('sandoval')) {
             switchUser('paula');
-          } else if (user.email.toLowerCase().includes('dionicio')) {
+          } else if (emailLower.includes('saxneal') || emailLower.includes('dionicio') || emailLower.includes('flores')) {
             switchUser('dionicio');
           }
         }

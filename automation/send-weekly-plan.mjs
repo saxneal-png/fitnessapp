@@ -8,8 +8,8 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 
 // 1. Environment & Secrets Check
 const HOUSEHOLD_ID = process.env.HOUSEHOLD_ID || 'hogar-dionicio-paula';
-const DIONICIO_EMAIL = process.env.DIONICIO_EMAIL;
-const PAULA_EMAIL = process.env.PAULA_EMAIL;
+const DIONICIO_EMAIL = process.env.DIONICIO_EMAIL || 'saxneal@gmail.com';
+const PAULA_EMAIL = process.env.PAULA_EMAIL || 'paula_sandoval@yahoo.es';
 const RESEND_API_KEY = process.env.RESEND_API_KEY;
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 const FIREBASE_SERVICE_ACCOUNT = process.env.FIREBASE_SERVICE_ACCOUNT;
