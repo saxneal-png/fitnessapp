@@ -12,11 +12,12 @@ import {
   Flame, 
   Sparkles,
   Printer,
-  Utensils
+  Utensils,
+  LogOut
 } from 'lucide-react';
 
-export function Navbar({ currentTab, setCurrentTab, onOpenConfig }) {
-  const { currentUser, switchUser, sessionMode, changeSessionMode, allUsers, isFirebaseConnected } = useAuth();
+export function Navbar({ currentTab, setCurrentTab, onOpenConfig, onLogout }) {
+  const { currentUser, switchUser, sessionMode, changeSessionMode, allUsers, isFirebaseConnected, fbUser, logoutFirebase } = useAuth();
 
   return (
     <header className="sticky top-0 z-40 bg-gym-900/90 backdrop-blur-md border-b border-gym-700/60 no-print">
@@ -72,29 +73,49 @@ export function Navbar({ currentTab, setCurrentTab, onOpenConfig }) {
               </button>
             </div>
 
-            {/* Active User Toggle */}
-            <div className="flex items-center bg-gym-800 rounded-xl p-1 border border-gym-700">
-              <button
-                onClick={() => switchUser('dionicio')}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                  currentUser === 'dionicio'
-                    ? 'bg-sky-500 text-white shadow-md shadow-sky-500/30'
-                    : 'text-slate-400 hover:text-sky-300'
-                }`}
-              >
-                <span>👨‍💻 Dionicio</span>
-              </button>
-              <button
-                onClick={() => switchUser('paula')}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                  currentUser === 'paula'
-                    ? 'bg-pink-500 text-white shadow-md shadow-pink-500/30'
-                    : 'text-slate-400 hover:text-pink-300'
-                }`}
-              >
-                <span>👩‍💼 Paula</span>
-              </button>
-            </div>
+            {/* Active User Display / Switcher */}
+            {sessionMode === 'duo' ? (
+              <div className="flex items-center bg-gym-800 rounded-xl p-1 border border-gym-700">
+                <button
+                  onClick={() => switchUser('dionicio')}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                    currentUser === 'dionicio'
+                      ? 'bg-sky-500 text-white shadow-md shadow-sky-500/30'
+                      : 'text-slate-400 hover:text-sky-300'
+                  }`}
+                >
+                  <span>👨‍💻 Dionicio</span>
+                </button>
+                <button
+                  onClick={() => switchUser('paula')}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                    currentUser === 'paula'
+                      ? 'bg-pink-500 text-white shadow-md shadow-pink-500/30'
+                      : 'text-slate-400 hover:text-pink-300'
+                  }`}
+                >
+                  <span>👩‍💼 Paula</span>
+                </button>
+              </div>
+            ) : (
+              <div className="flex items-center gap-1.5 bg-gym-800 rounded-xl p-1 border border-gym-700">
+                <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold ${
+                  currentUser === 'dionicio' ? 'bg-sky-500/20 text-sky-400 border border-sky-500/30' : 'bg-pink-500/20 text-pink-400 border border-pink-500/30'
+                }`}>
+                  <span>{currentUser === 'dionicio' ? '👨‍💻 Dionicio' : '👩‍💼 Paula'}</span>
+                </div>
+                <button
+                  onClick={async () => {
+                    await logoutFirebase();
+                    if (onLogout) onLogout();
+                  }}
+                  className="p-1.5 text-slate-400 hover:text-red-400 rounded-lg hover:bg-gym-700 transition-colors"
+                  title="Cerrar Sesión"
+                >
+                  <LogOut className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            )}
 
             {/* Config & Status Icon */}
             <button

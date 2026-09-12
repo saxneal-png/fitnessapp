@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { Navbar } from './components/Navbar';
+import { LoginScreen } from './components/LoginScreen';
 import { Timer } from './components/Timer';
 import { WorkoutLogger } from './components/WorkoutLogger';
 import { Dashboard } from './components/Dashboard';
@@ -8,12 +9,43 @@ import { PrintablePlan } from './components/PrintablePlan';
 import { PantryPlanner } from './components/PantryPlanner';
 import { GeminiCoach } from './components/GeminiCoach';
 import { FirebaseConfigModal } from './components/FirebaseConfigModal';
-import { Heart, Sparkles, Dumbbell } from 'lucide-react';
 
 function MainApp() {
   const [currentTab, setCurrentTab] = useState('timer');
   const [isConfigOpen, setIsConfigOpen] = useState(false);
-  const { currentUser, sessionMode } = useAuth();
+  const [guestAccess, setGuestAccess] = useState(() => {
+    return localStorage.getItem('fitness_duo_guest_access') === 'true';
+  });
+
+  const { currentUser, sessionMode, fbUser, authLoading, isFirebaseConnected, changeSessionMode } = useAuth();
+
+  const handleGuestDuo = () => {
+    setGuestAccess(true);
+    changeSessionMode('duo');
+    localStorage.setItem('fitness_duo_guest_access', 'true');
+  };
+
+  const handleLogout = () => {
+    setGuestAccess(false);
+    localStorage.removeItem('fitness_duo_guest_access');
+  };
+
+  // If Firebase Auth is still loading initial state
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-[#0B0F19] flex items-center justify-center">
+        <div className="text-center space-y-3">
+          <div className="w-10 h-10 border-4 border-sky-500 border-t-transparent rounded-full animate-spin mx-auto"></div>
+          <p className="text-xs text-slate-400 font-mono">Cargando perfil seguro...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // If not logged in and hasn't chosen Guest Duo Mode, show Login Screen
+  if (!fbUser && !guestAccess) {
+    return <LoginScreen onGuestDuoAccess={handleGuestDuo} />;
+  }
 
   return (
     <div className="min-h-screen bg-[#0B0F19] text-slate-100 flex flex-col font-sans">
@@ -22,6 +54,7 @@ function MainApp() {
         currentTab={currentTab}
         setCurrentTab={setCurrentTab}
         onOpenConfig={() => setIsConfigOpen(true)}
+        onLogout={handleLogout}
       />
 
       {/* Main Content Area */}
