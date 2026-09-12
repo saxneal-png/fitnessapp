@@ -55,17 +55,20 @@ export function GeminiCoach() {
       const logs = getLocalLogs(householdId);
       const userContext = USERS[currentUser];
       
-      const systemInstruction = `Eres un Coach de Fuerza y Acondicionamiento Físico experto para una pareja que entrena simultáneamente en casa de 19:00 a 20:00.
-Contexto del Hogar:
-- Atleta actual: ${userContext.name} (${userContext.height}, Nutrición: ${userContext.nutrition}).
-- Equipamiento: Set de mancuernas/barra modulares ajustable hasta 40 kg totales, y trotadora eléctrica de 15 niveles de inclinación.
-- Reloj: Apple Watch Series 8.
-- Últimos registros de entrenamiento en el hogar: ${JSON.stringify(logs.slice(0, 10))}.
-Reglas:
-1. Da respuestas concisas, motivadoras y estructuradas con viñetas claras.
-2. Aplica principios de sobrecarga progresiva segura (+1-2.5 kg o +1-2 reps solo si el RPE fue menor a 8.5).
-3. Adapta las sugerencias a las mancuernas modulares y la trotadora en pendiente.
-4. No asumas lesiones inexistentes; si algo falta, pide aclaración.`;
+      const systemInstruction = `Eres un Coach de Fuerza y Acondicionamiento Físico experto para Dionicio y Paula.
+CONTEXTO CRÍTICO DE LOS ATLETAS:
+- Nivel: PRINCIPIANTES ABSOLUTOS en entrenamiento de fuerza en casa.
+- Fase actual: SEMANA 0 (Fase de Calibración, Aprendizaje Motor y Adaptación Tendinosa).
+- Atleta actual: ${userContext.name} (${userContext.level}, ${userContext.height}, RPE Objetivo Semana 0: ${userContext.targetRPE}, Nutrición: ${userContext.nutrition}).
+- Equipamiento: Set de mancuernas modulares ajustable hasta 40 kg totales, y trotadora eléctrica de 15 niveles de inclinación.
+- Reloj: Apple Watch Series 8 para monitoreo de FC y calorías activas.
+- Registros actuales en el hogar: ${JSON.stringify(logs.slice(0, 10))}.
+
+REGLAS DE ORO PARA PRINCIPIANTES (SEMANA 0):
+1. Dionicio y Paula tienen programas 100% INDIVIDUALES y diferentes: los pesos e intensidades nunca deben ser iguales.
+2. En Semana 0, la meta NO es cansarse al máximo ni llegar al fallo, sino calibrar qué peso permite hacer 10-12 repeticiones limpias con RPE 6-7 (quedando 3-4 repeticiones en reserva).
+3. Para la trotadora en Semana 0: Caminata en pendiente controlada (Zona 2 cardio, donde puedan hablar sin ahogarse).
+4. Respuestas claras, concisas, estructuradas en viñetas y motivadoras.`;
 
       const genAI = new GoogleGenerativeAI(apiKey);
       const model = genAI.getGenerativeModel({ 
@@ -103,12 +106,14 @@ Reglas:
   };
 
   const handlePresetPrompt = (type) => {
-    if (type === 'overload') {
-      executeGeminiPrompt(`Analiza mis últimos registros de entrenamiento de esta semana (${currentUser === 'dionicio' ? 'Dionicio' : 'Paula'}) y sugiere aumentos de peso o repeticiones específicos para la próxima sesión respetando el set modular de 40 kg.`);
+    if (type === 'week0_calibration') {
+      executeGeminiPrompt(`Actúa como mi coach. Soy principiante (${currentUser === 'dionicio' ? 'Dionicio' : 'Paula'}) y estoy en mi 'Semana 0'. Analiza cómo debo encarar las series de calibración de hoy, qué pesos iniciales me recomiendas para no lesionarme y cómo debo sentir el esfuerzo (RPE 6-7).`);
+    } else if (type === 'overload') {
+      executeGeminiPrompt(`A partir de mis registros de esta Semana 0, ¿qué pesos exactos me recomiendas fijar para la Semana 1 en cada ejercicio para iniciar la sobrecarga progresiva sin dolor articular?`);
     } else if (type === 'replace') {
-      executeGeminiPrompt(`Recomiéndame una variante o reemplazo para el Floor Press o Goblet Squat en caso de querer variar el estímulo manteniendo el set de mancuernas y el tiempo estricto de 25 minutos.`);
+      executeGeminiPrompt(`Siendo principiante, si siento molestia o falta de flexibilidad en algún ejercicio con mancuernas, ¿qué variante más amigable me recomiendas para el bloque de 25 minutos?`);
     } else if (type === 'nutrition') {
-      executeGeminiPrompt(`Sugiere una cena ideal post-entreno (20:00) para ${currentUser === 'dionicio' ? 'Dionicio (180cm, tras su ayuno intermitente)' : 'Paula (41 años, 160cm)'} que optimice la síntesis proteica y recuperación.`);
+      executeGeminiPrompt(`Recomienda una cena post-entreno (20:00) para ${currentUser === 'dionicio' ? 'Dionicio (180cm, ayuno intermitente)' : 'Paula (41 años, 160cm)'} enfocada en recuperación muscular de principiante sin digestión pesada.`);
     }
   };
 
@@ -175,17 +180,30 @@ Reglas:
       )}
 
       {/* Predefined Quick Actions */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+        <button
+          onClick={() => handlePresetPrompt('week0_calibration')}
+          className="p-3.5 rounded-2xl bg-gradient-to-br from-gym-800 to-amber-950/40 border border-amber-500/30 hover:border-amber-400 text-left transition-all group"
+        >
+          <div className="flex items-center gap-2 text-amber-400 font-bold text-xs mb-1">
+            <Sparkles className="w-4 h-4 group-hover:scale-110 transition-transform" />
+            <span>🎯 Calibrar Semana 0</span>
+          </div>
+          <p className="text-[11px] text-slate-400">
+            Guía de pesos y RPE 6-7 para principiantes sin riesgo de lesión.
+          </p>
+        </button>
+
         <button
           onClick={() => handlePresetPrompt('overload')}
           className="p-3.5 rounded-2xl bg-gradient-to-br from-gym-800 to-sky-950/40 border border-sky-500/30 hover:border-sky-400 text-left transition-all group"
         >
           <div className="flex items-center gap-2 text-sky-400 font-bold text-xs mb-1">
             <Dumbbell className="w-4 h-4 group-hover:scale-110 transition-transform" />
-            <span>Ajustar Pesos y Cargas</span>
+            <span>Proyectar Semana 1</span>
           </div>
           <p className="text-[11px] text-slate-400">
-            Analiza los últimos RPE y sugiere cargas para la próxima semana.
+            Analiza RPE de la Semana 0 y propone aumentos para la Semana 1.
           </p>
         </button>
 

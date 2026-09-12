@@ -1,29 +1,37 @@
-// Catálogo de Ejercicios y Rutinas "Dúo en Casa"
+// Catálogo de Ejercicios y Rutinas "Dúo en Casa" — Modo Principiantes & Semana 0
 
 export const USERS = {
   dionicio: {
     uid: 'dionicio',
     name: 'Dionicio',
+    email: 'saxneal@gmail.com',
     avatar: '👨‍💻',
     height: '180 cm',
+    level: 'Principiante',
+    phase: 'Semana 0 (Calibración & Adaptación)',
+    targetRPE: '6 - 7 / 10',
     color: 'dionicio',
     colorClass: 'text-sky-400',
     bgClass: 'bg-sky-500/10 border-sky-500/30',
     accentColor: '#38bdf8',
-    nutrition: 'Ayuno matutino + Almuerzo (13:00–14:00) + Cena (20:00, post-entreno inmediato)',
+    nutrition: 'Ayuno matutino + Almuerzo (13:00–14:00) + Cena fuerte post-entreno (20:00)',
     equipment: 'Mancuernas modulares hasta 40kg + Trotadora + Apple Watch S8',
   },
   paula: {
     uid: 'paula',
     name: 'Paula',
+    email: 'paula_sandoval@yahoo.es',
     avatar: '👩‍💼',
     age: 41,
     height: '160 cm',
+    level: 'Principiante',
+    phase: 'Semana 0 (Calibración & Adaptación)',
+    targetRPE: '5.5 - 6.5 / 10',
     color: 'paula',
     colorClass: 'text-pink-400',
     bgClass: 'bg-pink-500/10 border-pink-500/30',
     accentColor: '#f472b6',
-    nutrition: 'Desayuno liviano proteico + Almuerzo + Cena',
+    nutrition: 'Desayuno liviano proteico + Almuerzo balanceado + Cena post-entreno (20:00)',
     equipment: 'Mancuernas modulares hasta 40kg + Trotadora + Apple Watch S8',
   }
 };
@@ -32,42 +40,41 @@ export const WORKOUT_DAYS = [
   {
     id: 'torso',
     name: 'Día Torso (Lunes y Jueves)',
-    description: 'Empuje, tirón horizontal y vertical, y brazos con mancuernas modulares.',
+    description: 'Empuje, tirón y brazos con mancuernas modulares. En Semana 0 nos enfocamos en trayectoria limpia sin fatiga excesiva.',
     days: ['Lunes', 'Jueves'],
     exercises: [
       {
         id: 'floor_press',
         name: 'Floor press con mancuernas',
-        targetSets: '3 - 4',
-        targetReps: '8 - 12',
+        targetSets: '3',
+        targetReps: '10 - 12',
         restSeconds: 60,
         equipment: 'Mancuernas + Mat de suelo',
         instructions: [
-          'Acuéstate boca arriba en el suelo con las rodillas flexionadas y los pies firmes.',
-          'Sujeta las mancuernas al pecho con los codos a unos 45-60 grados respecto al torso.',
-          'Empuja hacia arriba extendiendo los brazos sin chocar las mancuernas.',
-          'Baja lentamente hasta que tus tríceps toquen suavemente el suelo (sin rebotar), pausa 1 segundo y repite.'
+          'Acuéstate boca arriba en el suelo con rodillas flexionadas y pies firmes.',
+          'Codos a 45 grados respecto al torso (no en cruz a 90° para cuidar los hombros).',
+          'Empuja verticalmente con control y desciende en 2-3 segundos.',
+          'Pausa suave cuando los tríceps toquen el suelo antes de volver a subir.'
         ],
-        beginnerTips: 'El suelo protege los hombros de una sobre-extensión. Mantén la espalda baja pegada al piso.',
-        defaultWeightDionicio: 18,
-        defaultWeightPaula: 8,
+        beginnerTips: 'Semana 0: Prioriza el control del descenso. El suelo evita sobrecargar la articulación del hombro.',
+        defaultWeightDionicio: 10, // ~5 kg por mancuerna
+        defaultWeightPaula: 4,    // ~2 kg por mancuerna
       },
       {
         id: 'remo_unilateral',
         name: 'Remo unilateral con mancuerna',
         targetSets: '3',
-        targetReps: '10 - 12 por brazo',
+        targetReps: '10 por brazo',
         restSeconds: 45,
-        equipment: 'Mancuerna individual + Apoyo seguro',
+        equipment: 'Mancuerna individual + Apoyo seguro (silla/mueble)',
         instructions: [
-          'Inclina el torso a 45 grados apoyando una mano en una silla o superficie firme.',
-          'Espalda completamente recta y abdomen tenso.',
-          'Lleva la mancuerna hacia la cadera/bolsillo, sintiendo la contracción del dorsal.',
-          'Evita rotar el torso; mantén los hombros alineados al suelo.'
+          'Apoya una mano en un punto de apoyo firme e inclina el torso a 45° con espalda recta.',
+          'Tira llevando el codo hacia la cadera/bolsillo, sin rotar el torso.',
+          'Siente cómo trabaja la espalda media y dorsal sin jalar con el cuello.'
         ],
-        beginnerTips: 'Imagina que tiras llevando el codo hacia el techo en vez de jalar con la mano.',
-        defaultWeightDionicio: 16,
-        defaultWeightPaula: 7,
+        beginnerTips: 'Imagina que tu mano es un gancho y la fuerza sale de llevar el codo hacia atrás.',
+        defaultWeightDionicio: 8,  // Mancuerna 8 kg
+        defaultWeightPaula: 4,    // Mancuerna 4 kg
       },
       {
         id: 'press_militar',
@@ -75,107 +82,103 @@ export const WORKOUT_DAYS = [
         targetSets: '3',
         targetReps: '8 - 10',
         restSeconds: 60,
-        equipment: 'Mancuernas',
+        equipment: 'Mancuernas ligeras',
         instructions: [
-          'De pie con pies al ancho de caderas o sentado erguido.',
-          'Coloca las mancuernas a la altura de las clavículas con palmas mirando al frente o en semi-neutro.',
-          'Empuja verticalmente hasta extender brazos sobre la cabeza sin arquear la espalda baja.',
-          'Desciende en 2-3 segundos de forma controlada.'
+          'De pie o sentados erguidos con abdomen tenso y glúteos activos.',
+          'Empuja las mancuernas hacia arriba sobre la cabeza sin arquear la zona lumbar.',
+          'Baja lentamente hasta la altura de las orejas/clavícula.'
         ],
-        beginnerTips: 'Aprieta glúteos y abdomen durante todo el movimiento para proteger la zona lumbar.',
-        defaultWeightDionicio: 12,
-        defaultWeightPaula: 5,
+        beginnerTips: 'Si notas que arqueas la espalda baja, reduce 1-2 kg y realiza el ejercicio sentado.',
+        defaultWeightDionicio: 6,  // ~3 kg por mancuerna
+        defaultWeightPaula: 3,    // ~1.5 kg por mancuerna
       },
       {
         id: 'curl_triceps',
         name: 'Curl bíceps / Extensión tríceps copa',
-        targetSets: '3',
+        targetSets: '2 - 3',
         targetReps: '10 - 12',
         restSeconds: 45,
         equipment: 'Mancuernas',
         instructions: [
-          'Bíceps: Curl simultáneo o alterno manteniendo los codos fijos a los costados.',
-          'Tríceps copa: Sujeta una mancuerna con ambas manos tras la nuca y extiende los codos hacia arriba.',
-          'Movimiento fluido sin balancear la espalda.'
+          'Bíceps: Mantén los codos pegados al cuerpo al flexionar los brazos.',
+          'Tríceps: Con ambas manos sosteniendo una sola mancuerna tras la nuca, extiende hacia arriba.',
+          'Control total en la bajada sin balancear la espalda.'
         ],
-        beginnerTips: 'No uses impulso de cadera. Si balanceas el cuerpo, baja 1-2 kg para mantener técnica limpia.',
-        defaultWeightDionicio: 10,
-        defaultWeightPaula: 4,
+        beginnerTips: 'Cero balanceo corporal. El estímulo debe sentirse puramente en los brazos.',
+        defaultWeightDionicio: 6,  // Mancuerna 6 kg
+        defaultWeightPaula: 3,    // Mancuerna 3 kg
       }
     ]
   },
   {
     id: 'pierna_core',
     name: 'Día Pierna y Core (Martes y Viernes)',
-    description: 'Cuádriceps, cadena posterior, glúteos y estabilidad lumbo-abdominal.',
+    description: 'Sentadilla, bisagra de cadera y estabilidad central. En Semana 0 aprendemos a respirar y activar el core.',
     days: ['Martes', 'Viernes'],
     exercises: [
       {
         id: 'goblet_squat',
         name: 'Goblet squat (Sentadilla con copa)',
-        targetSets: '3 - 4',
+        targetSets: '3',
         targetReps: '10 - 12',
         restSeconds: 60,
-        equipment: 'Mancuerna vertical o Kettlebell',
+        equipment: 'Mancuerna vertical o Peso Corporal',
         instructions: [
-          'Sujeta una mancuerna pegada al pecho con ambas manos por la cabeza del disco.',
-          'Pies ligeramente más anchos que las caderas, puntas hacia afuera 15-30°.',
-          'Baja en 3 segundos empujando las rodillas hacia afuera y manteniendo el pecho erguido.',
-          'Desciende hasta que los muslos queden paralelos al suelo y sube con fuerza desde los talones.'
+          'Sujeta la mancuerna pegada al pecho con ambas manos.',
+          'Pies un poco más anchos que las caderas, puntas 20° hacia afuera.',
+          'Desciende en 3 segundos abriendo las rodillas en la dirección de los pies.',
+          'Empuja el suelo con toda la planta del pie para subir.'
         ],
-        beginnerTips: 'Mantén la mirada al frente y no despegues los talones del piso.',
-        defaultWeightDionicio: 20,
-        defaultWeightPaula: 10,
+        beginnerTips: 'Semana 0: Si te cuesta bajar profundo, haz las primeras series sin peso (peso corporal) hasta sentir comodidad.',
+        defaultWeightDionicio: 10,
+        defaultWeightPaula: 6,
       },
       {
         id: 'peso_muerto_rumano',
         name: 'Peso muerto rumano con mancuernas',
-        targetSets: '3 - 4',
-        targetReps: '10 - 12',
+        targetSets: '3',
+        targetReps: '10',
         restSeconds: 60,
         equipment: 'Dos mancuernas',
         instructions: [
-          'De pie sosteniendo las mancuernas frente a los muslos.',
-          'Flexiona ligeramente las rodillas (posición bloqueada, no sentadilla).',
-          'Empuja las caderas hacia atrás como si quisieras tocar una pared detrás de ti.',
-          'Desciende las mancuernas pegadas a las espinillas hasta media pierna sintiendo tensión en los isquiosurales.',
-          'Regresa empujando las caderas al frente y contrayendo glúteos arriba.'
+          'De pie, rodillas con micro-flexión fija durante todo el movimiento.',
+          'Empuja la cadera hacia atrás como tocando una pared invisible detrás.',
+          'Baja las mancuernas rozando los muslos hasta justo debajo de la rodilla.',
+          'Espalda 100% recta y mirada neutra.'
         ],
-        beginnerTips: 'La espalda debe permanecer 100% recta. El movimiento nace en la bisagra de cadera.',
-        defaultWeightDionicio: 22,
-        defaultWeightPaula: 12,
+        beginnerTips: 'No es una sentadilla; es una bisagra de cadera. Debes sentir tensión agradable en la parte posterior de los muslos.',
+        defaultWeightDionicio: 12, // ~6 kg por mancuerna
+        defaultWeightPaula: 6,    // ~3 kg por mancuerna
       },
       {
         id: 'puente_gluteos',
         name: 'Puente de glúteos (Glute Bridge)',
         targetSets: '3',
-        targetReps: '12 - 15',
+        targetReps: '12',
         restSeconds: 45,
-        equipment: 'Mat + Mancuerna opcional sobre pelvis',
+        equipment: 'Mat + Peso opcional',
         instructions: [
-          'Boca arriba con rodillas dobladas a 90° y plantas de los pies firmes.',
-          'Opcional: coloca una mancuerna sobre la cadera sosteniéndola con las manos.',
-          'Eleva la pelvis contrayendo fuertemente los glúteos arriba durante 1 segundo.',
-          'Baja lentamente sin apoyar del todo antes de la siguiente repetición.'
+          'Boca arriba con rodillas flexionadas a 90° y pies planos.',
+          'Eleva la cadera apretando los glúteos en el punto más alto durante 1 segundo.',
+          'Baja suavemente sin descansar en el piso antes de la siguiente repetición.'
         ],
-        beginnerTips: 'Empuja a través de los talones y no arquees excesivamente la espalda baja arriba.',
-        defaultWeightDionicio: 16,
-        defaultWeightPaula: 8,
+        beginnerTips: 'Empuja desde los talones y no sobreextiendas la espalda baja arriba.',
+        defaultWeightDionicio: 8,
+        defaultWeightPaula: 4,
       },
       {
         id: 'plancha_abdominal',
         name: 'Plancha abdominal isométrica',
         targetSets: '3',
-        targetReps: '30 - 45 seg',
+        targetReps: '20 - 30 seg',
         restSeconds: 45,
         equipment: 'Mat de suelo',
         instructions: [
-          'Apoya los antebrazos en el suelo con los codos bajo los hombros.',
-          'Extiende las piernas apoyando las puntas de los pies.',
-          'Forma una línea recta desde la cabeza hasta los talones.',
-          'Activa cuádriceps, abdomen y glúteos. Respira de forma controlada.'
+          'Apoya antebrazos con codos alineados bajo los hombros.',
+          'Cuerpo en línea recta desde la nuca hasta los talones.',
+          'Activa abdomen y glúteos fuertemente. Respira con calma.'
         ],
-        beginnerTips: 'No permitas que la cadera caiga ni se eleve en forma de pirámide.',
+        beginnerTips: 'Semana 0: Si sientes tensión lumbar, apoya suavemente las rodillas manteniendo el abdomen contraído.',
         defaultWeightDionicio: 0,
         defaultWeightPaula: 0,
       }
@@ -183,34 +186,65 @@ export const WORKOUT_DAYS = [
   }
 ];
 
-export const TREADMILL_PROTOCOL = {
-  name: 'Protocolo Trotadora Eléctrica (25 Minutos)',
-  phases: [
-    {
-      range: 'Min 0 - 3 (3 min)',
-      title: 'Adaptación y Calentamiento',
-      incline: 2,
-      speedKmH: 4.2,
-      description: 'Paso continuo para elevar temperatura corporal y preparar articulaciones.',
-      targetHR: '100 - 115 bpm'
-    },
-    {
-      range: 'Min 3 - 20 (17 min)',
-      title: 'Bloque de Inclinación Progresiva',
-      incline: '8 - 11',
-      speedKmH: '4.8 - 5.3',
-      description: 'Caminata rápida en pendiente alta para máximo gasto calórico sin impacto articular.',
-      targetHR: '130 - 155 bpm (Zona 2/3)'
-    },
-    {
-      range: 'Min 20 - 25 (5 min)',
-      title: 'Enfriamiento y Vuelta a la Calma',
-      incline: 2,
-      speedKmH: 3.8,
-      description: 'Descenso paulatino de frecuencia cardíaca e hidratación.',
-      targetHR: '< 110 bpm'
-    }
-  ]
+export const TREADMILL_PROTOCOLS = {
+  dionicio: {
+    name: 'Protocolo Trotadora Dionicio (Semana 0 - Adaptación)',
+    phases: [
+      {
+        range: 'Min 0 - 3 (3 min)',
+        title: 'Calentamiento & Entrada en Calor',
+        incline: 2,
+        speedKmH: 4.0,
+        description: 'Caminata suave para acondicionar tobillos y frecuencia cardíaca.',
+        targetHR: '100 - 110 bpm'
+      },
+      {
+        range: 'Min 3 - 20 (17 min)',
+        title: 'Bloque de Inclinación Progresiva',
+        incline: '5 - 8',
+        speedKmH: '4.5 - 4.8',
+        description: 'Pendiente moderada para estimular cardio y quema calórica sin impacto articular.',
+        targetHR: '120 - 140 bpm (Zona 2)'
+      },
+      {
+        range: 'Min 20 - 25 (5 min)',
+        title: 'Vuelta a la Calma',
+        incline: 2,
+        speedKmH: 3.8,
+        description: 'Descenso gradual de pulsaciones.',
+        targetHR: '< 110 bpm'
+      }
+    ]
+  },
+  paula: {
+    name: 'Protocolo Trotadora Paula (Semana 0 - Adaptación)',
+    phases: [
+      {
+        range: 'Min 0 - 3 (3 min)',
+        title: 'Calentamiento & Entrada en Calor',
+        incline: 2,
+        speedKmH: 3.6,
+        description: 'Paso cómodo para preparar rodillas y caderas.',
+        targetHR: '95 - 110 bpm'
+      },
+      {
+        range: 'Min 3 - 20 (17 min)',
+        title: 'Bloque de Inclinación Segura',
+        incline: '4 - 6',
+        speedKmH: '4.0 - 4.3',
+        description: 'Caminata en pendiente suave sin apoyar las manos en los pasamanos.',
+        targetHR: '115 - 135 bpm (Zona 2)'
+      },
+      {
+        range: 'Min 20 - 25 (5 min)',
+        title: 'Vuelta a la Calma',
+        incline: 1,
+        speedKmH: 3.5,
+        description: 'Paso suave para normalizar la respiración.',
+        targetHR: '< 105 bpm'
+      }
+    ]
+  }
 };
 
 export const SESSION_SCHEDULE = {

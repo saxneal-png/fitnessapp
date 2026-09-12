@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { SESSION_SCHEDULE, WORKOUT_DAYS, TREADMILL_PROTOCOL } from '../data/workoutCatalog';
+import { SESSION_SCHEDULE, WORKOUT_DAYS, TREADMILL_PROTOCOLS, USERS } from '../data/workoutCatalog';
 import { soundEffects } from '../services/soundEffects';
 import confetti from 'canvas-confetti';
 import { 
@@ -538,22 +538,27 @@ export function Timer({ onQuickLog }) {
           </div>
         </div>
 
-        {/* Treadmill Station Protocol Card */}
+        {/* Treadmill Station Protocol Card (Differentiated for Dionicio & Paula) */}
         <div className="space-y-4">
-          <div className="flex items-center gap-2">
-            <Footprints className="w-5 h-5 text-pink-400" />
-            <h3 className="font-extrabold text-lg text-white">
-              Estación Trotadora (25 min)
-            </h3>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Footprints className="w-5 h-5 text-pink-400" />
+              <h3 className="font-extrabold text-lg text-white">
+                Trotadora ({currentUser === 'dionicio' ? 'Dionicio' : 'Paula'})
+              </h3>
+            </div>
+            <span className="text-[10px] font-mono uppercase bg-amber-500/20 text-amber-300 border border-amber-500/30 px-2 py-0.5 rounded-full font-bold">
+              Semana 0
+            </span>
           </div>
 
           <div className="bg-gym-800/80 border border-gym-700/70 rounded-2xl p-5 shadow-sm space-y-4">
             <p className="text-xs text-slate-400">
-              Inclinación de 15 niveles para estímulo cardiovascular de alta intensidad con cero impacto articular.
+              Protocolo adaptado a tu nivel principiante (cuidando articulaciones y elevando gasto calórico).
             </p>
 
             <div className="space-y-3">
-              {TREADMILL_PROTOCOL.phases.map((phase, idx) => (
+              {(TREADMILL_PROTOCOLS[currentUser]?.phases || TREADMILL_PROTOCOLS.dionicio.phases).map((phase, idx) => (
                 <div key={idx} className="p-3 rounded-xl bg-gym-900/70 border border-gym-700/60 text-xs space-y-1.5">
                   <div className="flex items-center justify-between">
                     <span className="font-extrabold text-pink-400">{phase.range}</span>
@@ -578,7 +583,7 @@ export function Timer({ onQuickLog }) {
             <div className="p-3 rounded-xl bg-gym-900/90 border border-gym-700/80 text-[11px] text-slate-400 flex items-start gap-2">
               <Info className="w-4 h-4 text-sky-400 shrink-0 mt-0.5" />
               <span>
-                Monitorear FC y Calorías en tu <strong>Apple Watch Series 8</strong> y registrar al finalizar el bloque.
+                Monitorea en tu <strong>Apple Watch Series 8</strong> que la FC se mantenga en Zona 2 (charla posible sin ahogo).
               </span>
             </div>
           </div>

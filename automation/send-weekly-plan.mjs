@@ -65,24 +65,29 @@ async function fetchUserRecentLogs(uid) {
   }
 }
 
-// 4. Exercise & Routine Definitions
+// 4. Exercise & Routine Definitions (Beginner Calibration - Semana 0)
 const ROUTINE_DATA = {
   torso: [
-    { name: 'Floor press con mancuernas', sets: '3-4 x 8-12', dionicioKg: 18, paulaKg: 8, rest: '60s' },
-    { name: 'Remo unilateral con mancuerna', sets: '3 x 10-12 /brazo', dionicioKg: 16, paulaKg: 7, rest: '45s' },
-    { name: 'Press militar de hombros', sets: '3 x 8-10', dionicioKg: 12, paulaKg: 5, rest: '60s' },
-    { name: 'Curl bíceps / copa tríceps', sets: '3 x 10-12', dionicioKg: 10, paulaKg: 4, rest: '45s' },
+    { name: 'Floor press con mancuernas', sets: '3 x 10-12', dionicioKg: 10, paulaKg: 4, rest: '60s' },
+    { name: 'Remo unilateral con mancuerna', sets: '3 x 10 /brazo', dionicioKg: 8, paulaKg: 4, rest: '45s' },
+    { name: 'Press militar de hombros', sets: '3 x 8-10', dionicioKg: 6, paulaKg: 3, rest: '60s' },
+    { name: 'Curl bíceps / copa tríceps', sets: '2-3 x 10-12', dionicioKg: 6, paulaKg: 3, rest: '45s' },
   ],
   piernaCore: [
-    { name: 'Goblet squat (Sentadilla con copa)', sets: '3-4 x 10-12', dionicioKg: 20, paulaKg: 10, rest: '60s' },
-    { name: 'Peso muerto rumano con mancuernas', sets: '3-4 x 10-12', dionicioKg: 22, paulaKg: 12, rest: '60s' },
-    { name: 'Puente de glúteos (Glute bridge)', sets: '3 x 12-15', dionicioKg: 16, paulaKg: 8, rest: '45s' },
-    { name: 'Plancha abdominal isométrica', sets: '3 x 30-45 seg', dionicioKg: 'Corporal', paulaKg: 'Corporal', rest: '45s' },
+    { name: 'Goblet squat (Sentadilla con copa)', sets: '3 x 10-12', dionicioKg: 10, paulaKg: 6, rest: '60s' },
+    { name: 'Peso muerto rumano con mancuernas', sets: '3 x 10', dionicioKg: 12, paulaKg: 6, rest: '60s' },
+    { name: 'Puente de glúteos (Glute bridge)', sets: '3 x 12', dionicioKg: 8, paulaKg: 4, rest: '45s' },
+    { name: 'Plancha abdominal isométrica', sets: '3 x 20-30 seg', dionicioKg: 'Corporal', paulaKg: 'Corporal', rest: '45s' },
   ],
-  treadmill: [
-    { range: 'Min 0-3 (3 min)', name: 'Adaptación', inc: '2', spd: '4.2 km/h' },
-    { range: 'Min 3-20 (17 min)', name: 'Pendiente Progresiva', inc: '8-11', spd: '4.8-5.3 km/h' },
+  treadmillDionicio: [
+    { range: 'Min 0-3 (3 min)', name: 'Adaptación', inc: '2', spd: '4.0 km/h' },
+    { range: 'Min 3-20 (17 min)', name: 'Zona 2 Cardio', inc: '5-8', spd: '4.5-4.8 km/h' },
     { range: 'Min 20-25 (5 min)', name: 'Enfriamiento', inc: '2', spd: '3.8 km/h' },
+  ],
+  treadmillPaula: [
+    { range: 'Min 0-3 (3 min)', name: 'Adaptación', inc: '2', spd: '3.6 km/h' },
+    { range: 'Min 3-20 (17 min)', name: 'Zona 2 Cardio', inc: '4-6', spd: '4.0-4.3 km/h' },
+    { range: 'Min 20-25 (5 min)', name: 'Enfriamiento', inc: '1', spd: '3.5 km/h' },
   ]
 };
 
@@ -204,8 +209,8 @@ function buildEmailHtml(userName, isDionicio, coachNote) {
         <!-- Treadmill Card -->
         <div class="card">
           <h2 class="card-title">
-            <span>Estación Trotadora (25 Minutos)</span>
-            <span style="font-size: 11px; color: #64748b; font-weight: normal;">15 Inclinaciones</span>
+            <span>Estación Trotadora (25 Minutos — Semana 0)</span>
+            <span style="font-size: 11px; color: #64748b; font-weight: normal;">Zona 2 Cardio</span>
           </h2>
           <table>
             <thead>
@@ -216,7 +221,7 @@ function buildEmailHtml(userName, isDionicio, coachNote) {
               </tr>
             </thead>
             <tbody>
-              ${ROUTINE_DATA.treadmill.map(ph => `
+              ${(isDionicio ? ROUTINE_DATA.treadmillDionicio : ROUTINE_DATA.treadmillPaula).map(ph => `
                 <tr>
                   <td><strong>${ph.range}</strong> (${ph.name})</td>
                   <td>Inc <strong>${ph.inc}</strong></td>
