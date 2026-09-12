@@ -1,4 +1,4 @@
-// Firebase Client Configuration with dynamic localStorage support and fallback
+// Firebase Client Configuration & Production Firestore Sync
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { 
   getAuth, 
@@ -21,8 +21,8 @@ import {
 } from 'firebase/firestore';
 
 const LOCAL_STORAGE_KEY = 'fitness_duo_firebase_config';
-const LOCAL_STORAGE_LOGS_KEY = 'fitness_duo_local_logs';
-const LOCAL_STORAGE_WEIGHT_KEY = 'fitness_duo_local_weight';
+const LOCAL_STORAGE_LOGS_KEY = 'fitness_duo_logs_prod';
+const LOCAL_STORAGE_WEIGHT_KEY = 'fitness_duo_weight_prod';
 
 export function getStoredFirebaseConfig() {
   try {
@@ -63,7 +63,7 @@ export function initFirebase() {
       db = getFirestore(app);
       isInitialized = true;
     } catch (err) {
-      console.warn('Firebase initialization error, running in local fallback mode:', err);
+      console.warn('Firebase initialization notice:', err);
       isInitialized = false;
     }
   } else {
@@ -77,7 +77,7 @@ initFirebase();
 
 export { app, auth, db, isInitialized };
 
-// Local Fallback Storage Helpers (Ensures 100% functionality before or during Firebase setup)
+// Clean Production Storage Helpers (Starts at 0 / Clean Slate)
 export function getLocalLogs(householdId = 'hogar-dionicio-paula') {
   try {
     const raw = localStorage.getItem(`${LOCAL_STORAGE_LOGS_KEY}_${householdId}`);
@@ -85,113 +85,22 @@ export function getLocalLogs(householdId = 'hogar-dionicio-paula') {
   } catch (e) {
     console.error('Error loading local logs', e);
   }
-  
-  // Seed with realistic demo logs if empty
-  const defaultLogs = [
-    {
-      id: 'demo-1',
-      userId: 'dionicio',
-      date: '2026-09-08',
-      timestamp: Date.now() - 4 * 86400000,
-      type: 'strength',
-      dayType: 'torso',
-      exerciseId: 'floor_press',
-      exerciseName: 'Floor press con mancuernas',
-      sets: [
-        { setNumber: 1, weightKg: 16, reps: 12, rpe: 7.5 },
-        { setNumber: 2, weightKg: 18, reps: 10, rpe: 8 },
-        { setNumber: 3, weightKg: 18, reps: 9, rpe: 8.5 }
-      ],
-      totalVolumeKg: 534,
-      notes: 'Buena técnica, codos a 45 grados'
-    },
-    {
-      id: 'demo-2',
-      userId: 'paula',
-      date: '2026-09-08',
-      timestamp: Date.now() - 4 * 86400000,
-      type: 'treadmill',
-      durationMinutes: 25,
-      incline: 10,
-      avgSpeedKmH: 5.0,
-      avgHeartRateBpm: 138,
-      activeCaloriesKcal: 195,
-      notes: 'Ritmo constante sin fatiga lumbar'
-    },
-    {
-      id: 'demo-3',
-      userId: 'paula',
-      date: '2026-09-08',
-      timestamp: Date.now() - 4 * 86400000,
-      type: 'strength',
-      dayType: 'torso',
-      exerciseId: 'floor_press',
-      exerciseName: 'Floor press con mancuernas',
-      sets: [
-        { setNumber: 1, weightKg: 6, reps: 12, rpe: 7 },
-        { setNumber: 2, weightKg: 8, reps: 10, rpe: 8 },
-        { setNumber: 3, weightKg: 8, reps: 10, rpe: 8.5 }
-      ],
-      totalVolumeKg: 232,
-      notes: 'Sintió buena activación pectoral'
-    },
-    {
-      id: 'demo-4',
-      userId: 'dionicio',
-      date: '2026-09-08',
-      timestamp: Date.now() - 4 * 86400000,
-      type: 'treadmill',
-      durationMinutes: 25,
-      incline: 11,
-      avgSpeedKmH: 5.2,
-      avgHeartRateBpm: 144,
-      activeCaloriesKcal: 220,
-      notes: 'Bloque de inclinación 11 completado'
-    },
-    {
-      id: 'demo-5',
-      userId: 'dionicio',
-      date: '2026-09-10',
-      timestamp: Date.now() - 2 * 86400000,
-      type: 'strength',
-      dayType: 'pierna_core',
-      exerciseId: 'goblet_squat',
-      exerciseName: 'Goblet squat (Sentadilla con copa)',
-      sets: [
-        { setNumber: 1, weightKg: 18, reps: 12, rpe: 8 },
-        { setNumber: 2, weightKg: 20, reps: 10, rpe: 8.5 },
-        { setNumber: 3, weightKg: 20, reps: 10, rpe: 9 }
-      ],
-      totalVolumeKg: 616,
-      notes: 'Bajada controlada en 3s'
-    },
-    {
-      id: 'demo-6',
-      userId: 'paula',
-      date: '2026-09-10',
-      timestamp: Date.now() - 2 * 86400000,
-      type: 'strength',
-      dayType: 'pierna_core',
-      exerciseId: 'goblet_squat',
-      exerciseName: 'Goblet squat (Sentadilla con copa)',
-      sets: [
-        { setNumber: 1, weightKg: 8, reps: 12, rpe: 7.5 },
-        { setNumber: 2, weightKg: 10, reps: 10, rpe: 8 },
-        { setNumber: 3, weightKg: 10, reps: 10, rpe: 8 }
-      ],
-      totalVolumeKg: 276,
-      notes: 'Excelente profundidad'
-    }
-  ];
-  saveLocalLogs(defaultLogs, householdId);
-  return defaultLogs;
+  return []; // Clean slate for real production
 }
 
 export function saveLocalLogs(logs, householdId = 'hogar-dionicio-paula') {
   localStorage.setItem(`${LOCAL_STORAGE_LOGS_KEY}_${householdId}`, JSON.stringify(logs));
 }
 
-export function saveWorkoutLog(logData, householdId = 'hogar-dionicio-paula') {
+export function clearProductionData(householdId = 'hogar-dionicio-paula') {
+  localStorage.removeItem(`${LOCAL_STORAGE_LOGS_KEY}_${householdId}`);
+  localStorage.removeItem(`${LOCAL_STORAGE_WEIGHT_KEY}_${householdId}`);
+  // Also clean any legacy keys
+  localStorage.removeItem(`fitness_duo_local_logs_${householdId}`);
+  localStorage.removeItem(`fitness_duo_local_weight_${householdId}`);
+}
+
+export async function saveWorkoutLog(logData, householdId = 'hogar-dionicio-paula') {
   const allLogs = getLocalLogs(householdId);
   const newLog = {
     ...logData,
@@ -201,15 +110,13 @@ export function saveWorkoutLog(logData, householdId = 'hogar-dionicio-paula') {
   allLogs.unshift(newLog);
   saveLocalLogs(allLogs, householdId);
 
-  // If live Firebase is configured, push to Firestore
+  // If live Firebase is configured, write to Firestore
   if (db && isInitialized) {
     try {
       const docRef = doc(db, 'households', householdId, 'members', newLog.userId, 'logs', newLog.id);
-      setDoc(docRef, newLog, { merge: true }).catch(err => {
-        console.warn('Firestore sync background notice:', err);
-      });
+      await setDoc(docRef, newLog, { merge: true });
     } catch (e) {
-      console.warn('Firestore write failed, stored locally:', e);
+      console.warn('Firestore sync notice:', e);
     }
   }
 
@@ -223,20 +130,118 @@ export function getLocalWeightEntries(householdId = 'hogar-dionicio-paula') {
   } catch (e) {
     console.error('Error loading local weight', e);
   }
-  const defaultWeights = [
-    { id: 'w1', userId: 'dionicio', date: '2026-08-20', weightKg: 84.5 },
-    { id: 'w2', userId: 'dionicio', date: '2026-08-27', weightKg: 84.0 },
-    { id: 'w3', userId: 'dionicio', date: '2026-09-03', weightKg: 83.6 },
-    { id: 'w4', userId: 'dionicio', date: '2026-09-10', weightKg: 83.2 },
-    { id: 'w5', userId: 'paula', date: '2026-08-20', weightKg: 62.0 },
-    { id: 'w6', userId: 'paula', date: '2026-08-27', weightKg: 61.6 },
-    { id: 'w7', userId: 'paula', date: '2026-09-03', weightKg: 61.2 },
-    { id: 'w8', userId: 'paula', date: '2026-09-10', weightKg: 60.8 },
-  ];
-  saveLocalWeightEntries(defaultWeights, householdId);
-  return defaultWeights;
+  return []; // Clean slate for real production
+}
+
+export async function saveWeightEntry(weightData, householdId = 'hogar-dionicio-paula') {
+  const allWeights = getLocalWeightEntries(householdId);
+  const newEntry = {
+    ...weightData,
+    id: weightData.id || `w-${Date.now()}`,
+    timestamp: Date.now(),
+  };
+  allWeights.unshift(newEntry);
+  saveLocalWeightEntries(allWeights, householdId);
+
+  if (db && isInitialized) {
+    try {
+      const docRef = doc(db, 'households', householdId, 'members', newEntry.userId, 'bodyweight', newEntry.id);
+      await setDoc(docRef, newEntry, { merge: true });
+    } catch (e) {
+      console.warn('Firestore weight sync notice:', e);
+    }
+  }
+  return newEntry;
 }
 
 export function saveLocalWeightEntries(weights, householdId = 'hogar-dionicio-paula') {
   localStorage.setItem(`${LOCAL_STORAGE_WEIGHT_KEY}_${householdId}`, JSON.stringify(weights));
+}
+
+// Real-time Firestore Listener for Household Sync
+export function subscribeToHouseholdData(householdId, onLogsUpdate, onWeightsUpdate) {
+  if (!db || !isInitialized) {
+    onLogsUpdate(getLocalLogs(householdId));
+    onWeightsUpdate(getLocalWeightEntries(householdId));
+    return () => {};
+  }
+
+  let logsDionicio = [];
+  let logsPaula = [];
+  let weightsDionicio = [];
+  let weightsPaula = [];
+
+  const updateCombinedLogs = () => {
+    const combined = [...logsDionicio, ...logsPaula].sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+    if (combined.length > 0) {
+      saveLocalLogs(combined, householdId);
+      onLogsUpdate(combined);
+    } else {
+      onLogsUpdate(getLocalLogs(householdId));
+    }
+  };
+
+  const updateCombinedWeights = () => {
+    const combined = [...weightsDionicio, ...weightsPaula].sort((a, b) => a.date.localeCompare(b.date));
+    if (combined.length > 0) {
+      saveLocalWeightEntries(combined, householdId);
+      onWeightsUpdate(combined);
+    } else {
+      onWeightsUpdate(getLocalWeightEntries(householdId));
+    }
+  };
+
+  try {
+    // Listen to Dionicio's logs
+    const unsubLogsD = onSnapshot(
+      collection(db, 'households', householdId, 'members', 'dionicio', 'logs'),
+      (snap) => {
+        logsDionicio = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        updateCombinedLogs();
+      },
+      (err) => console.warn('Firestore listener Dionicio logs notice:', err)
+    );
+
+    // Listen to Paula's logs
+    const unsubLogsP = onSnapshot(
+      collection(db, 'households', householdId, 'members', 'paula', 'logs'),
+      (snap) => {
+        logsPaula = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        updateCombinedLogs();
+      },
+      (err) => console.warn('Firestore listener Paula logs notice:', err)
+    );
+
+    // Listen to Dionicio's weight
+    const unsubWeightD = onSnapshot(
+      collection(db, 'households', householdId, 'members', 'dionicio', 'bodyweight'),
+      (snap) => {
+        weightsDionicio = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        updateCombinedWeights();
+      },
+      (err) => console.warn('Firestore listener Dionicio weight notice:', err)
+    );
+
+    // Listen to Paula's weight
+    const unsubWeightP = onSnapshot(
+      collection(db, 'households', householdId, 'members', 'paula', 'bodyweight'),
+      (snap) => {
+        weightsPaula = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        updateCombinedWeights();
+      },
+      (err) => console.warn('Firestore listener Paula weight notice:', err)
+    );
+
+    return () => {
+      unsubLogsD();
+      unsubLogsP();
+      unsubWeightD();
+      unsubWeightP();
+    };
+  } catch (err) {
+    console.warn('Subscription error, using local fallback:', err);
+    onLogsUpdate(getLocalLogs(householdId));
+    onWeightsUpdate(getLocalWeightEntries(householdId));
+    return () => {};
+  }
 }

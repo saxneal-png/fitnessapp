@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { getStoredFirebaseConfig, saveFirebaseConfig, initFirebase } from '../firebase/config';
+import { getStoredFirebaseConfig, saveFirebaseConfig, initFirebase, clearProductionData } from '../firebase/config';
 import { Database, Key, ShieldCheck, Check, AlertCircle, X, Home, ExternalLink } from 'lucide-react';
 
 export function FirebaseConfigModal({ isOpen, onClose }) {
@@ -125,7 +125,19 @@ export function FirebaseConfigModal({ isOpen, onClose }) {
             </div>
           </div>
 
-          <div className="pt-2 flex gap-3">
+          <div className="pt-2 flex flex-col sm:flex-row gap-3">
+            <button
+              type="button"
+              onClick={() => {
+                clearProductionData(householdId);
+                alert('¡Datos locales limpiados con éxito! Todo está en cero para producción.');
+                window.location.reload();
+              }}
+              className="py-2.5 px-3 rounded-xl bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/30 text-xs font-bold transition-all"
+              title="Borra cualquier caché local de prueba para iniciar en cero limpio"
+            >
+              🗑️ Poner en Cero
+            </button>
             <button
               type="button"
               onClick={onClose}

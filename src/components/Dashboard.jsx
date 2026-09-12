@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { getLocalLogs, getLocalWeightEntries, saveLocalWeightEntries } from '../firebase/config';
+import { getLocalLogs, getLocalWeightEntries, saveWeightEntry, subscribeToHouseholdData } from '../firebase/config';
 import { WORKOUT_DAYS, USERS } from '../data/workoutCatalog';
 import {
   ResponsiveContainer,
@@ -12,9 +12,7 @@ import {
   YAxis,
   Tooltip,
   Legend,
-  CartesianGrid,
-  AreaChart,
-  Area
+  CartesianGrid
 } from 'recharts';
 import { 
   TrendingUp, 
@@ -26,7 +24,9 @@ import {
   Scale, 
   Plus, 
   Users,
-  Activity
+  Sparkles,
+  CheckCircle2,
+  Inbox
 } from 'lucide-react';
 
 export function Dashboard() {
@@ -35,14 +35,19 @@ export function Dashboard() {
   const [weightEntries, setWeightEntries] = useState([]);
   const [selectedExerciseForTrend, setSelectedExerciseForTrend] = useState('floor_press');
   const [showWeightModal, setShowWeightModal] = useState(false);
-  const [newWeight, setNewWeight] = useState({ userId: 'dionicio', date: new Date().toISOString().split('T')[0], weightKg: 83.0 });
+  const [newWeight, setNewWeight] = useState({ userId: currentUser || 'dionicio', date: new Date().toISOString().split('T')[0], weightKg: 80.0 });
 
   useEffect(() => {
-    setLogs(getLocalLogs(householdId));
-    setWeightEntries(getLocalWeightEntries(householdId));
+    // Real-time Firestore subscription with local fallback
+    const unsubscribe = subscribeToHouseholdData(
+      householdId,
+      (updatedLogs) => setLogs(updatedLogs),
+      (updatedWeights) => setWeightEntries(updatedWeights)
+    );
+    return () => unsubscribe();
   }, [householdId]);
 
-  // Aggregate Volume by Week / Date
+  // Aggregate Volume by Date
   const volumeByDateMap = {};
   logs.filter(l => l.type === 'strength').forEach(l => {
     const d = l.date;
@@ -56,7 +61,6 @@ export function Dashboard() {
     }
     volumeByDateMap[d].totalVolume += (l.totalVolumeKg || 0);
   });
-
   const volumeChartData = Object.values(volumeByDateMap).sort((a, b) => a.date.localeCompare(b.date));
 
   // Exercise Max Weight Progression Trend
@@ -76,27 +80,14 @@ export function Dashboard() {
   });
   const exerciseTrendData = Object.values(exerciseTrendMap).sort((a, b) => a.date.localeCompare(b.date));
 
-  // Treadmill Cardio Data
-  const treadmillLogs = logs.filter(l => l.type === 'treadmill').map(l => ({
-    date: l.date,
-    user: l.userId === 'dionicio' ? 'Dionicio' : 'Paula',
-    calories: l.activeCaloriesKcal,
-    incline: l.incline,
-    speed: l.avgSpeedKmH,
-    hr: l.avgHeartRateBpm,
-    label: `${l.date} (${l.userId === 'dionicio' ? 'D' : 'P'})`
-  }));
-
   // Total KPIs
   const totalHouseholdVolume = logs.filter(l => l.type === 'strength').reduce((acc, l) => acc + (l.totalVolumeKg || 0), 0);
   const totalCaloriesBurned = logs.filter(l => l.type === 'treadmill').reduce((acc, l) => acc + (l.activeCaloriesKcal || 0), 0);
   const totalSessions = logs.length;
 
-  const handleAddWeight = (e) => {
+  const handleAddWeight = async (e) => {
     e.preventDefault();
-    const updated = [...weightEntries, { ...newWeight, id: `w-${Date.now()}` }];
-    setWeightEntries(updated);
-    saveLocalWeightEntries(updated, householdId);
+    await saveWeightEntry(newWeight, householdId);
     setShowWeightModal(false);
   };
 
@@ -124,7 +115,7 @@ export function Dashboard() {
             <h2 className="text-2xl font-black text-white">Dashboard Combinado del Hogar</h2>
           </div>
           <p className="text-xs sm:text-sm text-slate-400">
-            Estadísticas consolidadas de <strong>Dionicio</strong> y <strong>Paula</strong> sin mezclar registros individuales.
+            Estadísticas consolidadas de <strong>Dionicio</strong> y <strong>Paula</strong> en tiempo real.
           </p>
         </div>
 
@@ -133,11 +124,11 @@ export function Dashboard() {
           className="flex items-center gap-1.5 px-4 py-2 bg-gym-800 hover:bg-gym-700 text-slate-200 border border-gym-700 rounded-xl text-xs font-bold transition-all shadow-sm"
         >
           <Scale className="w-4 h-4 text-emerald-400" />
-          <span>Registrar Peso Corporal</span>
+          <span>Registrar Peso Inicial / Actual</span>
         </button>
       </div>
 
-      {/* KPI Cards */}
+      {/* KPI Cards (Clean State in Real Production) */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {/* Total Volume */}
         <div className="bg-gym-800/80 border border-gym-700/70 rounded-2xl p-4 sm:p-5 shadow-sm">
@@ -181,20 +172,39 @@ export function Dashboard() {
           <p className="text-[11px] text-emerald-400 mt-1">Constancia 19:00 - 20:00</p>
         </div>
 
-        {/* RPE & Intensity */}
+        {/* Status */}
         <div className="bg-gym-800/80 border border-gym-700/70 rounded-2xl p-4 sm:p-5 shadow-sm">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-bold uppercase text-slate-400">Sobrecarga Media</span>
+            <span className="text-xs font-bold uppercase text-slate-400">Estado</span>
             <div className="p-2 rounded-xl bg-amber-500/20 text-amber-400">
-              <Award className="w-4 h-4" />
+              <Sparkles className="w-4 h-4" />
             </div>
           </div>
           <div className="text-2xl sm:text-3xl font-black font-mono text-white mt-2">
-            RPE 8.2 <span className="text-sm font-sans font-normal text-slate-400">/ 10</span>
+            {totalSessions === 0 ? 'Día 1' : 'En Racha'}
           </div>
-          <p className="text-[11px] text-amber-400 mt-1">Zona óptima de hipertrofia</p>
+          <p className="text-[11px] text-amber-400 mt-1">
+            {totalSessions === 0 ? '¡Listos para comenzar hoy!' : 'Progreso continuo'}
+          </p>
         </div>
       </div>
+
+      {/* Production Clean State Welcome Card if 0 logs */}
+      {totalSessions === 0 && (
+        <div className="p-6 rounded-2xl bg-gradient-to-r from-sky-950/40 via-gym-800 to-pink-950/40 border border-gym-700 text-center space-y-2">
+          <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-sky-500 to-pink-500 p-0.5 mx-auto">
+            <div className="w-full h-full bg-gym-900 rounded-[14px] flex items-center justify-center">
+              <Sparkles className="w-6 h-6 text-sky-400" />
+            </div>
+          </div>
+          <h3 className="text-lg font-extrabold text-white">
+            ¡Todo listo para su primer entrenamiento en vivo (19:00 a 20:00)!
+          </h3>
+          <p className="text-xs sm:text-sm text-slate-400 max-w-xl mx-auto">
+            La base de datos está en cero y lista para producción. Cuando completen su primera sesión de hoy con mancuernas o trotadora, los gráficos y métricas de Dionicio y Paula se sincronizarán aquí automáticamente.
+          </p>
+        </div>
+      )}
 
       {/* Chart 1: Combined Volume Over Time */}
       <div className="bg-gym-800/90 border border-gym-700 rounded-2xl p-5 sm:p-6 shadow-xl">
@@ -237,14 +247,15 @@ export function Dashboard() {
               </BarChart>
             </ResponsiveContainer>
           ) : (
-            <div className="h-full flex items-center justify-center text-xs text-slate-500 font-mono">
-              Sin suficientes registros de fuerza para graficar.
+            <div className="h-full flex flex-col items-center justify-center text-slate-500 space-y-1">
+              <Inbox className="w-8 h-8 opacity-40" />
+              <span className="text-xs font-mono">Sin registros aún. ¡Aparecerán tras guardar su primera serie!</span>
             </div>
           )}
         </div>
       </div>
 
-      {/* Grid: Exercise Trend & Treadmill Stats */}
+      {/* Grid: Exercise Trend & Bodyweight */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Chart 2: Exercise Max Weight Progression */}
         <div className="bg-gym-800/90 border border-gym-700 rounded-2xl p-5 sm:p-6 shadow-xl space-y-4">
@@ -258,7 +269,7 @@ export function Dashboard() {
               onChange={(e) => setSelectedExerciseForTrend(e.target.value)}
               className="bg-gym-900 border border-gym-700 rounded-xl px-2.5 py-1 text-xs text-white focus:outline-none"
             >
-              <option value="floor_press">Floor press</option>
+              <option value="floor_press">Floor press con mancuernas</option>
               <option value="goblet_squat">Goblet squat</option>
               <option value="peso_muerto_rumano">Peso muerto rumano</option>
               <option value="remo_unilateral">Remo unilateral</option>
@@ -281,8 +292,9 @@ export function Dashboard() {
                 </LineChart>
               </ResponsiveContainer>
             ) : (
-              <div className="h-full flex items-center justify-center text-xs text-slate-500 font-mono">
-                Registra cargas en este ejercicio para ver la progresión.
+              <div className="h-full flex flex-col items-center justify-center text-slate-500 space-y-1">
+                <Dumbbell className="w-7 h-7 opacity-30" />
+                <span className="text-xs font-mono">El gráfico trazará la sobrecarga con sus primeros registros.</span>
               </div>
             )}
           </div>
@@ -295,22 +307,35 @@ export function Dashboard() {
               <Scale className="w-4 h-4 text-emerald-400" />
               <span>Progreso de Peso Corporal (kg)</span>
             </h3>
-            <span className="text-[11px] text-slate-400 font-mono">Últimas 4 semanas</span>
+            <span className="text-[11px] text-slate-400 font-mono">Registro Semanal</span>
           </div>
 
           <div className="h-64 w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={weightChartData} margin={{ top: 10, right: 10, left: -15, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#374151" opacity={0.5} />
-                <XAxis dataKey="date" stroke="#9CA3AF" tick={{ fontSize: 11 }} />
-                <YAxis stroke="#9CA3AF" tick={{ fontSize: 11 }} domain={['dataMin - 1', 'dataMax + 1']} />
-                <Tooltip
-                  contentStyle={{ backgroundColor: '#111827', borderColor: '#374151', borderRadius: '12px', fontSize: '12px' }}
-                />
-                <Line type="monotone" dataKey="dionicioWeight" name="Dionicio (kg)" stroke="#38bdf8" strokeWidth={2.5} dot={{ r: 4 }} connectNulls />
-                <Line type="monotone" dataKey="paulaWeight" name="Paula (kg)" stroke="#f472b6" strokeWidth={2.5} dot={{ r: 4 }} connectNulls />
-              </LineChart>
-            </ResponsiveContainer>
+            {weightChartData.length > 0 ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={weightChartData} margin={{ top: 10, right: 10, left: -15, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#374151" opacity={0.5} />
+                  <XAxis dataKey="date" stroke="#9CA3AF" tick={{ fontSize: 11 }} />
+                  <YAxis stroke="#9CA3AF" tick={{ fontSize: 11 }} domain={['dataMin - 1', 'dataMax + 1']} />
+                  <Tooltip
+                    contentStyle={{ backgroundColor: '#111827', borderColor: '#374151', borderRadius: '12px', fontSize: '12px' }}
+                  />
+                  <Line type="monotone" dataKey="dionicioWeight" name="Dionicio (kg)" stroke="#38bdf8" strokeWidth={2.5} dot={{ r: 4 }} connectNulls />
+                  <Line type="monotone" dataKey="paulaWeight" name="Paula (kg)" stroke="#f472b6" strokeWidth={2.5} dot={{ r: 4 }} connectNulls />
+                </LineChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="h-full flex flex-col items-center justify-center text-slate-500 space-y-2">
+                <Scale className="w-7 h-7 opacity-30" />
+                <span className="text-xs font-mono">Sin peso corporal registrado aún.</span>
+                <button
+                  onClick={() => setShowWeightModal(true)}
+                  className="px-3 py-1 bg-gym-700 hover:bg-gym-600 text-slate-300 rounded-lg text-[11px] font-bold"
+                >
+                  + Registrar peso inicial
+                </button>
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -380,7 +405,7 @@ export function Dashboard() {
                   type="submit"
                   className="flex-1 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-gym-900 text-xs font-black"
                 >
-                  Guardar
+                  Guardar en Firestore
                 </button>
               </div>
             </form>

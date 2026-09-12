@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { WORKOUT_DAYS, USERS } from '../data/workoutCatalog';
-import { saveWorkoutLog, getLocalLogs } from '../firebase/config';
+import { saveWorkoutLog, getLocalLogs, subscribeToHouseholdData } from '../firebase/config';
 import { 
   Dumbbell, 
   Footprints, 
@@ -51,15 +51,15 @@ export function WorkoutLogger() {
   const [savedSuccess, setSavedSuccess] = useState(false);
   const [recentLogs, setRecentLogs] = useState([]);
 
-  // Load recent logs on mount or change
+  // Load recent logs in real time
   useEffect(() => {
-    loadLogs();
-  }, [householdId, currentUser]);
-
-  const loadLogs = () => {
-    const logs = getLocalLogs(householdId);
-    setRecentLogs(logs);
-  };
+    const unsubscribe = subscribeToHouseholdData(
+      householdId,
+      (updatedLogs) => setRecentLogs(updatedLogs),
+      () => {}
+    );
+    return () => unsubscribe();
+  }, [householdId]);
 
   // Update default sets when exercise or user changes
   useEffect(() => {
@@ -446,50 +446,57 @@ export function WorkoutLogger() {
           </div>
 
           <div className="space-y-3 max-h-[500px] overflow-y-auto pr-1">
-            {recentLogs.slice(0, 8).map((log) => {
-              const isDionicio = log.userId === 'dionicio';
-              return (
-                <div
-                  key={log.id}
-                  className={`p-3.5 rounded-xl border text-xs space-y-1.5 transition-all ${
-                    isDionicio
-                      ? 'bg-sky-950/20 border-sky-500/30'
-                      : 'bg-pink-950/20 border-pink-500/30'
-                  }`}
-                >
-                  <div className="flex items-center justify-between">
-                    <span className={`font-black ${isDionicio ? 'text-sky-400' : 'text-pink-400'}`}>
-                      {isDionicio ? '👨‍💻 Dionicio' : '👩‍💼 Paula'}
-                    </span>
-                    <span className="text-[10px] font-mono text-slate-400">{log.date}</span>
-                  </div>
+            {recentLogs.length === 0 ? (
+              <div className="p-6 rounded-xl bg-gym-900/60 border border-dashed border-gym-700 text-center text-xs text-slate-500 space-y-1 font-mono">
+                <p>Sin registros en la nube aún.</p>
+                <p className="text-[11px] text-slate-600">Completa tu primera serie hoy para ver el historial.</p>
+              </div>
+            ) : (
+              recentLogs.slice(0, 8).map((log) => {
+                const isDionicio = log.userId === 'dionicio';
+                return (
+                  <div
+                    key={log.id}
+                    className={`p-3.5 rounded-xl border text-xs space-y-1.5 transition-all ${
+                      isDionicio
+                        ? 'bg-sky-950/20 border-sky-500/30'
+                        : 'bg-pink-950/20 border-pink-500/30'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className={`font-black ${isDionicio ? 'text-sky-400' : 'text-pink-400'}`}>
+                        {isDionicio ? '👨‍💻 Dionicio' : '👩‍💼 Paula'}
+                      </span>
+                      <span className="text-[10px] font-mono text-slate-400">{log.date}</span>
+                    </div>
 
-                  {log.type === 'strength' ? (
-                    <div>
-                      <div className="font-bold text-white text-xs">{log.exerciseName}</div>
-                      <div className="text-[11px] text-slate-300 font-mono mt-0.5">
-                        {log.sets?.map(s => `${s.weightKg}kg x ${s.reps}`).join(' | ')}
+                    {log.type === 'strength' ? (
+                      <div>
+                        <div className="font-bold text-white text-xs">{log.exerciseName}</div>
+                        <div className="text-[11px] text-slate-300 font-mono mt-0.5">
+                          {log.sets?.map(s => `${s.weightKg}kg x ${s.reps}`).join(' | ')}
+                        </div>
+                        <div className="text-[10px] text-sky-400 font-bold mt-1">
+                          Volumen: {log.totalVolumeKg} kg
+                        </div>
                       </div>
-                      <div className="text-[10px] text-sky-400 font-bold mt-1">
-                        Volumen: {log.totalVolumeKg} kg
+                    ) : (
+                      <div>
+                        <div className="font-bold text-pink-300 text-xs">Trotadora ({log.durationMinutes} min)</div>
+                        <div className="text-[11px] text-slate-300 font-mono mt-0.5 flex items-center gap-2">
+                          <span>Inc: {log.incline}</span>
+                          <span>•</span>
+                          <span>{log.avgSpeedKmH} km/h</span>
+                          <span>•</span>
+                          <span>{log.activeCaloriesKcal} kcal</span>
+                        </div>
                       </div>
-                    </div>
-                  ) : (
-                    <div>
-                      <div className="font-bold text-pink-300 text-xs">Trotadora ({log.durationMinutes} min)</div>
-                      <div className="text-[11px] text-slate-300 font-mono mt-0.5 flex items-center gap-2">
-                        <span>Inc: {log.incline}</span>
-                        <span>•</span>
-                        <span>{log.avgSpeedKmH} km/h</span>
-                        <span>•</span>
-                        <span>{log.activeCaloriesKcal} kcal</span>
-                      </div>
-                    </div>
-                  )}
-                  {log.notes && <p className="text-[10px] text-slate-400 italic">"{log.notes}"</p>}
-                </div>
-              );
-            })}
+                    )}
+                    {log.notes && <p className="text-[10px] text-slate-400 italic">"{log.notes}"</p>}
+                  </div>
+                );
+              })
+            )}
           </div>
         </div>
       </div>
