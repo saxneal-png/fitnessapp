@@ -98,7 +98,7 @@ async function getGeminiWeeklySummary(userName, userLogs) {
   }
   try {
     const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
-    const modelCandidates = ['gemini-1.5-flash-latest', 'gemini-2.0-flash', 'gemini-flash-latest', 'gemini-1.5-flash'];
+    const modelCandidates = ['gemini-flash-latest', 'gemini-1.5-flash-latest', 'gemini-2.0-flash'];
     let text = null;
 
     const prompt = `Genera un mensaje breve (2 párrafos, motivador y técnico) para el correo de pauta semanal de ${userName} (Nivel Principiante, Fase Semana 0).

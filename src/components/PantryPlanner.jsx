@@ -109,7 +109,7 @@ export function PantryPlanner() {
     if (apiKey) {
       try {
         const genAI = new GoogleGenerativeAI(apiKey);
-        const modelCandidates = ['gemini-1.5-flash-latest', 'gemini-2.0-flash', 'gemini-flash-latest', 'gemini-1.5-flash'];
+        const modelCandidates = ['gemini-flash-latest', 'gemini-1.5-flash-latest', 'gemini-2.0-flash'];
         let text = null;
         let lastErr = null;
 
