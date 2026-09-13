@@ -8,14 +8,23 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 
 // 1. Environment & Secrets Check
 const HOUSEHOLD_ID = process.env.HOUSEHOLD_ID || 'hogar-dionicio-paula';
-const DIONICIO_EMAIL = process.env.DIONICIO_EMAIL || 'saxneal@gmail.com';
-const PAULA_EMAIL = process.env.PAULA_EMAIL || 'paula_sandoval@yahoo.es';
+const DIONICIO_EMAIL = process.env.DIONICIO_EMAIL;
+const PAULA_EMAIL = process.env.PAULA_EMAIL;
 const RESEND_API_KEY = process.env.RESEND_API_KEY;
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 const FIREBASE_SERVICE_ACCOUNT = process.env.FIREBASE_SERVICE_ACCOUNT;
 
+// Formateador de fecha con zona horaria chilena (manejo automático de horario de invierno/verano)
+const CHILE_TZ = 'America/Santiago';
+const formattedChileDate = new Intl.DateTimeFormat('es-CL', {
+  timeZone: CHILE_TZ,
+  dateStyle: 'full',
+  timeStyle: 'short',
+}).format(new Date());
+
 console.log('🚀 Iniciando script de envío de plan semanal...');
 console.log(`🏠 Hogar: ${HOUSEHOLD_ID}`);
+console.log(`🇨🇱 Hora Local Santiago: ${formattedChileDate}`);
 
 // 2. Initialize Firebase Admin SDK
 let db = null;
@@ -23,10 +32,8 @@ if (FIREBASE_SERVICE_ACCOUNT) {
   try {
     let serviceAccountJson;
     try {
-      // Try direct JSON
       serviceAccountJson = JSON.parse(FIREBASE_SERVICE_ACCOUNT);
     } catch {
-      // Try base64 decoding
       serviceAccountJson = JSON.parse(Buffer.from(FIREBASE_SERVICE_ACCOUNT, 'base64').toString('utf8'));
     }
 
@@ -255,37 +262,44 @@ function buildEmailHtml(userName, isDionicio, coachNote) {
   `;
 }
 
-// 7. Send Email Helper
+// 7. Send Email Helper (Nodemailer / SMTP prioritario para evitar restricciones de dominio no verificado)
 async function sendEmail({ to, subject, html }) {
-  if (RESEND_API_KEY) {
-    const resend = new Resend(RESEND_API_KEY);
-    const fromEmail = process.env.EMAIL_FROM || 'entrenamientos@resend.dev';
-    console.log(`Enviando via Resend a: ${to}...`);
-    return resend.emails.send({
-      from: fromEmail,
-      to,
-      subject,
-      html,
-    });
-  } else if (process.env.SMTP_USER && process.env.SMTP_PASS) {
-    console.log(`Enviando via Nodemailer a: ${to}...`);
+  if (process.env.SMTP_USER && process.env.SMTP_PASS) {
+    console.log(`📨 Enviando via Nodemailer (SMTP: ${process.env.SMTP_HOST || 'smtp.gmail.com'}) a: ${to}...`);
     const transporter = nodemailer.createTransport({
       host: process.env.SMTP_HOST || 'smtp.gmail.com',
-      port: 465,
-      secure: true,
+      port: parseInt(process.env.SMTP_PORT) || 465,
+      secure: (process.env.SMTP_SECURE !== 'false'),
       auth: {
         user: process.env.SMTP_USER,
         pass: process.env.SMTP_PASS,
       },
     });
     return transporter.sendMail({
-      from: process.env.SMTP_USER,
+      from: `"Dúo en Casa Coach" <${process.env.SMTP_USER}>`,
       to,
       subject,
       html,
     });
+  } else if (RESEND_API_KEY) {
+    const resend = new Resend(RESEND_API_KEY);
+    const fromEmail = process.env.EMAIL_FROM || 'onboarding@resend.dev';
+    console.log(`📨 Enviando via Resend (${fromEmail}) a: ${to}...`);
+    try {
+      return await resend.emails.send({
+        from: fromEmail,
+        to,
+        subject,
+        html,
+      });
+    } catch (err) {
+      if (err.message && err.message.includes('validation_error')) {
+        console.warn(`⚠️ Aviso Resend: Si el dominio no está verificado en Resend, solo puedes enviar a tu propio correo de registro. Se recomienda usar SMTP (Gmail App Password) con SMTP_USER y SMTP_PASS.`);
+      }
+      throw err;
+    }
   } else {
-    console.log(`[SIMULACIÓN] No se encontró RESEND_API_KEY ni credenciales SMTP. Correo simulado para: ${to}`);
+    console.log(`[SIMULACIÓN] No se encontró SMTP_USER ni RESEND_API_KEY. Correo simulado para: ${to}`);
     return { id: 'simulated-ok' };
   }
 }

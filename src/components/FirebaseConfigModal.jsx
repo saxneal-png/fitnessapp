@@ -1,13 +1,34 @@
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { getStoredFirebaseConfig, saveFirebaseConfig, initFirebase, clearProductionData } from '../firebase/config';
-import { Database, Key, ShieldCheck, Check, AlertCircle, X, Home, ExternalLink } from 'lucide-react';
+import { 
+  getStoredFirebaseConfig, 
+  saveFirebaseConfig, 
+  initFirebase, 
+  clearProductionData,
+  syncLocalDataToFirestore,
+  ensureAnonymousAuth
+} from '../firebase/config';
+import { 
+  Database, 
+  Key, 
+  ShieldCheck, 
+  Check, 
+  AlertCircle, 
+  X, 
+  Home, 
+  Cloud, 
+  CloudUpload, 
+  RefreshCw,
+  ExternalLink 
+} from 'lucide-react';
 
 export function FirebaseConfigModal({ isOpen, onClose }) {
-  const { householdId, changeHouseholdId, isFirebaseConnected } = useAuth();
+  const { householdId, changeHouseholdId, isFirebaseConnected, isCloudOnline } = useAuth();
   const [config, setConfig] = useState(() => getStoredFirebaseConfig());
   const [householdInput, setHouseholdInput] = useState(householdId);
   const [saved, setSaved] = useState(false);
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [syncStatusMsg, setSyncStatusMsg] = useState('');
 
   if (!isOpen) return null;
 
@@ -24,17 +45,30 @@ export function FirebaseConfigModal({ isOpen, onClose }) {
     }, 1200);
   };
 
+  const handleCloudSync = async () => {
+    setIsSyncing(true);
+    setSyncStatusMsg('');
+    try {
+      const result = await syncLocalDataToFirestore(householdId);
+      setSyncStatusMsg(`✅ ¡Sincronización a la Nube completada! (${result.uploadedLogs} entrenamientos y ${result.uploadedWeights} pesos subidos a Firestore)`);
+    } catch (err) {
+      setSyncStatusMsg(`⚠️ Error al sincronizar con la nube: ${err.message}`);
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
   return (
     <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
       <div className="bg-gym-800 border border-gym-700 rounded-3xl p-6 sm:p-8 max-w-lg w-full shadow-2xl space-y-5 animate-fadeIn">
         <div className="flex items-start justify-between">
           <div className="flex items-center gap-3">
-            <div className="p-3 rounded-2xl bg-amber-500/10 text-amber-400 border border-amber-500/20">
-              <Database className="w-6 h-6" />
+            <div className="p-3 rounded-2xl bg-sky-500/10 text-sky-400 border border-sky-500/20">
+              <Cloud className="w-6 h-6" />
             </div>
             <div>
-              <h3 className="font-extrabold text-lg text-white">Configuración de Firebase</h3>
-              <p className="text-xs text-slate-400">Personaliza tus credenciales sin modificar el repositorio.</p>
+              <h3 className="font-extrabold text-lg text-white">Base de Datos en la Nube (Firebase)</h3>
+              <p className="text-xs text-slate-400">Sincronización multi-dispositivo y persistencia en Google Cloud.</p>
             </div>
           </div>
           <button onClick={onClose} className="p-2 text-slate-400 hover:text-white rounded-xl hover:bg-gym-700">
@@ -42,19 +76,62 @@ export function FirebaseConfigModal({ isOpen, onClose }) {
           </button>
         </div>
 
-        {isFirebaseConnected ? (
-          <div className="p-3 rounded-xl bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 text-xs flex items-center gap-2">
-            <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0" />
-            <span>Firebase Firestore conectado y sincronizando en vivo.</span>
-          </div>
-        ) : (
-          <div className="p-3 rounded-xl bg-sky-950/30 border border-sky-500/30 text-sky-200 text-xs flex items-center gap-2">
-            <AlertCircle className="w-4 h-4 text-sky-400 shrink-0" />
-            <span>
-              Modo Local / Demo activo. Puedes pegar tus claves de Firebase Spark gratuitas a continuación para sincronización multi-dispositivo.
+        {isCloudOnline || isFirebaseConnected ? (
+          <div className="p-3.5 rounded-xl bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 text-xs flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <ShieldCheck className="w-5 h-5 text-emerald-400 shrink-0" />
+              <div>
+                <span className="font-bold block">Conectado a Firebase Cloud Firestore</span>
+                <span className="text-[11px] text-emerald-200/80 font-mono">Proyecto: {config.projectId || 'fitness-app-e7a59'}</span>
+              </div>
+            </div>
+            <span className="px-2 py-0.5 rounded-full bg-emerald-500 text-gym-900 font-black text-[10px] uppercase">
+              Online
             </span>
           </div>
+        ) : (
+          <div className="p-3.5 rounded-xl bg-amber-500/20 border border-amber-500/40 text-amber-200 text-xs flex items-center gap-2">
+            <AlertCircle className="w-5 h-5 text-amber-400 shrink-0" />
+            <div>
+              <span className="font-bold block">Conectando a Firebase Cloud...</span>
+              <span className="text-[11px] text-slate-300">Verifica tu conexión a internet o tus credenciales abajo.</span>
+            </div>
+          </div>
         )}
+
+        {/* Cloud Migration / Sync Button */}
+        <div className="p-3.5 rounded-2xl bg-gym-900/90 border border-gym-700 space-y-2">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold text-slate-300 flex items-center gap-1.5">
+              <CloudUpload className="w-4 h-4 text-sky-400" />
+              <span>Sincronizador a la Nube</span>
+            </span>
+            <button
+              type="button"
+              onClick={handleCloudSync}
+              disabled={isSyncing}
+              className="px-3 py-1.5 rounded-xl bg-sky-500 hover:bg-sky-400 text-gym-900 font-bold text-xs flex items-center gap-1.5 transition-all disabled:opacity-50"
+            >
+              {isSyncing ? (
+                <>
+                  <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                  <span>Subiendo...</span>
+                </>
+              ) : (
+                <>
+                  <CloudUpload className="w-3.5 h-3.5" />
+                  <span>Subir todo a Firebase</span>
+                </>
+              )}
+            </button>
+          </div>
+          <p className="text-[11px] text-slate-400">
+            Sube todos los entrenamientos, pesos y despensa almacenados a Firestore Cloud para que ambos los vean en sus celulares.
+          </p>
+          {syncStatusMsg && (
+            <p className="text-xs font-semibold text-emerald-400 pt-1">{syncStatusMsg}</p>
+          )}
+        </div>
 
         {saved && (
           <div className="p-3 rounded-xl bg-emerald-500 text-gym-900 font-bold text-xs flex items-center gap-2">
@@ -157,3 +234,4 @@ export function FirebaseConfigModal({ isOpen, onClose }) {
     </div>
   );
 }
+

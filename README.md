@@ -41,26 +41,35 @@ Desplegado en GitHub Pages: **`https://saxneal-png.github.io/fitnessapp/`**
 1. Ingresa a [Firebase Console](https://console.firebase.google.com/) y crea un nuevo proyecto (ej. `fitness-duo-app`).
 2. **Habilitar Authentication:**
    - Ve a **Build > Authentication** > **Get started**.
-   - Habilita el método **Email/Password**.
-   - Crea los 2 usuarios: uno para Dionicio y otro para Paula.
+   - Habilita el método **Email/Password** y **Anonymous** (para acceso directo en el celular).
+   - Puedes inicializar los usuarios con UIDs exactos (`dionicio` y `paula`) ejecutando:
+     ```bash
+     cd automation
+     npm install
+     DIONICIO_EMAIL="tu-email@..." PAULA_EMAIL="email-paula@..." FIREBASE_SERVICE_ACCOUNT="./serviceAccountKey.json" npm run init-users
+     ```
 3. **Habilitar Firestore Database:**
    - Ve a **Build > Firestore Database** > **Create database**.
-   - Elige una ubicación cercana (ej. `us-east1` o `southamerica-east1`).
+   - Elige una ubicación cercana (ej. `southamerica-east1` o `us-east1`).
    - Pega las reglas del archivo `firestore.rules`:
      ```javascript
      rules_version = '2';
      service cloud.firestore {
        match /databases/{database}/documents {
          function isAuth() { return request.auth != null; }
-         function existsInHousehold(householdId, uid) {
+         function isHouseholdMember(householdId) {
            return isAuth() && (
-             uid == request.auth.uid || 
+             request.auth.uid == 'dionicio' ||
+             request.auth.uid == 'paula' ||
+             request.auth.token.firebase.sign_in_provider == 'anonymous' ||
              exists(/databases/$(database)/documents/households/$(householdId)/members/$(request.auth.uid))
            );
          }
-         match /households/{householdId}/members/{uid}/{document=**} {
-           allow read: if isAuth() && existsInHousehold(householdId, uid);
-           allow write: if isAuth() && request.auth.uid == uid;
+         match /households/{householdId} {
+           allow read, write: if isHouseholdMember(householdId);
+           match /{allSubcollections=**} {
+             allow read, write: if isHouseholdMember(householdId);
+           }
          }
        }
      }
@@ -68,7 +77,7 @@ Desplegado en GitHub Pages: **`https://saxneal-png.github.io/fitnessapp/`**
 4. **Obtener Credenciales Web:**
    - En **Project Settings** (icono de engranaje) > **General**, crea una **Web App (`</>`)**.
    - Copia las claves (`apiKey`, `authDomain`, `projectId`, `appId`).
-   - Puedes pegarlas directamente en la app web en el botón ⚙️ **Configuración de Firebase** (se guardarán en tu navegador).
+   - Se configuran en `.env` o en el botón ⚙️ **Base de Datos en la Nube** de la app web.
 
 ---
 
@@ -78,18 +87,20 @@ Para que el workflow `.github/workflows/weekly-email.yml` envíe los correos cad
 1. **Generar Service Account de Firebase:**
    - En Firebase Console > **Project Settings** > **Service accounts**.
    - Haz clic en **Generate new private key**. Descargarás un archivo JSON.
-2. **Obtener API Key de Resend (Gratis):**
-   - Regístrate en [Resend.com](https://resend.com) y copia tu API Key (ej. `re_123456...`).
+2. **Opciones de Envío de Correo:**
+   - **Opción A (Recomendada para cuentas personales como Yahoo/Gmail sin dominio propio):** Usa Gmail con una Contraseña de Aplicación (`SMTP_USER` y `SMTP_PASS`).
+   - **Opción B:** Usa [Resend.com](https://resend.com) configurando `RESEND_API_KEY` y `EMAIL_FROM` (si tienes dominio propio verificado).
 3. **Cargar Secrets en GitHub:**
-   - Ve a `https://github.com/saxneal-png/fitnessapp/settings/secrets/actions` y crea estos 4 secrets:
+   - Ve a `https://github.com/saxneal-png/fitnessapp/settings/secrets/actions` y define estos Secrets:
 
 | Secret Name | Valor requerido |
 | :--- | :--- |
-| `FIREBASE_SERVICE_ACCOUNT` | Pega todo el contenido del archivo JSON de la Service Account descargada de Firebase. |
-| `RESEND_API_KEY` | Tu API key de Resend (`re_...`) |
-| `DIONICIO_EMAIL` | El correo electrónico de Dionicio donde llegará su plan. |
-| `PAULA_EMAIL` | El correo electrónico de Paula donde llegará su plan. |
-| `GEMINI_API_KEY` | *(Opcional)* Clave de [Google AI Studio](https://aistudio.google.com/) para que la IA personalice el mensaje semanal. |
+| `FIREBASE_SERVICE_ACCOUNT` | Contenido completo del JSON de la Service Account de Firebase. |
+| `DIONICIO_EMAIL` | Correo electrónico de Dionicio donde llegará su plan. |
+| `PAULA_EMAIL` | Correo electrónico de Paula donde llegará su plan. |
+| `SMTP_USER` | Tu cuenta de correo remitente (ej. `tu-correo@gmail.com`). |
+| `SMTP_PASS` | Contraseña de aplicación de 16 caracteres de Google (generada en https://myaccount.google.com/apppasswords). |
+| `GEMINI_API_KEY` | *(Opcional)* Clave de [Google AI Studio](https://aistudio.google.com/) para análisis IA semanal. |
 | `HOUSEHOLD_ID` | `hogar-dionicio-paula` |
 
 ---

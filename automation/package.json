@@ -3,6 +3,10 @@
   "version": "1.0.0",
   "type": "module",
   "private": true,
+  "scripts": {
+    "send-plan": "node send-weekly-plan.mjs",
+    "init-users": "node init-firebase-users.mjs"
+  },
   "dependencies": {
     "@google/generative-ai": "^0.24.0",
     "firebase-admin": "^12.0.0",

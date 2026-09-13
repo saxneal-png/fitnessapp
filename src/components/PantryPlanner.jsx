@@ -1,7 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { USERS } from '../data/workoutCatalog';
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import { generateStrictPantryMenu, getStoredGeminiKey } from '../services/geminiService';
+import { 
+  saveCloudPantryItems, 
+  subscribeToPantryItems, 
+  saveCloudWeeklyMenu, 
+  subscribeToWeeklyMenu 
+} from '../firebase/config';
 import { 
   Utensils, 
   Sparkles, 
@@ -15,14 +21,16 @@ import {
   RefreshCw, 
   ChefHat, 
   Clock, 
-  Info,
-  Key
+  Info, 
+  Key, 
+  ShieldCheck, 
+  Scale,
+  Cloud
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 
 const PANTRY_STORAGE_KEY = 'fitness_duo_pantry_items';
 const MENU_STORAGE_KEY = 'fitness_duo_weekly_menu';
-const GEMINI_STORAGE_KEY = 'fitness_gemini_api_key';
 
 const DEFAULT_COMMON_INGREDIENTS = [
   { id: 'p1', name: 'Huevos', category: 'Proteína' },
@@ -43,7 +51,7 @@ const DEFAULT_COMMON_INGREDIENTS = [
 ];
 
 export function PantryPlanner() {
-  const { currentUser, householdId } = useAuth();
+  const { currentUser, householdId, isCloudOnline } = useAuth();
   
   const [pantryItems, setPantryItems] = useState(() => {
     try {
@@ -64,174 +72,91 @@ export function PantryPlanner() {
 
   const [isLoading, setIsLoading] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
 
+  // Real-time Cloud Subscriptions
   useEffect(() => {
-    localStorage.setItem(PANTRY_STORAGE_KEY, JSON.stringify(pantryItems));
-  }, [pantryItems]);
+    const unsubPantry = subscribeToPantryItems(householdId, (items) => {
+      if (items && Array.isArray(items)) {
+        setPantryItems(items);
+      }
+    });
 
-  useEffect(() => {
-    if (generatedMenu) {
-      localStorage.setItem(MENU_STORAGE_KEY, JSON.stringify(generatedMenu));
-    }
-  }, [generatedMenu]);
+    const unsubMenu = subscribeToWeeklyMenu(householdId, (menu) => {
+      if (menu && menu.content) {
+        setGeneratedMenu(menu);
+      }
+    });
+
+    return () => {
+      unsubPantry();
+      unsubMenu();
+    };
+  }, [householdId]);
+
+  const updatePantryAndSync = (newItems) => {
+    setPantryItems(newItems);
+    saveCloudPantryItems(newItems, householdId);
+  };
 
   const togglePresetIngredient = (name) => {
+    let updated;
     if (pantryItems.includes(name)) {
-      setPantryItems(pantryItems.filter(i => i !== name));
+      updated = pantryItems.filter(i => i !== name);
     } else {
-      setPantryItems([...pantryItems, name]);
+      updated = [...pantryItems, name];
     }
+    updatePantryAndSync(updated);
   };
 
   const handleAddCustomItem = (e) => {
     e.preventDefault();
     const item = customItemInput.trim();
     if (item && !pantryItems.includes(item)) {
-      setPantryItems([...pantryItems, item]);
+      const updated = [...pantryItems, item];
+      updatePantryAndSync(updated);
       setCustomItemInput('');
     }
   };
 
   const handleRemoveItem = (itemToRemove) => {
-    setPantryItems(pantryItems.filter(i => i !== itemToRemove));
+    const updated = pantryItems.filter(i => i !== itemToRemove);
+    updatePantryAndSync(updated);
   };
 
-  // Generate Menu via Gemini or Structured Intelligent Fallback
+  // Generate Menu via Gemini Strict Pantry Engine
   const handleGenerateMenu = async () => {
     if (pantryItems.length === 0) {
-      alert('Por favor selecciona o añade al menos 2 o 3 ingredientes disponibles en tu despensa.');
+      setErrorMessage('Por favor selecciona o añade al menos 2 o 3 ingredientes disponibles en tu despensa.');
       return;
     }
 
     setIsLoading(true);
-    const apiKey = localStorage.getItem(GEMINI_STORAGE_KEY);
+    setErrorMessage('');
 
-    if (apiKey) {
+    try {
+      const apiKey = getStoredGeminiKey();
+      const menuText = await generateStrictPantryMenu(pantryItems, apiKey);
+
+      const menuPayload = {
+        generatedAt: new Date().toLocaleDateString('es-ES', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }),
+        ingredientsUsed: pantryItems,
+        content: menuText,
+        isAI: !!apiKey
+      };
+
+      setGeneratedMenu(menuPayload);
+      await saveCloudWeeklyMenu(menuPayload, householdId);
+
       try {
-        const genAI = new GoogleGenerativeAI(apiKey);
-        const modelCandidates = ['gemini-flash-latest', 'gemini-1.5-flash-latest', 'gemini-2.0-flash'];
-        let text = null;
-        let lastErr = null;
-
-        const prompt = `Actúa como un Nutricionista Deportivo de precisión. Diseña un plan de comidas de Lunes a Viernes para una pareja de principiantes (Dionicio y Paula) que entrena de 19:00 a 20:00 con mancuernas y trotadora.
-
-Ingredientes disponibles en su despensa/refrigerador:
-${pantryItems.join(', ')}
-
-Perfiles Nutricionales Estrictos:
-- Dionicio (180 cm):
-  * Horario: Ayuno matutino intermitente.
-  * Almuerzo: 13:00 - 14:00 (Alto en proteínas y carbohidratos complejos para energía del entrenamiento).
-  * Cena Post-Entreno: 20:00 en punto (Inmediatamente post-entreno: alto en proteínas para síntesis muscular y carbohidratos de reposición).
-- Paula (41 años, 160 cm):
-  * Desayuno: Liviano y proteico (ej: huevos con espinaca o avena proteica).
-  * Almuerzo: Balanceado y nutritivo.
-  * Cena Post-Entreno: 20:00 (Ligera pero saciante con proteína magra y vegetales).
-
-Instrucciones de formato:
-Devuelve un plan estructurado, apetitoso y fácil de preparar día por día (Lunes, Martes, Miércoles, Jueves, Viernes) con las porciones sugeridas para cada uno, además de 2 tips de meal-prep para ahorrar tiempo y una pequeña lista de compras de 3 o 4 ingredientes recomendados si hicieran falta.`;
-
-        for (const mName of modelCandidates) {
-          try {
-            const model = genAI.getGenerativeModel({ model: mName });
-            const result = await model.generateContent(prompt);
-            text = result.response.text();
-            if (text) break;
-          } catch (e) {
-            lastErr = e;
-            console.warn(`Intento de PantryPlanner con ${mName} falló:`, e.message);
-          }
-        }
-
-        if (!text) throw lastErr;
-
-        setGeneratedMenu({
-          generatedAt: new Date().toLocaleDateString('es-ES', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }),
-          ingredientsUsed: pantryItems,
-          content: text,
-          isAI: true
-        });
-
-        try { confetti({ particleCount: 80, spread: 70, origin: { y: 0.6 } }); } catch (e) {}
-      } catch (err) {
-        console.error('Gemini Menu generation error:', err);
-        generateFallbackMenu();
-      }
-    } else {
-      // Fallback structured menu
-      generateFallbackMenu();
+        confetti({ particleCount: 80, spread: 70, origin: { y: 0.6 } });
+      } catch (e) {}
+    } catch (err) {
+      console.error('Menu generation error:', err);
+      setErrorMessage(`Error al generar el menú: ${err.message}`);
+    } finally {
+      setIsLoading(false);
     }
-
-    setIsLoading(false);
-  };
-
-  const generateFallbackMenu = () => {
-    const fallbackText = `### 🥗 Plan Nutricional Semanal (Lunes a Viernes)
-
-#### 📅 LUNES
-- **👨‍💻 Dionicio:**
-  - *Almuerzo (13:30):* Pechuga de pollo a la plancha (200g) con arroz integral (1.5 tazas), ensalada de hojas verdes y aceite de oliva.
-  - *Cena Post-Entreno (20:00):* Omelette de 4 huevos con espinacas y 1 rebanada de pan integral con palta.
-- **👩‍💼 Paula:**
-  - *Desayuno:* Omelette de 2 claras y 1 huevo entero con espinacas y té/café sin azúcar.
-  - *Almuerzo:* Pechuga de pollo (120g) con arroz (1/2 taza) y ensalada verde abundante con palta.
-  - *Cena Post-Entreno (20:00):* Ensalada tibia de hojas verdes con atún al natural y cubos de huevo duro.
-
----
-
-#### 📅 MARTES
-- **👨‍💻 Dionicio:**
-  - *Almuerzo (13:30):* Carne magra salteada con papas cocidas/al horno (250g) y tomate.
-  - *Cena Post-Entreno (20:00):* Bowl de arroz blanco con atún (2 latas), palta y huevo pochado.
-- **👩‍💼 Paula:**
-  - *Desayuno:* Bowl de avena cocida con agua/leche y un toque de yogurt griego.
-  - *Almuerzo:* Carne magra (130g) con ensalada de tomate, zanahoria y 1 papa pequeña.
-  - *Cena Post-Entreno (20:00):* Atún con ensalada mixta y 1/4 de palta.
-
----
-
-#### 📅 MIÉRCOLES
-- **👨‍💻 Dionicio:**
-  - *Almuerzo (13:30):* Pollo desmenuzado en salsa de tomate natural con arroz y palta.
-  - *Cena Post-Entreno (20:00):* Revuelto de 4 huevos con atún y tostadas integrales.
-- **👩‍💼 Paula:**
-  - *Desayuno:* 2 huevos revueltos con tomate cherry y café.
-  - *Almuerzo:* Pollo a la plancha (120g) con ensalada fresca de hojas verdes y aceite de oliva.
-  - *Cena Post-Entreno (20:00):* Revuelto de 2 huevos con atún y espinacas salteadas.
-
----
-
-#### 📅 JUEVES
-- **👨‍💻 Dionicio:**
-  - *Almuerzo (13:30):* Carne molida magra con arroz y brócoli al vapor con aceite de oliva.
-  - *Cena Post-Entreno (20:00):* Pechuga de pollo marinada con papas al horno y ensalada verde.
-- **👩‍💼 Paula:**
-  - *Desayuno:* Yogurt griego con 2 cucharadas de avena y frutos secos.
-  - *Almuerzo:* Carne magra con ensalada abundante de brócoli y tomate.
-  - *Cena Post-Entreno (20:00):* Filete de pollo a la plancha con brócoli al vapor y limón.
-
----
-
-#### 📅 VIERNES
-- **👨‍💻 Dionicio:**
-  - *Almuerzo (13:30):* Arroz salteado con pollo, verduras mixtas y huevo estilo wok.
-  - *Cena Post-Entreno (20:00):* 4 huevos fritos en oliva con pan integral, palta y tomate.
-- **👩‍💼 Paula:**
-  - *Desayuno:* Pan integral con huevo pochado y palta.
-  - *Almuerzo:* Wok de pollo con verduras abundantes y 1/3 taza de arroz.
-  - *Cena Post-Entreno (20:00):* Omelette de espinacas y atún con ensalada fresca.
-
----
-
-💡 **Consejo de Meal-Prep en Pareja:** Cocinen el arroz y horneen el pollo el domingo o lunes en la tarde para tener la base lista de toda la semana y solo armar los platos en 5 minutos al terminar a las 20:00.`;
-
-    setGeneratedMenu({
-      generatedAt: new Date().toLocaleDateString('es-ES', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }),
-      ingredientsUsed: pantryItems,
-      content: fallbackText,
-      isAI: false
-    });
-    try { confetti({ particleCount: 70, spread: 60, origin: { y: 0.6 } }); } catch (e) {}
   };
 
   const handleCopyMenu = () => {
@@ -252,10 +177,10 @@ Devuelve un plan estructurado, apetitoso y fácil de preparar día por día (Lun
         <div>
           <div className="flex items-center gap-2">
             <ChefHat className="w-6 h-6 text-emerald-400" />
-            <h2 className="text-2xl font-black text-white">Despensa & Menú Semanal (Lunes a Viernes)</h2>
+            <h2 className="text-2xl font-black text-white">Despensa & Menú Dúo (Misma Receta)</h2>
           </div>
           <p className="text-xs sm:text-sm text-slate-400">
-            Dinos qué ingredientes tienen en casa y la IA diseñará el menú exacto para el ayuno de <strong>Dionicio</strong> (almuerzo 13:30 y cena 20:00) y la nutrición de <strong>Paula</strong>.
+            Una sola preparación en la cocina para ambos. <strong>Receta idéntica</strong> con <strong>porciones y gramajes individuales</strong> basados 100% en su despensa.
           </p>
         </div>
 
@@ -279,6 +204,46 @@ Devuelve un plan estructurado, apetitoso y fácil de preparar día por día (Lun
         )}
       </div>
 
+      {/* Reglas Clave de la Cocina en Pareja */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3 no-print">
+        <div className="bg-gym-800/80 border border-emerald-500/30 rounded-2xl p-3.5 flex items-center gap-3">
+          <div className="w-9 h-9 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center shrink-0">
+            <Utensils className="w-5 h-5" />
+          </div>
+          <div className="text-xs">
+            <span className="font-extrabold text-white block">1 Sola Cocinada</span>
+            <span className="text-slate-400">Mismo plato/receta para ambos en almuerzos y cenas (20:00).</span>
+          </div>
+        </div>
+
+        <div className="bg-gym-800/80 border border-sky-500/30 rounded-2xl p-3.5 flex items-center gap-3">
+          <div className="w-9 h-9 rounded-xl bg-sky-500/20 text-sky-400 flex items-center justify-center shrink-0">
+            <Scale className="w-5 h-5" />
+          </div>
+          <div className="text-xs">
+            <span className="font-extrabold text-white block">Porciones Diferenciadas</span>
+            <span className="text-slate-400">Gramajes exactos para Dionicio (180 cm) y Paula (160 cm).</span>
+          </div>
+        </div>
+
+        <div className="bg-gym-800/80 border border-amber-500/30 rounded-2xl p-3.5 flex items-center gap-3">
+          <div className="w-9 h-9 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center shrink-0">
+            <ShieldCheck className="w-5 h-5" />
+          </div>
+          <div className="text-xs">
+            <span className="font-extrabold text-white block">Despensa Estricta</span>
+            <span className="text-slate-400">Solo se usan ingredientes de la lista que informen abajo.</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Error Banner */}
+      {errorMessage && (
+        <div className="p-4 rounded-xl bg-red-500/20 border border-red-500/40 text-red-300 text-xs font-semibold">
+          {errorMessage}
+        </div>
+      )}
+
       {/* Pantry Selector Box */}
       <div className="bg-gym-800/90 border border-gym-700 rounded-2xl p-5 sm:p-6 shadow-xl space-y-5 no-print">
         <div className="flex items-center justify-between">
@@ -287,7 +252,7 @@ Devuelve un plan estructurado, apetitoso y fácil de preparar día por día (Lun
             <span>¿Qué tienen en su refrigerador / despensa hoy?</span>
           </h3>
           <span className="text-xs font-mono text-emerald-400 font-bold bg-emerald-950/40 px-2.5 py-1 rounded-lg border border-emerald-500/30">
-            {pantryItems.length} ingredientes listos
+            {pantryItems.length} ingredientes informados
           </span>
         </div>
 
@@ -321,7 +286,7 @@ Devuelve un plan estructurado, apetitoso y fácil de preparar día por día (Lun
         <form onSubmit={handleAddCustomItem} className="flex gap-2 pt-2 border-t border-gym-700/60">
           <input
             type="text"
-            placeholder="¿Otro ingrediente? Ej: Salmón, Champiñones, Quinoa, Lentejas..."
+            placeholder="¿Otro ingrediente en casa? Ej: Champiñones, Zapallo italiano, Lentejas, Salmón..."
             value={customItemInput}
             onChange={(e) => setCustomItemInput(e.target.value)}
             className="flex-1 bg-gym-900 border border-gym-700 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-emerald-500"
@@ -338,7 +303,7 @@ Devuelve un plan estructurado, apetitoso y fácil de preparar día por día (Lun
         {/* Active Items Badges */}
         <div className="space-y-2">
           <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider">
-            Ingredientes activos para la planificación:
+            Ingredientes activos para la planificación estricta:
           </label>
           <div className="flex flex-wrap gap-2 max-h-32 overflow-y-auto pr-1">
             {pantryItems.map((item, idx) => (
@@ -369,12 +334,12 @@ Devuelve un plan estructurado, apetitoso y fácil de preparar día por día (Lun
           {isLoading ? (
             <>
               <RefreshCw className="w-5 h-5 animate-spin" />
-              <span>Diseñando menú personalizado con lo que tienen...</span>
+              <span>Diseñando menú con recetas compartidas y porciones exactas...</span>
             </>
           ) : (
             <>
               <Sparkles className="w-5 h-5 fill-current" />
-              <span>Generar Menú de Lunes a Viernes</span>
+              <span>Diseñar Menú Semanal (Lunes a Viernes)</span>
             </>
           )}
         </button>
@@ -387,14 +352,14 @@ Devuelve un plan estructurado, apetitoso y fácil de preparar día por día (Lun
             <div>
               <div className="flex items-center gap-2">
                 <ChefHat className="w-6 h-6 text-emerald-400" />
-                <h3 className="text-xl font-black text-white">Menú Semanal Personalizado (Lunes a Viernes)</h3>
+                <h3 className="text-xl font-black text-white">Menú Dúo: Receta Compartida & Porciones Diferenciadas</h3>
               </div>
               <p className="text-xs text-slate-400 mt-0.5">
                 Generado el {generatedMenu.generatedAt} para <strong>Dionicio</strong> y <strong>Paula</strong>.
               </p>
             </div>
             <span className="text-xs font-mono bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 px-3 py-1 rounded-full font-bold">
-              {generatedMenu.isAI ? '⚡ Diseñado con Gemini AI' : '📋 Plantilla Inteligente'}
+              {generatedMenu.isAI ? '⚡ Diseñado con Gemini AI' : '📋 Plantilla de Despensa Estricta'}
             </span>
           </div>
 
@@ -405,7 +370,7 @@ Devuelve un plan estructurado, apetitoso y fácil de preparar día por día (Lun
                 <span>👨‍💻 Dionicio (180 cm):</span>
               </span>
               <p className="text-slate-300 leading-relaxed">
-                Ayuno en la mañana • Almuerzo 13:00-14:00 • <strong>Cena fuerte post-entreno a las 20:00</strong>.
+                Ayuno matutino • Almuerzo 13:30 (Porción grande) • <strong>Cena fuerte post-entreno a las 20:00</strong>.
               </p>
             </div>
             <div className="space-y-1">
@@ -413,7 +378,7 @@ Devuelve un plan estructurado, apetitoso y fácil de preparar día por día (Lun
                 <span>👩‍💼 Paula (41 años, 160 cm):</span>
               </span>
               <p className="text-slate-300 leading-relaxed">
-                Desayuno proteico liviano • Almuerzo balanceado • <strong>Cena post-entreno a las 20:00</strong>.
+                Desayuno liviano proteico • Almuerzo balanceado • <strong>Cena post-entreno a las 20:00 (Porción ajustada)</strong>.
               </p>
             </div>
           </div>

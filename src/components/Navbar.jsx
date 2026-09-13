@@ -117,16 +117,21 @@ export function Navbar({ currentTab, setCurrentTab, onOpenConfig, onLogout }) {
               </div>
             )}
 
-            {/* Config & Status Icon */}
+            {/* Cloud Status Badge & Config */}
             <button
               onClick={onOpenConfig}
-              className="p-2 rounded-xl bg-gym-800 text-slate-300 hover:text-white hover:bg-gym-700 border border-gym-700 transition-colors relative"
-              title="Configuración de Firebase y Hogar"
+              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border text-xs font-bold transition-all ${
+                isCloudOnline || isFirebaseConnected
+                  ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/20'
+                  : 'bg-amber-500/10 border-amber-500/30 text-amber-400 hover:bg-amber-500/20'
+              }`}
+              title="Estado de sincronización en la Nube con Firebase"
             >
-              <Settings className="w-4 h-4" />
-              {isFirebaseConnected && (
-                <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-              )}
+              <span className={`w-2 h-2 rounded-full ${isCloudOnline || isFirebaseConnected ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400'}`}></span>
+              <span className="hidden sm:inline font-mono text-[11px]">
+                {isCloudOnline || isFirebaseConnected ? 'Nube Firebase' : 'Modo Local'}
+              </span>
+              <Settings className="w-3.5 h-3.5 text-slate-400 ml-0.5" />
             </button>
           </div>
         </div>

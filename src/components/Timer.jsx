@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { SESSION_SCHEDULE, WORKOUT_DAYS, TREADMILL_PROTOCOLS, USERS } from '../data/workoutCatalog';
 import { soundEffects } from '../services/soundEffects';
+import { getLiveTimerAdvice, getStoredGeminiKey, askCoachWithFullContext } from '../services/geminiService';
 import confetti from 'canvas-confetti';
 import { 
   Play, 
@@ -19,11 +20,16 @@ import {
   CheckCircle2, 
   Clock, 
   Sparkles,
-  Info
+  Info,
+  Bot,
+  Send,
+  RefreshCw,
+  ChevronDown,
+  ChevronUp
 } from 'lucide-react';
 
 export function Timer({ onQuickLog }) {
-  const { currentUser, sessionMode } = useAuth();
+  const { currentUser, householdId } = useAuth();
   
   // Who starts where? Default: Dionicio on Strength, Paula on Treadmill (or customizable)
   const [userAIsDionicio, setUserAIsDionicio] = useState(true);
@@ -33,6 +39,12 @@ export function Timer({ onQuickLog }) {
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [isTurbo, setIsTurbo] = useState(false); // 10x simulation speed
   const [selectedDayRoutine, setSelectedDayRoutine] = useState('torso'); // 'torso' or 'pierna_core'
+
+  // Live In-Routine Coach Quick Assistant State
+  const [showQuickCoach, setShowQuickCoach] = useState(false);
+  const [quickQuery, setQuickQuery] = useState('');
+  const [coachResponse, setCoachResponse] = useState(null);
+  const [isAskingCoach, setIsAskingCoach] = useState(false);
 
   const timerRef = useRef(null);
   const currentInterval = SESSION_SCHEDULE.intervals[activeIntervalIndex];
@@ -63,7 +75,6 @@ export function Timer({ onQuickLog }) {
       timerRef.current = setInterval(() => {
         setSecondsRemaining((prev) => {
           if (prev <= 1) {
-            // Interval Completed!
             handleIntervalComplete();
             return 0;
           }
@@ -132,6 +143,29 @@ export function Timer({ onQuickLog }) {
     setSecondsRemaining(SESSION_SCHEDULE.intervals[index].durationSeconds);
   };
 
+  // Quick In-Timer Coach Query
+  const handleQuickCoachSubmit = async (e) => {
+    e.preventDefault();
+    if (!quickQuery.trim() || isAskingCoach) return;
+
+    setIsAskingCoach(true);
+    setCoachResponse(null);
+
+    try {
+      const apiKey = getStoredGeminiKey();
+      const currentIntervalName = currentInterval.name;
+      const enrichedPrompt = `Estamos en medio del entrenamiento (19:00 - 20:00), específicamente en el bloque "${currentIntervalName}". Consulta del atleta (${currentUser === 'dionicio' ? 'Dionicio' : 'Paula'}): ${quickQuery}`;
+      
+      const res = await askCoachWithFullContext(enrichedPrompt, currentUser, householdId, apiKey);
+      setCoachResponse(res);
+      setQuickQuery('');
+    } catch (err) {
+      setCoachResponse(`💡 Coach: ${err.message === 'API_KEY_MISSING' ? 'Ingresa tu API Key en la pestaña Coach para respuestas completas con IA.' : 'Mantén la técnica estricta, respira profundo y no fuerces las articulaciones.'}`);
+    } finally {
+      setIsAskingCoach(false);
+    }
+  };
+
   // User station assignments
   const userA = userAIsDionicio ? 'Dionicio' : 'Paula';
   const userB = userAIsDionicio ? 'Paula' : 'Dionicio';
@@ -141,6 +175,7 @@ export function Timer({ onQuickLog }) {
   const userBBorder = userAIsDionicio ? 'border-pink-500/40 bg-pink-950/20' : 'border-sky-500/40 bg-sky-950/20';
 
   const selectedWorkout = WORKOUT_DAYS.find(d => d.id === selectedDayRoutine) || WORKOUT_DAYS[0];
+  const liveCoachAdvice = getLiveTimerAdvice(currentInterval, userAIsDionicio, selectedDayRoutine);
 
   return (
     <div className="space-y-6">
@@ -300,7 +335,7 @@ export function Timer({ onQuickLog }) {
                 ) : (
                   <>
                     <Play className="w-6 h-6 fill-current" />
-                    <span>{totalElapsed > 0 ? 'Reanudar' : 'Iniciar Sesión'}</span>
+                    <span>{totalElapsed > 0 ? 'Reanudar' : 'Iniciar Sesión (19:00)'}</span>
                   </>
                 )}
               </button>
@@ -323,6 +358,67 @@ export function Timer({ onQuickLog }) {
               </button>
             </div>
           </div>
+        </div>
+
+        {/* Live Coach Integrated Guidance Banner */}
+        <div className="mt-5 p-4 rounded-2xl bg-gradient-to-r from-gym-900 via-indigo-950/30 to-gym-900 border border-indigo-500/30 space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Bot className="w-5 h-5 text-indigo-400" />
+              <span className="font-extrabold text-white text-sm">
+                Coach Gemini en Vivo: {liveCoachAdvice.headline}
+              </span>
+            </div>
+            <button
+              onClick={() => setShowQuickCoach(!showQuickCoach)}
+              className="text-xs text-indigo-400 hover:text-indigo-300 font-bold flex items-center gap-1 bg-indigo-950/40 px-2.5 py-1 rounded-lg border border-indigo-500/20"
+            >
+              <Sparkles className="w-3.5 h-3.5" />
+              <span>{showQuickCoach ? 'Ocultar Asistente' : 'Pregunta Rápida al Coach'}</span>
+              {showQuickCoach ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+            </button>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+            <div className="bg-gym-950/60 p-3 rounded-xl border border-gym-800 text-slate-300 space-y-1">
+              <span className="font-bold text-sky-400 block">👨‍💻 Indicación para Dionicio:</span>
+              <p>{userAIsDionicio ? liveCoachAdvice.userATip : liveCoachAdvice.userBTip}</p>
+            </div>
+            <div className="bg-gym-950/60 p-3 rounded-xl border border-gym-800 text-slate-300 space-y-1">
+              <span className="font-bold text-pink-400 block">👩‍💼 Indicación para Paula:</span>
+              <p>{userAIsDionicio ? liveCoachAdvice.userBTip : liveCoachAdvice.userATip}</p>
+            </div>
+          </div>
+
+          {/* Inline Quick Coach Query Form */}
+          {showQuickCoach && (
+            <div className="pt-2 border-t border-gym-800 space-y-3 animate-fadeIn">
+              <form onSubmit={handleQuickCoachSubmit} className="flex gap-2">
+                <input
+                  type="text"
+                  placeholder="¿Molestia en hombro? ¿Duda con el peso? Pregunta aquí..."
+                  value={quickQuery}
+                  onChange={(e) => setQuickQuery(e.target.value)}
+                  disabled={isAskingCoach}
+                  className="flex-1 bg-gym-950 border border-gym-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500"
+                />
+                <button
+                  type="submit"
+                  disabled={isAskingCoach || !quickQuery.trim()}
+                  className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 text-white font-bold rounded-xl text-xs flex items-center gap-1.5"
+                >
+                  {isAskingCoach ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
+                  <span>Consultar</span>
+                </button>
+              </form>
+
+              {coachResponse && (
+                <div className="p-3 bg-gym-950/90 border border-indigo-500/30 rounded-xl text-xs text-slate-200 whitespace-pre-line leading-relaxed">
+                  {coachResponse}
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Live Station Assignment Display (Dionicio vs Paula) */}

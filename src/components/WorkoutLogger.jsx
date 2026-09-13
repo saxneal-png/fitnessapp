@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { WORKOUT_DAYS, USERS } from '../data/workoutCatalog';
-import { saveWorkoutLog, getLocalLogs, subscribeToHouseholdData } from '../firebase/config';
+import { saveWorkoutLog, subscribeToHouseholdData } from '../firebase/config';
+import { getPreExerciseAdvice, getLiveSetFeedback, getStoredGeminiKey } from '../services/geminiService';
 import { 
   Dumbbell, 
   Footprints, 
@@ -13,45 +14,53 @@ import {
   Flame, 
   Heart, 
   Sparkles,
-  ChevronRight
+  ChevronRight,
+  Bot,
+  Zap,
+  Info,
+  TrendingUp,
+  RefreshCw
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 
 export function WorkoutLogger() {
-  const { currentUser, householdId, allUsers } = useAuth();
+  const { currentUser, householdId } = useAuth();
   
   const [logType, setLogType] = useState('strength'); // 'strength' or 'treadmill'
   const [selectedDay, setSelectedDay] = useState('torso'); // 'torso' or 'pierna_core'
   const [selectedExerciseId, setSelectedExerciseId] = useState('floor_press');
   const [workoutDate, setWorkoutDate] = useState(() => new Date().toISOString().split('T')[0]);
   
-  // Strength Sets State
   const currentWorkoutDay = WORKOUT_DAYS.find(d => d.id === selectedDay) || WORKOUT_DAYS[0];
   const currentExercise = currentWorkoutDay.exercises.find(e => e.id === selectedExerciseId) || currentWorkoutDay.exercises[0];
 
   const defaultWeight = currentUser === 'dionicio' ? currentExercise.defaultWeightDionicio : currentExercise.defaultWeightPaula;
 
   const [sets, setSets] = useState([
-    { setNumber: 1, weightKg: defaultWeight, reps: 10, rpe: 8 },
+    { setNumber: 1, weightKg: defaultWeight, reps: 10, rpe: 7.5 },
     { setNumber: 2, weightKg: defaultWeight, reps: 10, rpe: 8 },
-    { setNumber: 3, weightKg: defaultWeight, reps: 10, rpe: 8.5 }
+    { setNumber: 3, weightKg: defaultWeight, reps: 10, rpe: 8 }
   ]);
 
   // Treadmill Form State
   const [treadmillData, setTreadmillData] = useState({
     durationMinutes: 25,
-    incline: 10,
-    avgSpeedKmH: 5.0,
-    avgHeartRateBpm: 138,
-    activeCaloriesKcal: 200,
+    incline: 8,
+    avgSpeedKmH: 4.8,
+    avgHeartRateBpm: 135,
+    activeCaloriesKcal: 190,
     notes: 'Sesión estándar de 25 min (min 3-20 en pendiente alta)'
   });
 
   const [strengthNotes, setStrengthNotes] = useState('');
   const [savedSuccess, setSavedSuccess] = useState(false);
   const [recentLogs, setRecentLogs] = useState([]);
+  
+  // Gemini AI In-Flow Feedback State
+  const [coachFeedback, setCoachFeedback] = useState(null);
+  const [isCoachAnalyzing, setIsCoachAnalyzing] = useState(false);
 
-  // Load recent logs in real time
+  // Real-time logs subscription
   useEffect(() => {
     const unsubscribe = subscribeToHouseholdData(
       householdId,
@@ -61,13 +70,16 @@ export function WorkoutLogger() {
     return () => unsubscribe();
   }, [householdId]);
 
+  // Dynamic pre-exercise recommendation based on previous logs
+  const preExerciseAdvice = getPreExerciseAdvice(currentUser, selectedExerciseId, selectedDay, recentLogs);
+
   // Update default sets when exercise or user changes
   useEffect(() => {
-    const w = currentUser === 'dionicio' ? currentExercise.defaultWeightDionicio : currentExercise.defaultWeightPaula;
+    const initialWeight = preExerciseAdvice?.suggestedWeightKg || defaultWeight;
     setSets([
-      { setNumber: 1, weightKg: w, reps: 10, rpe: 7.5 },
-      { setNumber: 2, weightKg: w, reps: 10, rpe: 8 },
-      { setNumber: 3, weightKg: w, reps: 9, rpe: 8.5 }
+      { setNumber: 1, weightKg: initialWeight, reps: 10, rpe: 7.5 },
+      { setNumber: 2, weightKg: initialWeight, reps: 10, rpe: 8 },
+      { setNumber: 3, weightKg: initialWeight, reps: 9, rpe: 8 }
     ]);
   }, [selectedExerciseId, currentUser]);
 
@@ -96,7 +108,7 @@ export function WorkoutLogger() {
   // Calculate volume
   const totalVolume = sets.reduce((acc, s) => acc + (s.weightKg * s.reps), 0);
 
-  const handleSaveStrengthLog = (e) => {
+  const handleSaveStrengthLog = async (e) => {
     e.preventDefault();
     const newLog = {
       userId: currentUser,
@@ -110,16 +122,38 @@ export function WorkoutLogger() {
       notes: strengthNotes,
     };
 
-    saveWorkoutLog(newLog, householdId);
+    await saveWorkoutLog(newLog, householdId);
     setSavedSuccess(true);
+    
+    // Trigger In-Flow AI Coach Analysis
+    setIsCoachAnalyzing(true);
+    try {
+      const apiKey = getStoredGeminiKey();
+      const lastSet = sets[sets.length - 1];
+      const feedback = await getLiveSetFeedback({
+        userId: currentUser,
+        exerciseName: currentExercise.name,
+        setNumber: sets.length,
+        weightKg: lastSet.weightKg,
+        reps: lastSet.reps,
+        rpe: lastSet.rpe,
+        notes: strengthNotes
+      }, apiKey);
+      setCoachFeedback(feedback);
+    } catch (err) {
+      console.warn('Micro feedback notice:', err);
+    } finally {
+      setIsCoachAnalyzing(false);
+    }
+
     try {
       confetti({ particleCount: 50, spread: 60, origin: { y: 0.7 } });
     } catch (err) {}
-    loadLogs();
-    setTimeout(() => setSavedSuccess(false), 3000);
+    
+    setTimeout(() => setSavedSuccess(false), 4000);
   };
 
-  const handleSaveTreadmillLog = (e) => {
+  const handleSaveTreadmillLog = async (e) => {
     e.preventDefault();
     const newLog = {
       userId: currentUser,
@@ -128,13 +162,24 @@ export function WorkoutLogger() {
       ...treadmillData,
     };
 
-    saveWorkoutLog(newLog, householdId);
+    await saveWorkoutLog(newLog, householdId);
     setSavedSuccess(true);
+
+    // Trigger In-Flow AI Coach Analysis
+    setIsCoachAnalyzing(true);
+    try {
+      const user = USERS[currentUser];
+      const feedback = `🏃 ${user.name}: ¡Excelente bloque de 25 min en la trotadora! Quemaste ${treadmillData.activeCaloriesKcal} kcal en pendiente ${treadmillData.incline}%. Pasa ahora al enfriamiento y a la cena compartida de las 20:00.`;
+      setCoachFeedback(feedback);
+    } finally {
+      setIsCoachAnalyzing(false);
+    }
+
     try {
       confetti({ particleCount: 50, spread: 60, origin: { y: 0.7 } });
     } catch (err) {}
-    loadLogs();
-    setTimeout(() => setSavedSuccess(false), 3000);
+    
+    setTimeout(() => setSavedSuccess(false), 4000);
   };
 
   return (
@@ -177,16 +222,38 @@ export function WorkoutLogger() {
         </div>
       </div>
 
+      {/* Real-Time Coach Micro-Feedback Card */}
+      {coachFeedback && (
+        <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-r from-indigo-950/70 to-gym-800 border border-indigo-500/40 text-slate-200 flex items-start gap-3 shadow-xl animate-fadeIn">
+          <div className="w-9 h-9 rounded-xl bg-indigo-500/20 text-indigo-400 flex items-center justify-center shrink-0 mt-0.5">
+            <Bot className="w-5 h-5" />
+          </div>
+          <div className="flex-1 space-y-1">
+            <div className="flex items-center justify-between">
+              <span className="font-black text-indigo-300 text-xs uppercase tracking-wider">
+                Micro-Feedback del Coach Gemini
+              </span>
+              <button onClick={() => setCoachFeedback(null)} className="text-slate-400 hover:text-white text-xs">
+                ✕
+              </button>
+            </div>
+            <p className="text-xs sm:text-sm leading-relaxed text-white font-medium">
+              {coachFeedback}
+            </p>
+          </div>
+        </div>
+      )}
+
       {savedSuccess && (
         <div className="p-4 rounded-xl bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 flex items-center gap-2 animate-fadeIn">
           <CheckCircle className="w-5 h-5 text-emerald-400" />
-          <span className="font-bold">¡Registro guardado exitosamente en el historial del hogar!</span>
+          <span className="font-bold">¡Registro guardado exitosamente en el historial sincronizado del hogar!</span>
         </div>
       )}
 
       {/* Main Logging Form Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2">
+        <div className="lg:col-span-2 space-y-4">
           {logType === 'strength' ? (
             <form onSubmit={handleSaveStrengthLog} className="bg-gym-800/90 border border-gym-700 rounded-2xl p-5 sm:p-6 shadow-xl space-y-5">
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -234,8 +301,40 @@ export function WorkoutLogger() {
                 </div>
               </div>
 
+              {/* In-Flow Pre-Set AI Advice Card */}
+              {preExerciseAdvice && (
+                <div className="bg-gym-900/90 border border-sky-500/30 rounded-xl p-3.5 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] font-extrabold text-sky-400 uppercase tracking-wider flex items-center gap-1.5">
+                      <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+                      <span>Recomendación del Coach para esta serie</span>
+                    </span>
+                    <span className="text-[10px] font-mono text-slate-400 bg-gym-800 px-2 py-0.5 rounded">
+                      {preExerciseAdvice.isHistorical ? `Última sesión: ${preExerciseAdvice.lastLogDate}` : 'Semana 0 (Base)'}
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-3 gap-2 text-xs bg-gym-950/60 p-2.5 rounded-lg border border-gym-800 font-mono">
+                    <div>
+                      <span className="text-slate-500 block text-[10px]">Carga Sugerida</span>
+                      <span className="text-sky-300 font-bold font-sans">~{preExerciseAdvice.suggestedWeightKg} kg</span>
+                    </div>
+                    <div>
+                      <span className="text-slate-500 block text-[10px]">Rango Reps</span>
+                      <span className="text-white font-bold">{preExerciseAdvice.targetReps}</span>
+                    </div>
+                    <div>
+                      <span className="text-slate-500 block text-[10px]">RPE Objetivo</span>
+                      <span className="text-amber-300 font-bold">{preExerciseAdvice.targetRPE}</span>
+                    </div>
+                  </div>
+                  <p className="text-[11px] text-slate-300 leading-relaxed italic">
+                    💡 {preExerciseAdvice.coachTip}
+                  </p>
+                </div>
+              )}
+
               {/* Sets Table */}
-              <div className="space-y-3 pt-2">
+              <div className="space-y-3 pt-1">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-bold uppercase text-slate-400 tracking-wider">
                     Series Registradas (Sobrecarga)
@@ -322,7 +421,7 @@ export function WorkoutLogger() {
                 <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Notas / Sensaciones</label>
                 <input
                   type="text"
-                  placeholder="Ej: Subí 2kg en la última serie, técnica limpia"
+                  placeholder="Ej: Subí 2kg en la última serie, técnica limpia sin dolor de hombros"
                   value={strengthNotes}
                   onChange={(e) => setStrengthNotes(e.target.value)}
                   className="w-full bg-gym-900 border border-gym-700 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-sky-500"
@@ -331,10 +430,20 @@ export function WorkoutLogger() {
 
               <button
                 type="submit"
+                disabled={isCoachAnalyzing}
                 className="w-full py-3.5 bg-gradient-to-r from-sky-500 to-indigo-600 hover:from-sky-400 hover:to-indigo-500 text-white font-black rounded-xl shadow-lg shadow-sky-500/20 flex items-center justify-center gap-2 transition-all transform active:scale-98"
               >
-                <Save className="w-5 h-5" />
-                <span>Guardar Serie de Fuerza</span>
+                {isCoachAnalyzing ? (
+                  <>
+                    <RefreshCw className="w-5 h-5 animate-spin" />
+                    <span>Guardando y analizando con el Coach...</span>
+                  </>
+                ) : (
+                  <>
+                    <Save className="w-5 h-5" />
+                    <span>Guardar Serie & Obtener Feedback</span>
+                  </>
+                )}
               </button>
             </form>
           ) : (
@@ -417,7 +526,7 @@ export function WorkoutLogger() {
                 <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Notas de la sesión</label>
                 <input
                   type="text"
-                  placeholder="Ej: Inclinación 11 sostenida durante 15 minutos sin apoyo manual"
+                  placeholder="Ej: Inclinación 9 sostenida en Zona 2 sin apoyo de manos"
                   value={treadmillData.notes}
                   onChange={(e) => setTreadmillData({ ...treadmillData, notes: e.target.value })}
                   className="w-full bg-gym-900 border border-gym-700 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-pink-500"
@@ -426,6 +535,7 @@ export function WorkoutLogger() {
 
               <button
                 type="submit"
+                disabled={isCoachAnalyzing}
                 className="w-full py-3.5 bg-gradient-to-r from-pink-500 to-rose-600 hover:from-pink-400 hover:to-rose-500 text-white font-black rounded-xl shadow-lg shadow-pink-500/20 flex items-center justify-center gap-2 transition-all transform active:scale-98"
               >
                 <Save className="w-5 h-5" />
@@ -449,7 +559,7 @@ export function WorkoutLogger() {
             {recentLogs.length === 0 ? (
               <div className="p-6 rounded-xl bg-gym-900/60 border border-dashed border-gym-700 text-center text-xs text-slate-500 space-y-1 font-mono">
                 <p>Sin registros en la nube aún.</p>
-                <p className="text-[11px] text-slate-600">Completa tu primera serie hoy para ver el historial.</p>
+                <p className="text-[11px] text-slate-600">Completa tu primera serie hoy para ver el historial y feedback.</p>
               </div>
             ) : (
               recentLogs.slice(0, 8).map((log) => {

@@ -1,14 +1,18 @@
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { USERS } from '../data/workoutCatalog';
+import { ensureAnonymousAuth } from '../firebase/config';
 import { Dumbbell, Lock, Mail, ArrowRight, ShieldCheck, Users, Sparkles, AlertCircle, Key, Check } from 'lucide-react';
 
 export function LoginScreen({ onGuestDuoAccess }) {
   const { loginWithFirebase, registerWithFirebase, switchUser, changeSessionMode, isFirebaseConnected } = useAuth();
   
+  const defaultDionicioEmail = import.meta.env.VITE_DIONICIO_EMAIL || '';
+  const defaultPaulaEmail = import.meta.env.VITE_PAULA_EMAIL || '';
+
   const [isRegister, setIsRegister] = useState(false);
   const [selectedUserType, setSelectedUserType] = useState('dionicio'); // 'dionicio' or 'paula'
-  const [email, setEmail] = useState('saxneal@gmail.com');
+  const [email, setEmail] = useState(defaultDionicioEmail);
   const [password, setPassword] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
   const [isApiRestrictionError, setIsApiRestrictionError] = useState(false);
@@ -29,7 +33,7 @@ export function LoginScreen({ onGuestDuoAccess }) {
       
       // Map user identity based on email or selection
       const emailLower = email.toLowerCase();
-      if (emailLower.includes('paula') || emailLower.includes('sandoval') || selectedUserType === 'paula') {
+      if (emailLower.includes('paula') || selectedUserType === 'paula') {
         switchUser('paula');
       } else {
         switchUser('dionicio');
@@ -54,10 +58,11 @@ export function LoginScreen({ onGuestDuoAccess }) {
     }
   };
 
-  const handleDirectDeviceLogin = (uid) => {
+  const handleDirectDeviceLogin = async (uid) => {
     switchUser(uid);
     changeSessionMode('single');
     localStorage.setItem('fitness_duo_guest_access', 'true');
+    await ensureAnonymousAuth();
     window.location.reload();
   };
 
@@ -93,7 +98,7 @@ export function LoginScreen({ onGuestDuoAccess }) {
               type="button"
               onClick={() => {
                 setSelectedUserType('dionicio');
-                setEmail('saxneal@gmail.com');
+                if (defaultDionicioEmail) setEmail(defaultDionicioEmail);
               }}
               className={`p-3 rounded-2xl border flex flex-col items-center gap-1 transition-all ${
                 selectedUserType === 'dionicio'
@@ -103,14 +108,14 @@ export function LoginScreen({ onGuestDuoAccess }) {
             >
               <span className="text-2xl">👨‍💻</span>
               <span className="font-bold text-xs">Dionicio</span>
-              <span className="text-[10px] text-slate-500">saxneal@gmail.com</span>
+              <span className="text-[10px] text-slate-500">Atleta 1 (Torso / Pierna)</span>
             </button>
 
             <button
               type="button"
               onClick={() => {
                 setSelectedUserType('paula');
-                setEmail('paula_sandoval@yahoo.es');
+                if (defaultPaulaEmail) setEmail(defaultPaulaEmail);
               }}
               className={`p-3 rounded-2xl border flex flex-col items-center gap-1 transition-all ${
                 selectedUserType === 'paula'
@@ -120,7 +125,7 @@ export function LoginScreen({ onGuestDuoAccess }) {
             >
               <span className="text-2xl">👩‍💼</span>
               <span className="font-bold text-xs">Paula</span>
-              <span className="text-[10px] text-slate-500">paula_sandoval@yahoo.es</span>
+              <span className="text-[10px] text-slate-500">Atleta 2 (Trotadora / Fuerza)</span>
             </button>
           </div>
         </div>

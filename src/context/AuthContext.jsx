@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { USERS } from '../data/workoutCatalog';
-import { auth, isInitialized, getStoredFirebaseConfig } from '../firebase/config';
+import { auth, isInitialized, getStoredFirebaseConfig, ensureAnonymousAuth, subscribeToConnectionStatus } from '../firebase/config';
 import { 
   signInWithEmailAndPassword, 
   createUserWithEmailAndPassword, 
@@ -29,24 +29,37 @@ export function AuthProvider({ children }) {
 
   const [fbUser, setFbUser] = useState(null);
   const [authLoading, setAuthLoading] = useState(true);
+  const [isCloudOnline, setIsCloudOnline] = useState(false);
 
   useEffect(() => {
+    // Subscribe to cloud connection changes
+    const unsubConnection = subscribeToConnectionStatus((online) => {
+      setIsCloudOnline(online);
+    });
+
     if (auth && isInitialized) {
       const unsubscribe = onAuthStateChanged(auth, (user) => {
         setFbUser(user);
         setAuthLoading(false);
-        if (user && user.email) {
-          const emailLower = user.email.toLowerCase();
-          if (emailLower.includes('paula') || emailLower.includes('sandoval')) {
+        if (user) {
+          if (user.uid === 'paula' || (user.email && user.email.toLowerCase().includes('paula'))) {
             switchUser('paula');
-          } else if (emailLower.includes('saxneal') || emailLower.includes('dionicio') || emailLower.includes('flores')) {
+          } else if (user.uid === 'dionicio' || (user.email && (user.email.toLowerCase().includes('dionicio') || user.email.toLowerCase().includes('atleta1')))) {
             switchUser('dionicio');
           }
         }
       });
-      return () => unsubscribe();
+
+      // Ensure anonymous session if no user is authenticated
+      ensureAnonymousAuth();
+
+      return () => {
+        unsubscribe();
+        unsubConnection();
+      };
     } else {
       setAuthLoading(false);
+      return () => unsubConnection();
     }
   }, []);
 
@@ -81,6 +94,8 @@ export function AuthProvider({ children }) {
     if (auth) {
       await fbSignOut(auth);
       setFbUser(null);
+      // Re-enable anonymous session for seamless continued sync
+      await ensureAnonymousAuth();
     }
   };
 
@@ -98,7 +113,8 @@ export function AuthProvider({ children }) {
     loginWithFirebase,
     registerWithFirebase,
     logoutFirebase,
-    isFirebaseConnected: isInitialized
+    isFirebaseConnected: isInitialized,
+    isCloudOnline
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
@@ -111,3 +127,4 @@ export function useAuth() {
   }
   return context;
 }
+

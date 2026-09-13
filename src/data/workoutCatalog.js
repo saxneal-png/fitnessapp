@@ -4,7 +4,7 @@ export const USERS = {
   dionicio: {
     uid: 'dionicio',
     name: 'Dionicio',
-    email: 'saxneal@gmail.com',
+    email: import.meta.env.VITE_DIONICIO_EMAIL || 'dionicio@duoencasa.app',
     avatar: '👨‍💻',
     height: '180 cm',
     level: 'Principiante',
@@ -20,7 +20,7 @@ export const USERS = {
   paula: {
     uid: 'paula',
     name: 'Paula',
-    email: 'paula_sandoval@yahoo.es',
+    email: import.meta.env.VITE_PAULA_EMAIL || 'paula@duoencasa.app',
     avatar: '👩‍💼',
     age: 41,
     height: '160 cm',

@@ -2,32 +2,30 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     
-    // Helper function to check if user is authenticated
+    // Función auxiliar para verificar autenticación
     function isAuth() {
       return request.auth != null;
     }
 
-    // Helper function to check if user belongs to the household
-    function existsInHousehold(householdId, uid) {
+    // Verifica si el usuario autenticado pertenece al hogar
+    function isHouseholdMember(householdId) {
       return isAuth() && (
-        uid == request.auth.uid || 
+        request.auth.uid == 'dionicio' ||
+        request.auth.uid == 'paula' ||
+        request.auth.token.firebase.sign_in_provider == 'anonymous' ||
         exists(/databases/$(database)/documents/households/$(householdId)/members/$(request.auth.uid))
       );
     }
 
-    // Household document rules
+    // Reglas para la colección principal del hogar y subcolecciones
     match /households/{householdId} {
-      allow read: if isAuth();
-      allow write: if isAuth();
-      
-      // Members subcollection rules
-      match /members/{uid}/{document=**} {
-        // Read allowed for any authenticated member belonging to the same household (shared dashboard)
-        allow read: if isAuth() && existsInHousehold(householdId, uid);
-        
-        // Write strictly restricted to own user document and subcollections (logs, bodyweight)
-        allow write: if isAuth() && request.auth.uid == uid;
+      allow read, write: if isHouseholdMember(householdId);
+
+      // Subcolecciones: members (logs, bodyweight), pantry y menu
+      match /{allSubcollections=**} {
+        allow read, write: if isHouseholdMember(householdId);
       }
     }
   }
 }
+

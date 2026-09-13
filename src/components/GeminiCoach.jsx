@@ -1,8 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { getLocalLogs } from '../firebase/config';
 import { USERS, WORKOUT_DAYS } from '../data/workoutCatalog';
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import { 
+  askCoachWithFullContext, 
+  buildHouseholdContext, 
+  getStoredGeminiKey, 
+  saveGeminiKey 
+} from '../services/geminiService';
 import { 
   Sparkles, 
   Send, 
@@ -15,33 +19,45 @@ import {
   Utensils, 
   Dumbbell, 
   ShieldCheck,
-  Check
+  Check,
+  Activity,
+  Layers,
+  ShoppingBag,
+  Scale
 } from 'lucide-react';
-
-const GEMINI_STORAGE_KEY = 'fitness_gemini_api_key';
 
 export function GeminiCoach() {
   const { currentUser, householdId } = useAuth();
-  const [apiKey, setApiKey] = useState(() => localStorage.getItem(GEMINI_STORAGE_KEY) || '');
-  const [showKeyInput, setShowKeyInput] = useState(!localStorage.getItem(GEMINI_STORAGE_KEY));
+  const [apiKey, setApiKey] = useState(() => getStoredGeminiKey());
+  const [showKeyInput, setShowKeyInput] = useState(!getStoredGeminiKey());
   const [tempKey, setTempKey] = useState(apiKey);
+  const [householdStats, setHouseholdStats] = useState(() => buildHouseholdContext(householdId));
+
   const [messages, setMessages] = useState([
     {
       role: 'assistant',
-      content: `¡Hola Dionicio y Paula! Soy su Coach Gemini personal para la rutina "Dúo en Casa" (19:00 a 20:00). Puedo analizar sus registros de sobrecarga, recomendar ajustes en el set de mancuernas de 40 kg o sugerir adaptaciones nutricionales post-entreno. ¿En qué les ayudo hoy?`
+      content: `¡Hola Dionicio y Paula! Soy su Coach Gemini personal para la rutina "Dúo en Casa" (19:00 a 20:00).
+Estoy conectado en tiempo real con sus registros de sobrecarga, las series de mancuernas, la trotadora y los ingredientes de su despensa.
+
+¿En qué puedo orientar su entrenamiento o nutrición hoy?`
     }
   ]);
   const [inputQuery, setInputQuery] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
+  // Refresh household context stats periodically or on focus
+  useEffect(() => {
+    setHouseholdStats(buildHouseholdContext(householdId));
+  }, [householdId, messages]);
+
   const handleSaveKey = (e) => {
     e.preventDefault();
     setApiKey(tempKey.trim());
-    localStorage.setItem(GEMINI_STORAGE_KEY, tempKey.trim());
+    saveGeminiKey(tempKey.trim());
     setShowKeyInput(false);
   };
 
-  const executeGeminiPrompt = async (promptText) => {
+  const executeCoachPrompt = async (promptText) => {
     if (!apiKey) {
       setShowKeyInput(true);
       return;
@@ -52,52 +68,13 @@ export function GeminiCoach() {
     setIsLoading(true);
 
     try {
-      const logs = getLocalLogs(householdId);
-      const userContext = USERS[currentUser];
-      
-      const systemInstruction = `Eres un Coach de Fuerza y Acondicionamiento Físico experto para Dionicio y Paula.
-CONTEXTO CRÍTICO DE LOS ATLETAS:
-- Nivel: PRINCIPIANTES ABSOLUTOS en entrenamiento de fuerza en casa.
-- Fase actual: SEMANA 0 (Fase de Calibración, Aprendizaje Motor y Adaptación Tendinosa).
-- Atleta actual: ${userContext.name} (${userContext.level}, ${userContext.height}, RPE Objetivo Semana 0: ${userContext.targetRPE}, Nutrición: ${userContext.nutrition}).
-- Equipamiento: Set de mancuernas modulares ajustable hasta 40 kg totales, y trotadora eléctrica de 15 niveles de inclinación.
-- Reloj: Apple Watch Series 8 para monitoreo de FC y calorías activas.
-- Registros actuales en el hogar: ${JSON.stringify(logs.slice(0, 10))}.
-
-REGLAS DE ORO PARA PRINCIPIANTES (SEMANA 0):
-1. Dionicio y Paula tienen programas 100% INDIVIDUALES y diferentes: los pesos e intensidades nunca deben ser iguales.
-2. En Semana 0, la meta NO es cansarse al máximo ni llegar al fallo, sino calibrar qué peso permite hacer 10-12 repeticiones limpias con RPE 6-7 (quedando 3-4 repeticiones en reserva).
-3. Para la trotadora en Semana 0: Caminata en pendiente controlada (Zona 2 cardio, donde puedan hablar sin ahogarse).
-4. Respuestas claras, concisas, estructuradas en viñetas y motivadoras.`;
-
-      const genAI = new GoogleGenerativeAI(apiKey);
-      const modelCandidates = ['gemini-flash-latest', 'gemini-1.5-flash-latest', 'gemini-2.0-flash'];
-      let responseText = null;
-      let lastErr = null;
-
-      for (const mName of modelCandidates) {
-        try {
-          const model = genAI.getGenerativeModel({ 
-            model: mName,
-            systemInstruction: systemInstruction 
-          });
-          const result = await model.generateContent(promptText);
-          responseText = result.response.text();
-          if (responseText) break;
-        } catch (e) {
-          lastErr = e;
-          console.warn(`Intento con modelo ${mName} falló:`, e.message);
-        }
-      }
-
-      if (!responseText) throw lastErr;
-
+      const responseText = await askCoachWithFullContext(promptText, currentUser, householdId, apiKey);
       setMessages((prev) => [
         ...prev,
         { role: 'assistant', content: responseText }
       ]);
     } catch (err) {
-      console.error('Error with Gemini API:', err);
+      console.error('Error with Gemini Coach:', err);
       setMessages((prev) => [
         ...prev,
         {
@@ -115,18 +92,21 @@ REGLAS DE ORO PARA PRINCIPIANTES (SEMANA 0):
     if (!inputQuery.trim() || isLoading) return;
     const q = inputQuery;
     setInputQuery('');
-    executeGeminiPrompt(q);
+    executeCoachPrompt(q);
   };
 
   const handlePresetPrompt = (type) => {
-    if (type === 'week0_calibration') {
-      executeGeminiPrompt(`Actúa como mi coach. Soy principiante (${currentUser === 'dionicio' ? 'Dionicio' : 'Paula'}) y estoy en mi 'Semana 0'. Analiza cómo debo encarar las series de calibración de hoy, qué pesos iniciales me recomiendas para no lesionarme y cómo debo sentir el esfuerzo (RPE 6-7).`);
-    } else if (type === 'overload') {
-      executeGeminiPrompt(`A partir de mis registros de esta Semana 0, ¿qué pesos exactos me recomiendas fijar para la Semana 1 en cada ejercicio para iniciar la sobrecarga progresiva sin dolor articular?`);
-    } else if (type === 'replace') {
-      executeGeminiPrompt(`Siendo principiante, si siento molestia o falta de flexibilidad en algún ejercicio con mancuernas, ¿qué variante más amigable me recomiendas para el bloque de 25 minutos?`);
-    } else if (type === 'nutrition') {
-      executeGeminiPrompt(`Recomienda una cena post-entreno (20:00) para ${currentUser === 'dionicio' ? 'Dionicio (180cm, ayuno intermitente)' : 'Paula (41 años, 160cm)'} enfocada en recuperación muscular de principiante sin digestión pesada.`);
+    const isDionicio = currentUser === 'dionicio';
+    const athleteName = isDionicio ? 'Dionicio' : 'Paula';
+
+    if (type === 'live_session_briefing') {
+      executeCoachPrompt(`Actúa como nuestro coach en vivo. Genera el Briefing Estratégico para la sesión de hoy (19:00 a 20:00). Analiza nuestras últimas series registradas, recomienda qué pesos debemos calibrar hoy en las mancuernas y cómo debemos coordinar la rotación de 25 min.`);
+    } else if (type === 'analyze_fatigue') {
+      executeCoachPrompt(`Analiza mis últimos registros de series y RPE (${athleteName}). ¿Estoy en el rango óptimo de RPE 6-7 de la Semana 0 o he acumulado fatiga excesiva? Dame recomendaciones puntuales de descanso.`);
+    } else if (type === 'sync_dinner') {
+      executeCoachPrompt(`Considerando nuestro entrenamiento de hoy a las 19:00 y los ingredientes informados en nuestra despensa (${householdStats.pantryItems.join(', ')}), ¿cómo optimizamos la cena de las 20:00 (misma receta para ambos con porciones diferenciadas) para maximizar la síntesis proteica?`);
+    } else if (type === 'joint_comfort') {
+      executeCoachPrompt(`Si ${athleteName} siente ligera molestia o falta de movilidad en hombros o rodillas durante la rutina, ¿qué ajustes biomecánicos exactos o variantes en el suelo recomiendas para no suspender el entrenamiento?`);
     }
   };
 
@@ -137,10 +117,10 @@ REGLAS DE ORO PARA PRINCIPIANTES (SEMANA 0):
         <div>
           <div className="flex items-center gap-2">
             <Sparkles className="w-6 h-6 text-pink-400" />
-            <h2 className="text-2xl font-black text-white">Coach Gemini Interactivo</h2>
+            <h2 className="text-2xl font-black text-white">Centro de Inteligencia Gemini Coach</h2>
           </div>
           <p className="text-xs sm:text-sm text-slate-400">
-            Inteligencia artificial especializada en sobrecarga progresiva y planificación dual en casa.
+            Conectado en vivo con los registros de fuerza, trotadora y despensa del hogar compartido.
           </p>
         </div>
 
@@ -151,6 +131,53 @@ REGLAS DE ORO PARA PRINCIPIANTES (SEMANA 0):
           <Key className="w-3.5 h-3.5 text-amber-400" />
           <span>{apiKey ? 'API Key Configurada' : 'Ingresar API Key'}</span>
         </button>
+      </div>
+
+      {/* 360° Live Household Context Status Bar */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <div className="bg-gym-800/90 border border-sky-500/30 rounded-2xl p-3.5 space-y-1">
+          <div className="flex items-center gap-1.5 text-sky-400 text-xs font-bold">
+            <Dumbbell className="w-4 h-4" />
+            <span>Series del Hogar</span>
+          </div>
+          <div className="text-xl font-black text-white font-mono">
+            {householdStats.totalLogsCount} <span className="text-xs font-normal text-slate-400">registros</span>
+          </div>
+          <span className="text-[10px] text-slate-400 block">Sincronizados en Firestore</span>
+        </div>
+
+        <div className="bg-gym-800/90 border border-pink-500/30 rounded-2xl p-3.5 space-y-1">
+          <div className="flex items-center gap-1.5 text-pink-400 text-xs font-bold">
+            <Activity className="w-4 h-4" />
+            <span>Atleta Activo</span>
+          </div>
+          <div className="text-xl font-black text-white">
+            {USERS[currentUser]?.name}
+          </div>
+          <span className="text-[10px] text-pink-300 block">{USERS[currentUser]?.phase}</span>
+        </div>
+
+        <div className="bg-gym-800/90 border border-emerald-500/30 rounded-2xl p-3.5 space-y-1">
+          <div className="flex items-center gap-1.5 text-emerald-400 text-xs font-bold">
+            <ShoppingBag className="w-4 h-4" />
+            <span>Despensa Activa</span>
+          </div>
+          <div className="text-xl font-black text-white font-mono">
+            {householdStats.pantryItems.length} <span className="text-xs font-normal text-slate-400">ítems</span>
+          </div>
+          <span className="text-[10px] text-emerald-300 block">100% cocina compartida</span>
+        </div>
+
+        <div className="bg-gym-800/90 border border-amber-500/30 rounded-2xl p-3.5 space-y-1">
+          <div className="flex items-center gap-1.5 text-amber-400 text-xs font-bold">
+            <Utensils className="w-4 h-4" />
+            <span>Menú Semanal</span>
+          </div>
+          <div className="text-xl font-black text-white">
+            {householdStats.hasActiveMenu ? 'Activo' : 'Pendiente'}
+          </div>
+          <span className="text-[10px] text-slate-400 block">Cena fijada a las 20:00</span>
+        </div>
       </div>
 
       {/* API Key Modal / Banner */}
@@ -168,8 +195,8 @@ REGLAS DE ORO PARA PRINCIPIANTES (SEMANA 0):
             )}
           </div>
           <p className="text-xs text-slate-400 leading-relaxed">
-            Tu clave se guarda únicamente en el <code className="text-amber-300">localStorage</code> de este dispositivo y nunca se sube a GitHub.
-            Puedes obtener tu clave gratuita en <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noreferrer" className="text-sky-400 underline">Google AI Studio</a>.
+            Tu clave se guarda únicamente en el <code className="text-amber-300">localStorage</code> de este dispositivo y nunca se comparte.
+            Puedes obtenerla gratis en <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noreferrer" className="text-sky-400 underline">Google AI Studio</a>.
           </p>
 
           <form onSubmit={handleSaveKey} className="flex gap-2">
@@ -192,57 +219,57 @@ REGLAS DE ORO PARA PRINCIPIANTES (SEMANA 0):
         </div>
       )}
 
-      {/* Predefined Quick Actions */}
+      {/* 1-Click Smart Action Buttons */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
         <button
-          onClick={() => handlePresetPrompt('week0_calibration')}
+          onClick={() => handlePresetPrompt('live_session_briefing')}
           className="p-3.5 rounded-2xl bg-gradient-to-br from-gym-800 to-amber-950/40 border border-amber-500/30 hover:border-amber-400 text-left transition-all group"
         >
           <div className="flex items-center gap-2 text-amber-400 font-bold text-xs mb-1">
             <Sparkles className="w-4 h-4 group-hover:scale-110 transition-transform" />
-            <span>🎯 Calibrar Semana 0</span>
+            <span>🎯 Briefing Pre-Entreno (19:00)</span>
           </div>
           <p className="text-[11px] text-slate-400">
-            Guía de pesos y RPE 6-7 para principiantes sin riesgo de lesión.
+            Analiza historial y define metas de peso y rotación para hoy.
           </p>
         </button>
 
         <button
-          onClick={() => handlePresetPrompt('overload')}
+          onClick={() => handlePresetPrompt('analyze_fatigue')}
           className="p-3.5 rounded-2xl bg-gradient-to-br from-gym-800 to-sky-950/40 border border-sky-500/30 hover:border-sky-400 text-left transition-all group"
         >
           <div className="flex items-center gap-2 text-sky-400 font-bold text-xs mb-1">
             <Dumbbell className="w-4 h-4 group-hover:scale-110 transition-transform" />
-            <span>Proyectar Semana 1</span>
+            <span>📊 Analizar Fatiga & RPE</span>
           </div>
           <p className="text-[11px] text-slate-400">
-            Analiza RPE de la Semana 0 y propone aumentos para la Semana 1.
+            Evalúa la sobrecarga real de las series de {USERS[currentUser]?.name}.
           </p>
         </button>
 
         <button
-          onClick={() => handlePresetPrompt('replace')}
-          className="p-3.5 rounded-2xl bg-gradient-to-br from-gym-800 to-pink-950/40 border border-pink-500/30 hover:border-pink-400 text-left transition-all group"
-        >
-          <div className="flex items-center gap-2 text-pink-400 font-bold text-xs mb-1">
-            <Zap className="w-4 h-4 group-hover:scale-110 transition-transform" />
-            <span>Sugerir Reemplazo</span>
-          </div>
-          <p className="text-[11px] text-slate-400">
-            Variantes de ejercicios con mancuernas si hay molestias articulares.
-          </p>
-        </button>
-
-        <button
-          onClick={() => handlePresetPrompt('nutrition')}
+          onClick={() => handlePresetPrompt('sync_dinner')}
           className="p-3.5 rounded-2xl bg-gradient-to-br from-gym-800 to-emerald-950/40 border border-emerald-500/30 hover:border-emerald-400 text-left transition-all group"
         >
           <div className="flex items-center gap-2 text-emerald-400 font-bold text-xs mb-1">
             <Utensils className="w-4 h-4 group-hover:scale-110 transition-transform" />
-            <span>Cena Post-Entreno (20:00)</span>
+            <span>🥗 Coordinar Cena (20:00)</span>
           </div>
           <p className="text-[11px] text-slate-400">
-            Ideas de comidas de rápida asimilación para cerrar la ventana del día.
+            Sincroniza la cena compartida con el gasto calórico de la sesión.
+          </p>
+        </button>
+
+        <button
+          onClick={() => handlePresetPrompt('joint_comfort')}
+          className="p-3.5 rounded-2xl bg-gradient-to-br from-gym-800 to-pink-950/40 border border-pink-500/30 hover:border-pink-400 text-left transition-all group"
+        >
+          <div className="flex items-center gap-2 text-pink-400 font-bold text-xs mb-1">
+            <Zap className="w-4 h-4 group-hover:scale-110 transition-transform" />
+            <span>🛡️ Ajustes Biomecánicos</span>
+          </div>
+          <p className="text-[11px] text-slate-400">
+            Variantes seguras para cuidar hombros, rodillas y zona lumbar.
           </p>
         </button>
       </div>
@@ -285,7 +312,7 @@ REGLAS DE ORO PARA PRINCIPIANTES (SEMANA 0):
             </div>
             <div className="p-3 rounded-2xl bg-gym-900 border border-gym-700 text-xs text-slate-400 flex items-center gap-2">
               <RefreshCw className="w-3.5 h-3.5 animate-spin text-pink-400" />
-              <span>El Coach Gemini está analizando las series y preparando su respuesta...</span>
+              <span>El Coach Gemini está analizando los registros del hogar y preparando su respuesta...</span>
             </div>
           </div>
         )}
@@ -295,7 +322,7 @@ REGLAS DE ORO PARA PRINCIPIANTES (SEMANA 0):
       <form onSubmit={handleSend} className="flex gap-2">
         <input
           type="text"
-          placeholder="Escribe tu consulta al Coach Gemini..."
+          placeholder="Escribe tu consulta al Coach Gemini con acceso a todos tus datos..."
           value={inputQuery}
           onChange={(e) => setInputQuery(e.target.value)}
           disabled={isLoading}
