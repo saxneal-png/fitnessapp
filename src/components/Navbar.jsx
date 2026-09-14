@@ -105,16 +105,6 @@ export function Navbar({ currentTab, setCurrentTab, onOpenConfig, onLogout }) {
                 }`}>
                   <span>{currentUser === 'dionicio' ? '👨‍💻 Dionicio' : '👩‍💼 Paula'}</span>
                 </div>
-                <button
-                  onClick={async () => {
-                    await logoutFirebase();
-                    if (onLogout) onLogout();
-                  }}
-                  className="p-1.5 text-slate-400 hover:text-red-400 rounded-lg hover:bg-gym-700 transition-colors"
-                  title="Cerrar Sesión"
-                >
-                  <LogOut className="w-3.5 h-3.5" />
-                </button>
               </div>
             )}
 
@@ -133,6 +123,19 @@ export function Navbar({ currentTab, setCurrentTab, onOpenConfig, onLogout }) {
                 {isFirebaseConnected ? 'Nube Firebase' : 'Modo Local'}
               </span>
               <Settings className="w-3.5 h-3.5 text-slate-400 ml-0.5" />
+            </button>
+
+            {/* Always-visible Logout Button */}
+            <button
+              onClick={async () => {
+                await logoutFirebase();
+                if (onLogout) onLogout();
+              }}
+              className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl border border-red-500/30 bg-red-500/10 hover:bg-red-500/20 text-red-400 text-xs font-bold transition-all shadow-sm"
+              title="Cerrar Sesión"
+            >
+              <LogOut className="w-3.5 h-3.5 text-red-400" />
+              <span className="hidden sm:inline">Cerrar Sesión</span>
             </button>
           </div>
         </div>
@@ -221,6 +224,18 @@ export function Navbar({ currentTab, setCurrentTab, onOpenConfig, onLogout }) {
           >
             <Sparkles className="w-4 h-4" />
             <span>Coach Gemini</span>
+          </button>
+
+          <button
+            onClick={async () => {
+              await logoutFirebase();
+              if (onLogout) onLogout();
+            }}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs sm:text-sm font-semibold whitespace-nowrap text-red-400/90 hover:text-red-300 hover:bg-red-500/10 border border-red-500/20 transition-all ml-auto"
+            title="Cerrar Sesión y Salir"
+          >
+            <LogOut className="w-4 h-4 text-red-400" />
+            <span>Cerrar Sesión</span>
           </button>
         </nav>
       </div>

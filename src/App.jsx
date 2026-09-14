@@ -18,7 +18,7 @@ function MainApp() {
     return localStorage.getItem('fitness_duo_guest_access') === 'true';
   });
 
-  const { currentUser, sessionMode, fbUser, authLoading, isFirebaseConnected, changeSessionMode } = useAuth();
+  const { currentUser, sessionMode, fbUser, authLoading, isFirebaseConnected, changeSessionMode, logoutFirebase } = useAuth();
 
   const handleGuestDuo = () => {
     setGuestAccess(true);
@@ -26,9 +26,14 @@ function MainApp() {
     localStorage.setItem('fitness_duo_guest_access', 'true');
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
     setGuestAccess(false);
     localStorage.removeItem('fitness_duo_guest_access');
+    try {
+      await logoutFirebase();
+    } catch (e) {
+      console.warn('Logout error:', e);
+    }
   };
 
   // If Firebase Auth is still loading initial state
