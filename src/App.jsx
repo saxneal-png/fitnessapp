@@ -6,6 +6,7 @@ import { Timer } from './components/Timer';
 import { WorkoutLogger } from './components/WorkoutLogger';
 import { Dashboard } from './components/Dashboard';
 import { PrintablePlan } from './components/PrintablePlan';
+import { BodyMetrics } from './components/BodyMetrics';
 import { PantryPlanner } from './components/PantryPlanner';
 import { GeminiCoach } from './components/GeminiCoach';
 import { FirebaseConfigModal } from './components/FirebaseConfigModal';
@@ -61,6 +62,7 @@ function MainApp() {
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
         {currentTab === 'timer' && <Timer onQuickLog={() => setCurrentTab('logger')} />}
         {currentTab === 'logger' && <WorkoutLogger />}
+        {currentTab === 'metrics' && <BodyMetrics />}
         {currentTab === 'dashboard' && <Dashboard />}
         {currentTab === 'planner' && <PrintablePlan />}
         {currentTab === 'pantry' && <PantryPlanner />}

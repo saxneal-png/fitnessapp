@@ -13,7 +13,8 @@ import {
   Sparkles,
   Printer,
   Utensils,
-  LogOut
+  LogOut,
+  Scale
 } from 'lucide-react';
 
 export function Navbar({ currentTab, setCurrentTab, onOpenConfig, onLogout }) {
@@ -121,15 +122,15 @@ export function Navbar({ currentTab, setCurrentTab, onOpenConfig, onLogout }) {
             <button
               onClick={onOpenConfig}
               className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border text-xs font-bold transition-all ${
-                isCloudOnline || isFirebaseConnected
+                isFirebaseConnected
                   ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/20'
                   : 'bg-amber-500/10 border-amber-500/30 text-amber-400 hover:bg-amber-500/20'
               }`}
               title="Estado de sincronización en la Nube con Firebase"
             >
-              <span className={`w-2 h-2 rounded-full ${isCloudOnline || isFirebaseConnected ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400'}`}></span>
+              <span className={`w-2 h-2 rounded-full ${isFirebaseConnected ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400'}`}></span>
               <span className="hidden sm:inline font-mono text-[11px]">
-                {isCloudOnline || isFirebaseConnected ? 'Nube Firebase' : 'Modo Local'}
+                {isFirebaseConnected ? 'Nube Firebase' : 'Modo Local'}
               </span>
               <Settings className="w-3.5 h-3.5 text-slate-400 ml-0.5" />
             </button>
@@ -163,6 +164,18 @@ export function Navbar({ currentTab, setCurrentTab, onOpenConfig, onLogout }) {
           </button>
 
           <button
+            onClick={() => setCurrentTab('metrics')}
+            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs sm:text-sm font-semibold whitespace-nowrap transition-all ${
+              currentTab === 'metrics'
+                ? 'bg-indigo-500/20 text-indigo-400 border border-indigo-500/40 shadow-sm'
+                : 'text-slate-400 hover:text-slate-200 hover:bg-gym-800/60'
+            }`}
+          >
+            <Scale className="w-4 h-4" />
+            <span>Pesos & Medidas</span>
+          </button>
+
+          <button
             onClick={() => setCurrentTab('dashboard')}
             className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs sm:text-sm font-semibold whitespace-nowrap transition-all ${
               currentTab === 'dashboard'
@@ -178,7 +191,7 @@ export function Navbar({ currentTab, setCurrentTab, onOpenConfig, onLogout }) {
             onClick={() => setCurrentTab('planner')}
             className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs sm:text-sm font-semibold whitespace-nowrap transition-all ${
               currentTab === 'planner'
-                ? 'bg-indigo-500/20 text-indigo-400 border border-indigo-500/40 shadow-sm'
+                ? 'bg-sky-500/20 text-sky-400 border border-sky-500/40 shadow-sm'
                 : 'text-slate-400 hover:text-slate-200 hover:bg-gym-800/60'
             }`}
           >

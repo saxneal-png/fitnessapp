@@ -73,14 +73,6 @@ export function LoginScreen({ onGuestDuoAccess }) {
     }
   };
 
-  const handleDirectDeviceLogin = async (uid) => {
-    switchUser(uid);
-    changeSessionMode('single');
-    localStorage.setItem('fitness_duo_guest_access', 'true');
-    await ensureAnonymousAuth();
-    window.location.reload();
-  };
-
   return (
     <div className="min-h-screen bg-[#0B0F19] flex items-center justify-center p-4 relative overflow-hidden">
       {/* Background Glows */}
@@ -191,7 +183,7 @@ export function LoginScreen({ onGuestDuoAccess }) {
             </div>
 
             {isUserNotFoundError && !isRegister && (
-              <div className="pt-2 border-t border-red-500/20 flex flex-col gap-2">
+              <div className="pt-2 border-t border-red-500/20">
                 <button
                   type="button"
                   onClick={() => setIsRegister(true)}
@@ -199,35 +191,6 @@ export function LoginScreen({ onGuestDuoAccess }) {
                 >
                   <Key className="w-3.5 h-3.5" />
                   <span>👉 Pulsa aquí para Crear la Cuenta de {selectedUserType === 'dionicio' ? 'Dionicio' : 'Paula'}</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleDirectDeviceLogin(selectedUserType)}
-                  className="w-full py-2 bg-gym-900 hover:bg-gym-700 border border-slate-600 text-slate-200 font-bold rounded-lg text-xs flex items-center justify-center gap-1"
-                >
-                  <Check className="w-3.5 h-3.5 text-emerald-400" />
-                  <span>O entrar directamente en este celular sin contraseña</span>
-                </button>
-              </div>
-            )}
-
-            {isApiRestrictionError && (
-              <div className="pt-2 border-t border-red-500/20 space-y-2">
-                <a
-                  href="https://console.cloud.google.com/apis/library/identitytoolkit.googleapis.com?project=fitness-app-e7a59"
-                  target="_blank"
-                  rel="noreferrer"
-                  className="block text-sky-400 underline font-bold text-[11px]"
-                >
-                  👉 Clic aquí para Habilitar Identity Toolkit API en Google Cloud
-                </a>
-                <button
-                  type="button"
-                  onClick={() => handleDirectDeviceLogin(selectedUserType)}
-                  className="w-full py-2 bg-emerald-500 hover:bg-emerald-400 text-gym-900 font-bold rounded-lg text-xs flex items-center justify-center gap-1"
-                >
-                  <Check className="w-3.5 h-3.5" />
-                  <span>Entrar de inmediato como {selectedUserType === 'dionicio' ? 'Dionicio' : 'Paula'} en este celular</span>
                 </button>
               </div>
             )}
@@ -285,32 +248,6 @@ export function LoginScreen({ onGuestDuoAccess }) {
             )}
           </button>
         </form>
-
-        {/* Quick 1-Click Access for Personal Phone */}
-        <div className="pt-2 text-center">
-          <button
-            type="button"
-            onClick={() => handleDirectDeviceLogin(selectedUserType)}
-            className="text-xs text-sky-400 hover:text-sky-300 font-semibold underline"
-          >
-            ⚡ Entrar directamente sin contraseña en este teléfono como {selectedUserType === 'dionicio' ? 'Dionicio' : 'Paula'}
-          </button>
-        </div>
-
-        {/* Alternative: Shared Duo Mode on Tablet/TV */}
-        <div className="pt-4 border-t border-gym-700 text-center space-y-2">
-          <button
-            type="button"
-            onClick={onGuestDuoAccess}
-            className="w-full py-2.5 bg-gym-900/80 hover:bg-gym-900 border border-gym-700 hover:border-slate-500 rounded-xl text-xs font-bold text-slate-300 flex items-center justify-center gap-2 transition-all"
-          >
-            <Users className="w-4 h-4 text-amber-400" />
-            <span>Acceder en Modo Dúo (Pantalla Compartida TV / Tablet)</span>
-          </button>
-          <p className="text-[10px] text-slate-500">
-            Recomendado si ambos están frente a la misma pantalla durante el entrenamiento de las 19:00.
-          </p>
-        </div>
       </div>
     </div>
   );

@@ -15,6 +15,7 @@ import {
   setDoc, 
   getDoc,
   getDocs, 
+  deleteDoc,
   query, 
   where, 
   orderBy, 
@@ -227,6 +228,23 @@ export async function saveWeightEntry(weightData, householdId = 'hogar-dionicio-
     }
   }
   return newEntry;
+}
+
+export async function deleteWeightEntry(entryId, userId, householdId = 'hogar-dionicio-paula') {
+  // Update local cache
+  const allWeights = getLocalWeightEntries(householdId).filter(w => w.id !== entryId);
+  saveLocalWeightEntries(allWeights, householdId);
+
+  if (db && isInitialized) {
+    try {
+      await ensureAnonymousAuth();
+      const docRef = doc(db, 'households', householdId, 'members', userId, 'bodyweight', entryId);
+      await deleteDoc(docRef);
+      console.log('🗑️ [Firestore Cloud] Registro de peso/medida eliminado:', entryId);
+    } catch (e) {
+      console.warn('⚠️ Error eliminando peso en Firestore Cloud:', e);
+    }
+  }
 }
 
 // Pantry Items Cloud Sync
