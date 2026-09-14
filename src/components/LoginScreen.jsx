@@ -73,6 +73,14 @@ export function LoginScreen({ onGuestDuoAccess }) {
     }
   };
 
+  const handleDirectAccess = async (uid) => {
+    switchUser(uid);
+    changeSessionMode('single');
+    localStorage.setItem('fitness_duo_guest_access', 'true');
+    await ensureAnonymousAuth();
+    window.location.reload();
+  };
+
   return (
     <div className="min-h-screen bg-[#0B0F19] flex items-center justify-center p-4 relative overflow-hidden">
       {/* Background Glows */}
@@ -176,13 +184,34 @@ export function LoginScreen({ onGuestDuoAccess }) {
         </div>
 
         {errorMsg && (
-          <div className="p-3.5 rounded-xl bg-red-500/10 border border-red-500/30 text-red-300 text-xs space-y-2">
+          <div className="p-3.5 rounded-xl bg-red-500/10 border border-red-500/30 text-red-300 text-xs space-y-2.5">
             <div className="flex items-start gap-2">
               <AlertCircle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
               <span>{errorMsg}</span>
             </div>
 
-            {isUserNotFoundError && !isRegister && (
+            {isApiRestrictionError && (
+              <div className="pt-2 border-t border-red-500/20 space-y-2">
+                <button
+                  type="button"
+                  onClick={() => handleDirectAccess(selectedUserType)}
+                  className="w-full py-2.5 bg-emerald-500 hover:bg-emerald-400 text-gym-900 font-extrabold rounded-xl text-xs flex items-center justify-center gap-1.5 transition-all shadow-md shadow-emerald-500/20"
+                >
+                  <Check className="w-4 h-4" />
+                  <span>👉 Entrar a entrenar de inmediato como {selectedUserType === 'dionicio' ? 'Dionicio' : 'Paula'}</span>
+                </button>
+                <a
+                  href="https://console.cloud.google.com/apis/library/identitytoolkit.googleapis.com?project=fitness-app-e7a59"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="block text-center text-sky-400 hover:text-sky-300 underline font-bold text-[11px]"
+                >
+                  🔗 Clic aquí para habilitar Identity Toolkit API en Google Cloud
+                </a>
+              </div>
+            )}
+
+            {isUserNotFoundError && !isRegister && !isApiRestrictionError && (
               <div className="pt-2 border-t border-red-500/20">
                 <button
                   type="button"
