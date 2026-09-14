@@ -7,12 +7,17 @@ import { Dumbbell, Lock, Mail, ArrowRight, ShieldCheck, Users, Sparkles, AlertCi
 export function LoginScreen({ onGuestDuoAccess }) {
   const { loginWithFirebase, registerWithFirebase, switchUser, changeSessionMode, isFirebaseConnected } = useAuth();
   
-  const defaultDionicioEmail = import.meta.env.VITE_DIONICIO_EMAIL || 'saxneal@gmail.com';
-  const defaultPaulaEmail = import.meta.env.VITE_PAULA_EMAIL || 'paula_sandoval@yahoo.es';
+  const getSavedEmail = (uid) => {
+    try {
+      return localStorage.getItem(`fitness_duo_saved_email_${uid}`) || '';
+    } catch (e) {
+      return '';
+    }
+  };
 
   const [isRegister, setIsRegister] = useState(false);
   const [selectedUserType, setSelectedUserType] = useState('dionicio'); // 'dionicio' or 'paula'
-  const [email, setEmail] = useState(defaultDionicioEmail);
+  const [email, setEmail] = useState(() => getSavedEmail('dionicio'));
   const [password, setPassword] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
   const [isApiRestrictionError, setIsApiRestrictionError] = useState(false);
@@ -26,16 +31,23 @@ export function LoginScreen({ onGuestDuoAccess }) {
     setIsUserNotFoundError(false);
     setLoading(true);
 
+    const cleanEmail = email.trim();
+
     try {
       if (isRegister) {
-        await registerWithFirebase(email.trim(), password);
+        await registerWithFirebase(cleanEmail, password);
       } else {
-        await loginWithFirebase(email.trim(), password);
+        await loginWithFirebase(cleanEmail, password);
       }
       
+      // Guardar el correo en el dispositivo local para que quede prellenado solo en este celular/navegador
+      try {
+        localStorage.setItem(`fitness_duo_saved_email_${selectedUserType}`, cleanEmail);
+      } catch (e) {}
+
       // Map user identity based on email or selection
-      const emailLower = email.toLowerCase();
-      if (emailLower.includes('paula') || emailLower.includes('sandoval') || selectedUserType === 'paula') {
+      const emailLower = cleanEmail.toLowerCase();
+      if (emailLower.includes('paula') || selectedUserType === 'paula') {
         switchUser('paula');
       } else {
         switchUser('dionicio');
@@ -49,7 +61,7 @@ export function LoginScreen({ onGuestDuoAccess }) {
         msg = 'Tu clave de Google Cloud necesita tener habilitada la "Identity Toolkit API". Puedes habilitarla en 1 clic o entrar directamente a continuación.';
       } else if (err.code === 'auth/invalid-credential' || err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password') {
         setIsUserNotFoundError(true);
-        msg = `No se pudo iniciar sesión con ${email}. Si aún no has registrado la cuenta en Firebase, pulsa "Crear Cuenta" abajo.`;
+        msg = `No se pudo iniciar sesión con ${cleanEmail}. Si aún no has registrado la cuenta en Firebase, pulsa "Crear Cuenta" abajo.`;
       } else if (err.code === 'auth/email-already-in-use') {
         msg = 'Este correo ya está registrado. Selecciona "Iniciar Sesión" para ingresar con tu contraseña.';
       } else if (err.code === 'auth/weak-password') {
@@ -101,7 +113,7 @@ export function LoginScreen({ onGuestDuoAccess }) {
               type="button"
               onClick={() => {
                 setSelectedUserType('dionicio');
-                setEmail(defaultDionicioEmail);
+                setEmail(getSavedEmail('dionicio'));
                 setErrorMsg('');
               }}
               className={`p-3 rounded-2xl border flex flex-col items-center gap-1 transition-all ${
@@ -112,14 +124,16 @@ export function LoginScreen({ onGuestDuoAccess }) {
             >
               <span className="text-2xl">👨‍💻</span>
               <span className="font-bold text-xs">Dionicio</span>
-              <span className="text-[10px] text-slate-400 font-mono">saxneal@gmail.com</span>
+              <span className="text-[10px] text-slate-400 font-mono truncate max-w-[130px]">
+                {getSavedEmail('dionicio') || 'Atleta 1 (Torso)'}
+              </span>
             </button>
 
             <button
               type="button"
               onClick={() => {
                 setSelectedUserType('paula');
-                setEmail(defaultPaulaEmail);
+                setEmail(getSavedEmail('paula'));
                 setErrorMsg('');
               }}
               className={`p-3 rounded-2xl border flex flex-col items-center gap-1 transition-all ${
@@ -130,7 +144,9 @@ export function LoginScreen({ onGuestDuoAccess }) {
             >
               <span className="text-2xl">👩‍💼</span>
               <span className="font-bold text-xs">Paula</span>
-              <span className="text-[10px] text-slate-400 font-mono">paula_sandoval@yahoo.es</span>
+              <span className="text-[10px] text-slate-400 font-mono truncate max-w-[130px]">
+                {getSavedEmail('paula') || 'Atleta 2 (Trotadora)'}
+              </span>
             </button>
           </div>
         </div>

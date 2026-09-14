@@ -117,8 +117,8 @@ END:VCALENDAR`;
             </p>
           </div>
           <div className="text-right text-xs font-mono text-gray-800 border border-black px-3 py-1.5 rounded">
-            <div><strong>Dionicio:</strong> saxneal@gmail.com</div>
-            <div><strong>Paula:</strong> paula_sandoval@yahoo.es</div>
+            <div><strong>Dionicio:</strong> Atleta 1 (180 cm)</div>
+            <div><strong>Paula:</strong> Atleta 2 (160 cm)</div>
           </div>
         </div>
 
