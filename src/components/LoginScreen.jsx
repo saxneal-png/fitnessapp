@@ -7,8 +7,8 @@ import { Dumbbell, Lock, Mail, ArrowRight, ShieldCheck, Users, Sparkles, AlertCi
 export function LoginScreen({ onGuestDuoAccess }) {
   const { loginWithFirebase, registerWithFirebase, switchUser, changeSessionMode, isFirebaseConnected } = useAuth();
   
-  const defaultDionicioEmail = import.meta.env.VITE_DIONICIO_EMAIL || '';
-  const defaultPaulaEmail = import.meta.env.VITE_PAULA_EMAIL || '';
+  const defaultDionicioEmail = import.meta.env.VITE_DIONICIO_EMAIL || 'saxneal@gmail.com';
+  const defaultPaulaEmail = import.meta.env.VITE_PAULA_EMAIL || 'paula_sandoval@yahoo.es';
 
   const [isRegister, setIsRegister] = useState(false);
   const [selectedUserType, setSelectedUserType] = useState('dionicio'); // 'dionicio' or 'paula'
@@ -16,24 +16,26 @@ export function LoginScreen({ onGuestDuoAccess }) {
   const [password, setPassword] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
   const [isApiRestrictionError, setIsApiRestrictionError] = useState(false);
+  const [isUserNotFoundError, setIsUserNotFoundError] = useState(false);
   const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setErrorMsg('');
     setIsApiRestrictionError(false);
+    setIsUserNotFoundError(false);
     setLoading(true);
 
     try {
       if (isRegister) {
-        await registerWithFirebase(email, password);
+        await registerWithFirebase(email.trim(), password);
       } else {
-        await loginWithFirebase(email, password);
+        await loginWithFirebase(email.trim(), password);
       }
       
       // Map user identity based on email or selection
       const emailLower = email.toLowerCase();
-      if (emailLower.includes('paula') || selectedUserType === 'paula') {
+      if (emailLower.includes('paula') || emailLower.includes('sandoval') || selectedUserType === 'paula') {
         switchUser('paula');
       } else {
         switchUser('dionicio');
@@ -46,9 +48,10 @@ export function LoginScreen({ onGuestDuoAccess }) {
         setIsApiRestrictionError(true);
         msg = 'Tu clave de Google Cloud necesita tener habilitada la "Identity Toolkit API". Puedes habilitarla en 1 clic o entrar directamente a continuación.';
       } else if (err.code === 'auth/invalid-credential' || err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password') {
-        msg = 'Correo o contraseña incorrectos. Verifica tus datos de Firebase.';
+        setIsUserNotFoundError(true);
+        msg = `No se pudo iniciar sesión con ${email}. Si aún no has registrado la cuenta en Firebase, pulsa "Crear Cuenta" abajo.`;
       } else if (err.code === 'auth/email-already-in-use') {
-        msg = 'Este correo ya está registrado. Selecciona "Iniciar Sesión".';
+        msg = 'Este correo ya está registrado. Selecciona "Iniciar Sesión" para ingresar con tu contraseña.';
       } else if (err.code === 'auth/weak-password') {
         msg = 'La contraseña debe tener al menos 6 caracteres.';
       }
@@ -98,7 +101,8 @@ export function LoginScreen({ onGuestDuoAccess }) {
               type="button"
               onClick={() => {
                 setSelectedUserType('dionicio');
-                if (defaultDionicioEmail) setEmail(defaultDionicioEmail);
+                setEmail(defaultDionicioEmail);
+                setErrorMsg('');
               }}
               className={`p-3 rounded-2xl border flex flex-col items-center gap-1 transition-all ${
                 selectedUserType === 'dionicio'
@@ -108,14 +112,15 @@ export function LoginScreen({ onGuestDuoAccess }) {
             >
               <span className="text-2xl">👨‍💻</span>
               <span className="font-bold text-xs">Dionicio</span>
-              <span className="text-[10px] text-slate-500">Atleta 1 (Torso / Pierna)</span>
+              <span className="text-[10px] text-slate-400 font-mono">saxneal@gmail.com</span>
             </button>
 
             <button
               type="button"
               onClick={() => {
                 setSelectedUserType('paula');
-                if (defaultPaulaEmail) setEmail(defaultPaulaEmail);
+                setEmail(defaultPaulaEmail);
+                setErrorMsg('');
               }}
               className={`p-3 rounded-2xl border flex flex-col items-center gap-1 transition-all ${
                 selectedUserType === 'paula'
@@ -125,9 +130,41 @@ export function LoginScreen({ onGuestDuoAccess }) {
             >
               <span className="text-2xl">👩‍💼</span>
               <span className="font-bold text-xs">Paula</span>
-              <span className="text-[10px] text-slate-500">Atleta 2 (Trotadora / Fuerza)</span>
+              <span className="text-[10px] text-slate-400 font-mono">paula_sandoval@yahoo.es</span>
             </button>
           </div>
+        </div>
+
+        {/* Mode Toggle: Iniciar Sesión vs Crear Cuenta */}
+        <div className="flex bg-gym-900 p-1 rounded-xl border border-gym-700">
+          <button
+            type="button"
+            onClick={() => {
+              setIsRegister(false);
+              setErrorMsg('');
+            }}
+            className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition-all ${
+              !isRegister
+                ? 'bg-gym-700 text-white shadow-sm'
+                : 'text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            Iniciar Sesión
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setIsRegister(true);
+              setErrorMsg('');
+            }}
+            className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition-all ${
+              isRegister
+                ? 'bg-gradient-to-r from-sky-500 to-pink-500 text-white shadow-sm'
+                : 'text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            Crear / Registrar Cuenta
+          </button>
         </div>
 
         {errorMsg && (
@@ -136,6 +173,28 @@ export function LoginScreen({ onGuestDuoAccess }) {
               <AlertCircle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
               <span>{errorMsg}</span>
             </div>
+
+            {isUserNotFoundError && !isRegister && (
+              <div className="pt-2 border-t border-red-500/20 flex flex-col gap-2">
+                <button
+                  type="button"
+                  onClick={() => setIsRegister(true)}
+                  className="w-full py-2 bg-pink-500 hover:bg-pink-400 text-white font-bold rounded-lg text-xs flex items-center justify-center gap-1"
+                >
+                  <Key className="w-3.5 h-3.5" />
+                  <span>👉 Pulsa aquí para Crear la Cuenta de {selectedUserType === 'dionicio' ? 'Dionicio' : 'Paula'}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleDirectDeviceLogin(selectedUserType)}
+                  className="w-full py-2 bg-gym-900 hover:bg-gym-700 border border-slate-600 text-slate-200 font-bold rounded-lg text-xs flex items-center justify-center gap-1"
+                >
+                  <Check className="w-3.5 h-3.5 text-emerald-400" />
+                  <span>O entrar directamente en este celular sin contraseña</span>
+                </button>
+              </div>
+            )}
+
             {isApiRestrictionError && (
               <div className="pt-2 border-t border-red-500/20 space-y-2">
                 <a
@@ -204,7 +263,7 @@ export function LoginScreen({ onGuestDuoAccess }) {
               <span>Conectando...</span>
             ) : (
               <>
-                <span>{isRegister ? 'Crear Cuenta y Entrar' : `Entrar como ${selectedUserType === 'dionicio' ? 'Dionicio' : 'Paula'}`}</span>
+                <span>{isRegister ? `Crear Cuenta de ${selectedUserType === 'dionicio' ? 'Dionicio' : 'Paula'}` : `Entrar como ${selectedUserType === 'dionicio' ? 'Dionicio' : 'Paula'}`}</span>
                 <ArrowRight className="w-4 h-4" />
               </>
             )}
