@@ -5,7 +5,10 @@ import {
   askCoachWithFullContext, 
   buildHouseholdContext, 
   getStoredGeminiKey, 
-  saveGeminiKey 
+  saveGeminiKey,
+  getStoredGeminiModel,
+  saveGeminiModel,
+  GEMINI_AVAILABLE_MODELS
 } from '../services/geminiService';
 import { 
   Sparkles, 
@@ -29,6 +32,7 @@ import {
 export function GeminiCoach() {
   const { currentUser, householdId } = useAuth();
   const [apiKey, setApiKey] = useState(() => getStoredGeminiKey());
+  const [selectedModel, setSelectedModel] = useState(() => getStoredGeminiModel());
   const [showKeyInput, setShowKeyInput] = useState(!getStoredGeminiKey());
   const [tempKey, setTempKey] = useState(apiKey);
   const [householdStats, setHouseholdStats] = useState(() => buildHouseholdContext(householdId));
@@ -54,6 +58,7 @@ Estoy conectado en tiempo real con sus registros de sobrecarga, las series de ma
     e.preventDefault();
     setApiKey(tempKey.trim());
     saveGeminiKey(tempKey.trim());
+    saveGeminiModel(selectedModel);
     setShowKeyInput(false);
   };
 
@@ -199,22 +204,44 @@ Estoy conectado en tiempo real con sus registros de sobrecarga, las series de ma
             Puedes obtenerla gratis en <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noreferrer" className="text-sky-400 underline">Google AI Studio</a>.
           </p>
 
-          <form onSubmit={handleSaveKey} className="flex gap-2">
-            <input
-              type="password"
-              placeholder="AIzaSy..."
-              value={tempKey}
-              onChange={(e) => setTempKey(e.target.value)}
-              className="flex-1 bg-gym-900 border border-gym-700 rounded-xl px-3 py-2 text-sm text-white font-mono focus:outline-none focus:border-amber-500"
-              required
-            />
-            <button
-              type="submit"
-              className="px-5 py-2 bg-amber-500 hover:bg-amber-400 text-gym-900 font-bold rounded-xl text-xs flex items-center gap-1 transition-all"
-            >
-              <Check className="w-4 h-4" />
-              <span>Guardar</span>
-            </button>
+          <form onSubmit={handleSaveKey} className="space-y-3">
+            <div className="flex gap-2">
+              <input
+                type="password"
+                placeholder="AIzaSy..."
+                value={tempKey}
+                onChange={(e) => setTempKey(e.target.value)}
+                className="flex-1 bg-gym-900 border border-gym-700 rounded-xl px-3 py-2 text-sm text-white font-mono focus:outline-none focus:border-amber-500"
+                required
+              />
+              <button
+                type="submit"
+                className="px-5 py-2 bg-amber-500 hover:bg-amber-400 text-gym-900 font-bold rounded-xl text-xs flex items-center gap-1 transition-all"
+              >
+                <Check className="w-4 h-4" />
+                <span>Guardar</span>
+              </button>
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-300 mb-1">
+                Modelo de IA Activo
+              </label>
+              <select
+                value={selectedModel}
+                onChange={(e) => {
+                  setSelectedModel(e.target.value);
+                  saveGeminiModel(e.target.value);
+                }}
+                className="w-full bg-gym-900 border border-gym-700 rounded-xl px-3 py-2 text-xs text-amber-300 font-semibold focus:outline-none focus:border-amber-500"
+              >
+                {GEMINI_AVAILABLE_MODELS.map(m => (
+                  <option key={m.id} value={m.id}>
+                    {m.label} ({m.id})
+                  </option>
+                ))}
+              </select>
+            </div>
           </form>
         </div>
       )}

@@ -4,6 +4,17 @@ import { USERS, WORKOUT_DAYS, TREADMILL_PROTOCOLS } from '../data/workoutCatalog
 import { getLocalLogs, getLocalWeightEntries } from '../firebase/config';
 
 export const GEMINI_STORAGE_KEY = 'fitness_gemini_api_key';
+export const GEMINI_MODEL_STORAGE_KEY = 'fitness_gemini_model';
+
+export const GEMINI_AVAILABLE_MODELS = [
+  { id: 'gemini-2.0-flash-lite', label: 'Gemini 2.0 Flash Lite (Recomendado • Ultra Rápido)' },
+  { id: 'gemini-flash-lite-latest', label: 'Gemini Flash Lite Latest' },
+  { id: 'gemini-2.0-flash-lite-preview-02-05', label: 'Gemini 2.0 Flash Lite Preview (02-05)' },
+  { id: 'gemini-1.5-flash', label: 'Gemini 1.5 Flash' },
+  { id: 'gemini-1.5-flash-8b', label: 'Gemini 1.5 Flash 8B (Bajo consumo)' },
+  { id: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash' },
+  { id: 'gemini-1.5-pro', label: 'Gemini 1.5 Pro' },
+];
 
 export function getStoredGeminiKey() {
   return localStorage.getItem(GEMINI_STORAGE_KEY) || '';
@@ -13,27 +24,42 @@ export function saveGeminiKey(key) {
   localStorage.setItem(GEMINI_STORAGE_KEY, key.trim());
 }
 
+export function getStoredGeminiModel() {
+  return localStorage.getItem(GEMINI_MODEL_STORAGE_KEY) || 'gemini-2.0-flash-lite';
+}
+
+export function saveGeminiModel(model) {
+  localStorage.setItem(GEMINI_MODEL_STORAGE_KEY, model.trim());
+}
+
 /**
- * Obtiene una instancia configurada de Gemini intentando con los modelos disponibles.
+ * Obtiene una instancia configurada de Gemini intentando con los modelos disponibles (Prioridad Flash Lite).
  */
-async function callGemini(systemInstruction, userPrompt, apiKey) {
+async function callGemini(systemInstruction, userPrompt, apiKey, preferredModel) {
   const key = apiKey || getStoredGeminiKey();
   if (!key) throw new Error('API_KEY_MISSING');
 
+  const selectedModel = preferredModel || getStoredGeminiModel();
   const genAI = new GoogleGenerativeAI(key);
+
   const modelCandidates = [
+    selectedModel,
+    'gemini-2.0-flash-lite',
+    'gemini-flash-lite-latest',
+    'gemini-2.0-flash-lite-preview-02-05',
+    'gemini-2.0-flash-lite-preview',
+    'gemini-1.5-flash-8b',
     'gemini-1.5-flash',
     'gemini-2.5-flash',
     'gemini-1.5-pro',
-    'gemini-2.0-flash-exp',
-    'gemini-3.6-flash',
-    'gemini-1.5-flash-8b',
-    'gemini-1.5-flash-latest',
     'gemini-pro'
   ];
+
+  // Remover duplicados manteniendo orden
+  const uniqueCandidates = Array.from(new Set(modelCandidates));
   let lastErr = null;
 
-  for (const mName of modelCandidates) {
+  for (const mName of uniqueCandidates) {
     try {
       const modelConfig = { model: mName };
       if (systemInstruction) {
