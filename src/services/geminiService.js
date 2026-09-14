@@ -21,20 +21,42 @@ async function callGemini(systemInstruction, userPrompt, apiKey) {
   if (!key) throw new Error('API_KEY_MISSING');
 
   const genAI = new GoogleGenerativeAI(key);
-  const modelCandidates = ['gemini-flash-latest', 'gemini-1.5-flash-latest', 'gemini-2.0-flash'];
+  const modelCandidates = [
+    'gemini-1.5-flash',
+    'gemini-2.5-flash',
+    'gemini-1.5-pro',
+    'gemini-2.0-flash-exp',
+    'gemini-3.6-flash',
+    'gemini-1.5-flash-8b',
+    'gemini-1.5-flash-latest',
+    'gemini-pro'
+  ];
   let lastErr = null;
 
   for (const mName of modelCandidates) {
     try {
-      const model = genAI.getGenerativeModel({
-        model: mName,
-        systemInstruction: systemInstruction
-      });
+      const modelConfig = { model: mName };
+      if (systemInstruction) {
+        modelConfig.systemInstruction = systemInstruction;
+      }
+      const model = genAI.getGenerativeModel(modelConfig);
       const result = await model.generateContent(userPrompt);
       const text = result.response.text();
       if (text) return text;
     } catch (e) {
       lastErr = e;
+      // Try fallback without systemInstruction if it was rejected by legacy models
+      if (systemInstruction && (e.message?.includes('systemInstruction') || e.message?.includes('system_instruction'))) {
+        try {
+          const model = genAI.getGenerativeModel({ model: mName });
+          const combinedPrompt = `${systemInstruction}\n\n---\n\n${userPrompt}`;
+          const result = await model.generateContent(combinedPrompt);
+          const text = result.response.text();
+          if (text) return text;
+        } catch (innerErr) {
+          lastErr = innerErr;
+        }
+      }
       console.warn(`Gemini candidate model ${mName} notice:`, e.message);
     }
   }
