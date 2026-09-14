@@ -18,7 +18,7 @@ function MainApp() {
     return localStorage.getItem('fitness_duo_guest_access') === 'true';
   });
 
-  const { currentUser, sessionMode, fbUser, authLoading, isFirebaseConnected, changeSessionMode, logoutFirebase } = useAuth();
+  const { currentUser, sessionMode, fbUser, isAuthenticated, authLoading, isFirebaseConnected, changeSessionMode, logoutFirebase } = useAuth();
 
   const handleGuestDuo = () => {
     setGuestAccess(true);
@@ -36,7 +36,7 @@ function MainApp() {
     }
   };
 
-  // If Firebase Auth is still loading initial state
+  // If Auth is still loading initial state
   if (authLoading) {
     return (
       <div className="min-h-screen bg-[#0B0F19] flex items-center justify-center">
@@ -48,8 +48,8 @@ function MainApp() {
     );
   }
 
-  // If not logged in and hasn't chosen Guest Duo Mode, show Login Screen
-  if (!fbUser && !guestAccess) {
+  // If not authenticated and hasn't chosen Guest Duo Mode, show Login Screen
+  if (!isAuthenticated && !guestAccess) {
     return <LoginScreen onGuestDuoAccess={handleGuestDuo} />;
   }
 

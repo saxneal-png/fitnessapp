@@ -5,7 +5,7 @@ import { ensureAnonymousAuth } from '../firebase/config';
 import { Dumbbell, Lock, Mail, ArrowRight, ShieldCheck, Users, Sparkles, AlertCircle, Key, Check } from 'lucide-react';
 
 export function LoginScreen({ onGuestDuoAccess }) {
-  const { loginWithFirebase, registerWithFirebase, switchUser, changeSessionMode, isFirebaseConnected } = useAuth();
+  const { loginAthlete, switchUser, changeSessionMode } = useAuth();
   
   const getSavedEmail = (uid) => {
     try {
@@ -20,54 +20,21 @@ export function LoginScreen({ onGuestDuoAccess }) {
   const [email, setEmail] = useState(() => getSavedEmail('dionicio'));
   const [password, setPassword] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
-  const [isApiRestrictionError, setIsApiRestrictionError] = useState(false);
-  const [isUserNotFoundError, setIsUserNotFoundError] = useState(false);
   const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setErrorMsg('');
-    setIsApiRestrictionError(false);
-    setIsUserNotFoundError(false);
     setLoading(true);
 
     const cleanEmail = email.trim();
 
     try {
-      if (isRegister) {
-        await registerWithFirebase(cleanEmail, password);
-      } else {
-        await loginWithFirebase(cleanEmail, password);
-      }
-      
-      // Guardar el correo en el dispositivo local para que quede prellenado solo en este celular/navegador
-      try {
-        localStorage.setItem(`fitness_duo_saved_email_${selectedUserType}`, cleanEmail);
-      } catch (e) {}
-
-      // Map user identity based on email or selection
-      const emailLower = cleanEmail.toLowerCase();
-      if (emailLower.includes('paula') || selectedUserType === 'paula') {
-        switchUser('paula');
-      } else {
-        switchUser('dionicio');
-      }
-      changeSessionMode('single');
+      await loginAthlete(cleanEmail, password, selectedUserType);
+      // Successful login automatically sets session and updates state
     } catch (err) {
       console.error('Auth error:', err);
-      let msg = err.message;
-      if (err.message && err.message.includes('api-keys-are-not-supported')) {
-        setIsApiRestrictionError(true);
-        msg = 'Tu clave de Google Cloud necesita tener habilitada la "Identity Toolkit API". Puedes habilitarla en 1 clic o entrar directamente a continuación.';
-      } else if (err.code === 'auth/invalid-credential' || err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password') {
-        setIsUserNotFoundError(true);
-        msg = `No se pudo iniciar sesión con ${cleanEmail}. Si aún no has registrado la cuenta en Firebase, pulsa "Crear Cuenta" abajo.`;
-      } else if (err.code === 'auth/email-already-in-use') {
-        msg = 'Este correo ya está registrado. Selecciona "Iniciar Sesión" para ingresar con tu contraseña.';
-      } else if (err.code === 'auth/weak-password') {
-        msg = 'La contraseña debe tener al menos 6 caracteres.';
-      }
-      setErrorMsg(msg);
+      setErrorMsg(err.message || 'Error al verificar credenciales.');
     } finally {
       setLoading(false);
     }
@@ -151,78 +118,10 @@ export function LoginScreen({ onGuestDuoAccess }) {
           </div>
         </div>
 
-        {/* Mode Toggle: Iniciar Sesión vs Crear Cuenta */}
-        <div className="flex bg-gym-900 p-1 rounded-xl border border-gym-700">
-          <button
-            type="button"
-            onClick={() => {
-              setIsRegister(false);
-              setErrorMsg('');
-            }}
-            className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition-all ${
-              !isRegister
-                ? 'bg-gym-700 text-white shadow-sm'
-                : 'text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            Iniciar Sesión
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              setIsRegister(true);
-              setErrorMsg('');
-            }}
-            className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition-all ${
-              isRegister
-                ? 'bg-gradient-to-r from-sky-500 to-pink-500 text-white shadow-sm'
-                : 'text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            Crear / Registrar Cuenta
-          </button>
-        </div>
-
         {errorMsg && (
-          <div className="p-3.5 rounded-xl bg-red-500/10 border border-red-500/30 text-red-300 text-xs space-y-2.5">
-            <div className="flex items-start gap-2">
-              <AlertCircle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
-              <span>{errorMsg}</span>
-            </div>
-
-            {isApiRestrictionError && (
-              <div className="pt-2 border-t border-red-500/20 space-y-2">
-                <button
-                  type="button"
-                  onClick={() => handleDirectAccess(selectedUserType)}
-                  className="w-full py-2.5 bg-emerald-500 hover:bg-emerald-400 text-gym-900 font-extrabold rounded-xl text-xs flex items-center justify-center gap-1.5 transition-all shadow-md shadow-emerald-500/20"
-                >
-                  <Check className="w-4 h-4" />
-                  <span>👉 Entrar a entrenar de inmediato como {selectedUserType === 'dionicio' ? 'Dionicio' : 'Paula'}</span>
-                </button>
-                <a
-                  href="https://console.cloud.google.com/apis/library/identitytoolkit.googleapis.com?project=fitness-app-e7a59"
-                  target="_blank"
-                  rel="noreferrer"
-                  className="block text-center text-sky-400 hover:text-sky-300 underline font-bold text-[11px]"
-                >
-                  🔗 Clic aquí para habilitar Identity Toolkit API en Google Cloud
-                </a>
-              </div>
-            )}
-
-            {isUserNotFoundError && !isRegister && !isApiRestrictionError && (
-              <div className="pt-2 border-t border-red-500/20">
-                <button
-                  type="button"
-                  onClick={() => setIsRegister(true)}
-                  className="w-full py-2 bg-pink-500 hover:bg-pink-400 text-white font-bold rounded-lg text-xs flex items-center justify-center gap-1"
-                >
-                  <Key className="w-3.5 h-3.5" />
-                  <span>👉 Pulsa aquí para Crear la Cuenta de {selectedUserType === 'dionicio' ? 'Dionicio' : 'Paula'}</span>
-                </button>
-              </div>
-            )}
+          <div className="p-3.5 rounded-xl bg-red-500/10 border border-red-500/30 text-red-300 text-xs flex items-start gap-2 animate-fadeIn">
+            <AlertCircle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
+            <span>{errorMsg}</span>
           </div>
         )}
 
@@ -268,10 +167,10 @@ export function LoginScreen({ onGuestDuoAccess }) {
             }`}
           >
             {loading ? (
-              <span>Conectando...</span>
+              <span>Verificando...</span>
             ) : (
               <>
-                <span>{isRegister ? `Crear Cuenta de ${selectedUserType === 'dionicio' ? 'Dionicio' : 'Paula'}` : `Entrar como ${selectedUserType === 'dionicio' ? 'Dionicio' : 'Paula'}`}</span>
+                <span>Entrar como {selectedUserType === 'dionicio' ? 'Dionicio' : 'Paula'}</span>
                 <ArrowRight className="w-4 h-4" />
               </>
             )}

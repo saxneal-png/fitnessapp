@@ -1,12 +1,17 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+﻿import React, { createContext, useContext, useState, useEffect } from 'react';
 import { USERS } from '../data/workoutCatalog';
-import { auth, isInitialized, getStoredFirebaseConfig, ensureAnonymousAuth, subscribeToConnectionStatus } from '../firebase/config';
+import { auth, isInitialized, ensureAnonymousAuth, subscribeToConnectionStatus } from '../firebase/config';
 import { 
   signInWithEmailAndPassword, 
   createUserWithEmailAndPassword, 
   signOut as fbSignOut, 
   onAuthStateChanged 
 } from 'firebase/auth';
+import { 
+  verifyAndLogin, 
+  getAuthenticatedSession, 
+  clearAuthenticatedSession 
+} from '../services/authService';
 
 const AuthContext = createContext(null);
 
@@ -20,7 +25,7 @@ export function AuthProvider({ children }) {
   });
 
   const [sessionMode, setSessionMode] = useState(() => {
-    return localStorage.getItem(SESSION_MODE_STORAGE) || 'duo'; // 'duo' (pantalla compartida) or 'single'
+    return localStorage.getItem(SESSION_MODE_STORAGE) || 'single';
   });
 
   const [householdId, setHouseholdId] = useState(() => {
@@ -28,15 +33,17 @@ export function AuthProvider({ children }) {
   });
 
   const [fbUser, setFbUser] = useState(null);
+  const [authSession, setAuthSession] = useState(() => getAuthenticatedSession());
   const [authLoading, setAuthLoading] = useState(true);
   const [isCloudOnline, setIsCloudOnline] = useState(false);
 
   useEffect(() => {
-    // Subscribe to cloud connection changes
+    // 1. Subscribe to cloud connection changes
     const unsubConnection = subscribeToConnectionStatus((online) => {
       setIsCloudOnline(online);
     });
 
+    // 2. Listen to Firebase Auth state
     if (auth && isInitialized) {
       const unsubscribe = onAuthStateChanged(auth, (user) => {
         setFbUser(user);
@@ -50,7 +57,7 @@ export function AuthProvider({ children }) {
         }
       });
 
-      // Ensure anonymous session if no user is authenticated
+      // Ensure anonymous session for Firestore syncing
       ensureAnonymousAuth();
 
       return () => {
@@ -80,24 +87,51 @@ export function AuthProvider({ children }) {
     localStorage.setItem(HOUSEHOLD_ID_STORAGE, id);
   };
 
-  const loginWithFirebase = async (email, password) => {
-    if (!auth) throw new Error('Firebase Auth no inicializado. Revisa la configuración.');
-    return signInWithEmailAndPassword(auth, email, password);
-  };
+  /**
+   * Inicio de sesión híbrido de producción:
+   * Valida criptográficamente las credenciales autorizadas del hogar y sincroniza con Firebase
+   */
+  const loginAthlete = async (email, password, selectedUser = 'dionicio') => {
+    // 1. Verificación segura con Vault Criptográfico
+    const vaultResult = await verifyAndLogin(email, password, selectedUser);
+    
+    // 2. Intentar autenticar en Firebase si el endpoint está disponible
+    if (auth && isInitialized && email && password) {
+      try {
+        await signInWithEmailAndPassword(auth, email.trim(), password);
+      } catch (fbErr) {
+        console.warn('Firebase Auth notice (continuando con sesión criptográfica segura):', fbErr.message);
+        // Si no está registrado en Firebase Auth, intentar registrarlo en segundo plano
+        if (fbErr.code === 'auth/user-not-found' || fbErr.code === 'auth/invalid-credential') {
+          try {
+            await createUserWithEmailAndPassword(auth, email.trim(), password);
+          } catch (regErr) {
+            console.warn('Firebase Auto-Register notice:', regErr.message);
+          }
+        }
+      }
+    }
 
-  const registerWithFirebase = async (email, password) => {
-    if (!auth) throw new Error('Firebase Auth no inicializado. Revisa la configuración.');
-    return createUserWithEmailAndPassword(auth, email, password);
+    // 3. Activar sesión
+    setAuthSession(vaultResult.session);
+    switchUser(vaultResult.user);
+    await ensureAnonymousAuth();
+    return vaultResult;
   };
 
   const logoutFirebase = async () => {
+    clearAuthenticatedSession();
+    setAuthSession(null);
     if (auth) {
-      await fbSignOut(auth);
+      try {
+        await fbSignOut(auth);
+      } catch (e) {}
       setFbUser(null);
-      // Re-enable anonymous session for seamless continued sync
       await ensureAnonymousAuth();
     }
   };
+
+  const isAuthenticated = Boolean(fbUser || authSession);
 
   const value = {
     currentUser,
@@ -109,9 +143,10 @@ export function AuthProvider({ children }) {
     householdId,
     changeHouseholdId,
     fbUser,
+    authSession,
+    isAuthenticated,
     authLoading,
-    loginWithFirebase,
-    registerWithFirebase,
+    loginAthlete,
     logoutFirebase,
     isFirebaseConnected: isInitialized,
     isCloudOnline
@@ -127,4 +162,3 @@ export function useAuth() {
   }
   return context;
 }
-
