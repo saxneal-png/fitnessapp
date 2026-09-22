@@ -185,6 +185,46 @@ Estoy conectado en tiempo real con sus registros de sobrecarga, las series de ma
         </div>
       </div>
 
+      {/* Personal Trainer Telemetry Card */}
+      {(() => {
+        const metrics = currentUser === 'dionicio' ? householdStats.dionicioMetrics : householdStats.paulaMetrics;
+        const prList = Object.entries(metrics?.exercisePRs || {});
+        return (
+          <div className="bg-gym-800/60 border border-gym-700/80 rounded-2xl p-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 text-xs font-bold text-slate-300 uppercase tracking-wider">
+                <Flame className="w-4 h-4 text-amber-400" />
+                <span>Métricas de Personal Trainer ({USERS[currentUser]?.name})</span>
+              </div>
+              <span className="text-[11px] text-slate-400">
+                Volumen Semanal: <strong className="text-white font-mono">{metrics?.weeklyVolumeKg || 0} kg</strong> • RPE Promedio: <strong className="text-white font-mono">{metrics?.avgRpe || '8.0'}</strong>
+              </span>
+            </div>
+
+            {prList.length > 0 ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 pt-1">
+                {prList.map(([exName, data]) => (
+                  <div key={exName} className="bg-gym-900/80 border border-gym-700/50 rounded-xl p-2.5 text-xs space-y-1">
+                    <div className="font-bold text-white truncate">{exName}</div>
+                    <div className="flex items-center justify-between text-[11px] text-slate-400 font-mono">
+                      <span>Récord: <strong className="text-amber-400">{data.maxWeightKg}kg</strong> (x{data.bestSetReps})</span>
+                      <span>Último: {data.lastLoggedWeight}kg</span>
+                    </div>
+                    <div className="text-[10px] text-sky-400 leading-tight">
+                      👉 {data.suggestedOverload}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-xs text-slate-400 italic bg-gym-900/40 rounded-xl p-3 border border-dashed border-gym-700">
+                🎯 Fase de Calibración (Semana 0): Registra tus primeras series en el Registrador para que el Personal Trainer calcule tus récords de carga y sobrecarga progresiva.
+              </div>
+            )}
+          </div>
+        );
+      })()}
+
       {/* API Key Modal / Banner */}
       {showKeyInput && (
         <div className="bg-gym-800/95 border border-amber-500/40 rounded-2xl p-4 sm:p-5 shadow-xl space-y-3 animate-fadeIn">

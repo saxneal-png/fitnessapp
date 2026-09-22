@@ -90,6 +90,125 @@ async function callGemini(systemInstruction, userPrompt, apiKey, preferredModel)
 }
 
 /**
+ * Extrae métricas avanzadas de entrenamiento, PRs y sobrecarga progresiva para un atleta
+ */
+export function extractAthleteMetrics(logs = [], weights = [], userId = 'dionicio') {
+  const userLogs = logs.filter(l => l.userId === userId);
+  const userWeights = weights.filter(w => w.userId === userId).sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+  
+  const strengthLogs = userLogs.filter(l => l.type === 'strength');
+  const treadmillLogs = userLogs.filter(l => l.type === 'treadmill');
+
+  // PRs y Progresión por ejercicio
+  const exercisePRs = {};
+  let totalSetsCount = 0;
+  let totalVolumeKg = 0;
+  let rpeSum = 0;
+  let rpeCount = 0;
+
+  // 7 days ago timestamp
+  const sevenDaysAgo = Date.now() - (7 * 24 * 60 * 60 * 1000);
+  let weeklyVolumeKg = 0;
+
+  strengthLogs.forEach(log => {
+    const exName = log.exerciseName || log.exerciseId || 'Ejercicio';
+    if (!exercisePRs[exName]) {
+      exercisePRs[exName] = {
+        maxWeightKg: 0,
+        bestSetReps: 0,
+        lastLoggedWeight: 0,
+        lastLoggedRpe: 0,
+        lastDate: log.date,
+        totalSets: 0,
+        history: []
+      };
+    }
+
+    if (Array.isArray(log.sets)) {
+      log.sets.forEach(s => {
+        const w = Number(s.weightKg) || 0;
+        const r = Number(s.reps) || 0;
+        const rpe = Number(s.rpe) || 8;
+        const vol = w * r;
+
+        totalSetsCount++;
+        totalVolumeKg += vol;
+        rpeSum += rpe;
+        rpeCount++;
+
+        if (log.timestamp && log.timestamp >= sevenDaysAgo) {
+          weeklyVolumeKg += vol;
+        }
+
+        exercisePRs[exName].totalSets++;
+        exercisePRs[exName].lastLoggedWeight = w;
+        exercisePRs[exName].lastLoggedRpe = rpe;
+
+        if (w > exercisePRs[exName].maxWeightKg || (w === exercisePRs[exName].maxWeightKg && r > exercisePRs[exName].bestSetReps)) {
+          exercisePRs[exName].maxWeightKg = w;
+          exercisePRs[exName].bestSetReps = r;
+          exercisePRs[exName].prDate = log.date;
+        }
+      });
+    }
+  });
+
+  // Calcular recomendaciones de sobrecarga progresiva por ejercicio
+  Object.keys(exercisePRs).forEach(ex => {
+    const pr = exercisePRs[ex];
+    const lastRpe = pr.lastLoggedRpe || 8;
+    const lastWeight = pr.lastLoggedWeight || pr.maxWeightKg;
+
+    if (lastRpe < 7) {
+      pr.suggestedOverload = `Subir a ${lastWeight + (userId === 'dionicio' ? 2 : 1)} kg (RPE previo suave: ${lastRpe.toFixed(1)})`;
+    } else if (lastRpe <= 8) {
+      pr.suggestedOverload = `Mantener ${lastWeight} kg y buscar +1 o +2 repeticiones (Zona óptima de estímulo, RPE: ${lastRpe.toFixed(1)})`;
+    } else {
+      pr.suggestedOverload = `Consolidar en ${lastWeight} kg con pausas y control excéntrico (RPE alto: ${lastRpe.toFixed(1)})`;
+    }
+  });
+
+  // Métricas de Cardio / Trotadora
+  const totalTreadmillMinutes = treadmillLogs.reduce((acc, t) => acc + (Number(t.durationMinutes) || 0), 0);
+  const totalCaloriesBurned = treadmillLogs.reduce((acc, t) => acc + (Number(t.activeCaloriesKcal) || 0), 0);
+  const avgIncline = treadmillLogs.length > 0
+    ? (treadmillLogs.reduce((acc, t) => acc + (Number(t.incline) || 0), 0) / treadmillLogs.length).toFixed(1)
+    : 0;
+
+  // Métricas de Peso Corporal
+  const currentWeight = userWeights.length > 0 ? userWeights[0].weightKg : null;
+  const initialWeight = userWeights.length > 0 ? userWeights[userWeights.length - 1].weightKg : null;
+  const weightDelta = (currentWeight && initialWeight && userWeights.length > 1)
+    ? (currentWeight - initialWeight).toFixed(1)
+    : 0;
+
+  return {
+    userId,
+    athleteName: USERS[userId]?.name || userId,
+    totalLogs: userLogs.length,
+    strengthSessions: strengthLogs.length,
+    treadmillSessions: treadmillLogs.length,
+    totalSetsCount,
+    totalVolumeKg: Math.round(totalVolumeKg),
+    weeklyVolumeKg: Math.round(weeklyVolumeKg),
+    avgRpe: rpeCount > 0 ? (rpeSum / rpeCount).toFixed(1) : '8.0',
+    exercisePRs,
+    cardio: {
+      totalMinutes: totalTreadmillMinutes,
+      totalCalories: totalCaloriesBurned,
+      avgIncline,
+      sessionsCount: treadmillLogs.length
+    },
+    bodyweight: {
+      current: currentWeight,
+      initial: initialWeight,
+      delta: weightDelta,
+      historyCount: userWeights.length
+    }
+  };
+}
+
+/**
  * Construye el contexto base del hogar para las consultas del coach
  */
 export function buildHouseholdContext(householdId = 'hogar-dionicio-paula') {
@@ -108,18 +227,23 @@ export function buildHouseholdContext(householdId = 'hogar-dionicio-paula') {
     if (rawMenu) activeMenu = JSON.parse(rawMenu);
   } catch (e) {}
 
+  const dionicioMetrics = extractAthleteMetrics(logs, weights, 'dionicio');
+  const paulaMetrics = extractAthleteMetrics(logs, weights, 'paula');
+
   const dionicioLogs = logs.filter(l => l.userId === 'dionicio');
   const paulaLogs = logs.filter(l => l.userId === 'paula');
 
   return {
     athletes: USERS,
     totalLogsCount: logs.length,
+    dionicioMetrics,
+    paulaMetrics,
     recentLogs: logs.slice(0, 10),
     dionicioRecent: dionicioLogs.slice(0, 5),
     paulaRecent: paulaLogs.slice(0, 5),
     bodyweights: weights.slice(0, 5),
     pantryItems: pantry,
-    hasActiveMenu: !!activeMenu,
+    hasActiveMenu: !activeMenu,
     menuSnippet: activeMenu ? activeMenu.content?.substring(0, 300) : 'Sin menú generado aún'
   };
 }
@@ -392,26 +516,62 @@ export function generateDeterministicStrictMenu(pantryItems) {
 }
 
 /**
- * Consulta general al Coach con contexto 360° de la aplicación
+ * Consulta general al Coach con contexto 360° de la aplicación y rol de Personal Trainer de Élite
  */
 export async function askCoachWithFullContext(queryText, currentUser, householdId, apiKey) {
   const context = buildHouseholdContext(householdId);
   const user = USERS[currentUser] || USERS.dionicio;
+  const partnerId = currentUser === 'dionicio' ? 'paula' : 'dionicio';
+  const partner = USERS[partnerId];
 
-  const systemInstruction = `Eres el Coach Integral de Fuerza y Nutrición de Dionicio y Paula para su programa "Dúo en Casa" (19:00 a 20:00).
-ESTÁS PROFUNDAMENTE INTEGRADO CON LA APP. Tienes acceso en tiempo real a los siguientes datos:
-- Atleta consultante: ${user.name} (${user.level}, ${user.height}, Fase: ${user.phase}, Nutrición: ${user.nutrition}).
-- Total de registros de series en el hogar: ${context.totalLogsCount}.
-- Últimas series de Dionicio: ${JSON.stringify(context.dionicioRecent)}.
-- Últimas series de Paula: ${JSON.stringify(context.paulaRecent)}.
-- Despensa actual del hogar: ${context.pantryItems.join(', ') || 'Sin ingredientes informados'}.
-- Menú activo: ${context.hasActiveMenu ? 'Existe menú generado' : 'Aún no han generado el menú semanal'}.
-- Pesos corporales: ${JSON.stringify(context.bodyweights)}.
+  const currentMetrics = currentUser === 'dionicio' ? context.dionicioMetrics : context.paulaMetrics;
+  const partnerMetrics = currentUser === 'dionicio' ? context.paulaMetrics : context.dionicioMetrics;
 
-REGLAS DE RESPUESTA:
-1. Responde de forma muy concisa, estructurada, empática y práctica.
-2. Basa tus recomendaciones en sus datos reales (pesos usados, RPE y despensa).
-3. Recuerda que entrenan juntos a las 19:00 rotando mancuernas (40kg modulares) y trotadora, y cenan juntos a las 20:00 la MISMA receta variando solo las porciones.`;
+  const formatPRs = (metrics) => {
+    const prEntries = Object.entries(metrics.exercisePRs || {});
+    if (prEntries.length === 0) return 'Sin series registradas aún (Fase Calibración Semana 0).';
+    return prEntries.map(([name, data]) => 
+      `- ${name}: Max ${data.maxWeightKg}kg (x${data.bestSetReps} reps) | Última serie: ${data.lastLoggedWeight}kg (RPE ${data.lastLoggedRpe}) -> Sugerencia sobrecarga: ${data.suggestedOverload}`
+    ).join('\n');
+  };
+
+  const systemInstruction = `Eres el PERSONAL TRAINER DE ÉLITE Y NUTRICIONISTA DEPORTIVO EXCLUSIVO de Dionicio y Paula para su programa "Dúo en Casa" (19:00 a 20:00).
+Tu misión es guiar, corregir, motivar y ajustar sus cargas de entrenamiento con base en sus datos reales y la ciencia del ejercicio.
+
+====================================================
+📊 ESTADO Y MÉTRICAS EN TIEMPO REAL DEL ATLETA CONSULTANTE:
+Atleta: ${user.name} (${user.level} • ${user.height} • ${user.phase})
+- Volumen semanal levantado: ${currentMetrics.weeklyVolumeKg} kg (${currentMetrics.totalSetsCount} series en total)
+- RPE promedio reciente: ${currentMetrics.avgRpe}/10 (Objetivo: ${user.targetRPE})
+- Sesiones de Trotadora acumuladas: ${currentMetrics.cardio.sessionsCount} (${currentMetrics.cardio.totalMinutes} min, ~${currentMetrics.cardio.totalCalories} kcal)
+- Peso corporal actual: ${currentMetrics.bodyweight.current ? `${currentMetrics.bodyweight.current} kg` : 'Sin registrar'} (Delta: ${currentMetrics.bodyweight.delta > 0 ? '+' : ''}${currentMetrics.bodyweight.delta} kg)
+
+🏋️‍♂️ RÉCORDS PERSONALES Y PROGRESIÓN DE ${user.name.toUpperCase()}:
+${formatPRs(currentMetrics)}
+
+====================================================
+👥 MÉTRICAS DE SU PAREJA (${partner.name}):
+- Volumen semanal: ${partnerMetrics.weeklyVolumeKg} kg | RPE promedio: ${partnerMetrics.avgRpe}/10
+${formatPRs(partnerMetrics)}
+
+====================================================
+🥘 DESPENSA Y NUTRICIÓN COMPARTIDA:
+- Despensa: ${context.pantryItems.join(', ') || 'Sin ingredientes informados'}
+- Menú Semanal: ${context.hasActiveMenu ? 'Generado y activo' : 'Pendiente de generar'}
+- Protocolo: Cena compartida a las 20:00 con MISMA receta y porciones adaptadas (${user.name}: ${user.nutrition}).
+
+====================================================
+⚙️ EQUIPAMIENTO Y REGLAS DEL HOGAR:
+1. Mancuernas modulares de 40kg en total (discos de 1.25kg, 2.5kg y 5kg).
+2. Trotadora eléctrica (19:00 a 20:00 rotando cada 25 min: un atleta en fuerza y el otro en cardio).
+3. Enfoque Semana 0: Calibración técnica, descansos controlados (45-60s) y RPE 6-7 sin llegar al fallo muscular prematuro.
+
+DIRECTRICES DE TUS RESPUESTAS:
+- Habla como un entrenador personal experto, motivador, empático y directo.
+- Cita SIEMPRE sus números o ejercicios registrados para fundamentar tus consejos.
+- Si te piden sugerencia de cargas para hoy, revisa su historial y dale los kg exactos a configurar en las mancuernas.
+- Formato Markdown impecable con emojis deportivos, viñetas y pasos claros.`;
 
   return await callGemini(systemInstruction, queryText, apiKey);
 }
+

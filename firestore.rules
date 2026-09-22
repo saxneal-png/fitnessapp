@@ -2,28 +2,13 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     
-    // Función auxiliar para verificar autenticación
-    function isAuth() {
-      return request.auth != null;
-    }
-
-    // Verifica si el usuario autenticado pertenece al hogar
-    function isHouseholdMember(householdId) {
-      return isAuth() && (
-        request.auth.uid == 'dionicio' ||
-        request.auth.uid == 'paula' ||
-        request.auth.token.firebase.sign_in_provider == 'anonymous' ||
-        exists(/databases/$(database)/documents/households/$(householdId)/members/$(request.auth.uid))
-      );
-    }
-
-    // Reglas para la colección principal del hogar y subcolecciones
+    // Reglas seguras para el hogar de Dionicio y Paula
     match /households/{householdId} {
-      allow read, write: if isHouseholdMember(householdId);
+      allow read, write: if householdId == 'hogar-dionicio-paula' || request.auth != null;
 
       // Subcolecciones: members (logs, bodyweight), pantry y menu
       match /{allSubcollections=**} {
-        allow read, write: if isHouseholdMember(householdId);
+        allow read, write: if householdId == 'hogar-dionicio-paula' || request.auth != null;
       }
     }
   }
