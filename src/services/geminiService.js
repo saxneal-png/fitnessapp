@@ -630,17 +630,25 @@ DIRECTRICES DE TUS RESPUESTAS:
 - Modo de su Pareja (${partner.name}): ${context.nutrition?.[partnerId]?.plan?.activeModeConfig?.name || 'Pérdida de Grasa Visceral'}
 
 ====================================================
-🛡️ REGLAS CLÍNICAS Y DIGESTIVAS ESTRICTAS DE AMBOS ATLETAS:
-1. DIONICIO (180 cm, 86 kg, PAL 1.32):
-   - Meta Calórica Techo: 1.600 kcal/día (Déficit forzado de -760 kcal para oxidar grasa visceral).
-   - Proteína: 130g (fijada sobre masa magra ~65.5 kg).
-   - Grasas: 55-57g (piso hormonal). Carbohidratos: 140g.
+🛡️ REGLAS CLÍNICAS, DIGESTIVAS Y PREFERENCIAS ESTRICTAS:
+1. DIONICIO (180 cm, 86 kg, 40 años, PAL 1.32, ~65.5 kg masa magra):
+   - Meta Calórica Techo: 1.600 kcal/día (Déficit forzado de -760 kcal para oxidar grasa visceral sin pérdida de masa magra).
+   - Proteína: 130g (fijada sobre masa magra ~65.5 kg a 2.0 g/kg magros).
+   - Grasas: 55-57g (piso hormonal). Carbohidratos: 140-145g (energía para mancuernas y caminadora).
+   - Suplementación: 5g creatina monohidrato diaria continua. Proteína Cáscara Foods MÁXIMO 1 scoop diario (por su aporte de 300 mg de magnesio elemental bioasimilable).
+   - Preferencias alimentarias: Adora carne vacuna magra (posta rosada, pollo ganso cocido), marraqueta, huevos, queso Gauda Frutillar, sardinas al agua, pan amasado con aceite (sin manteca) y longaniza casera (con moderación en almuerzo).
+   - 🚫 ALIMENTO PROHIBIDO / DISLIKE: QUESILLO (nunca sugerir quesillo a Dionicio).
+   - Regla de pesaje: Solo pesaje matutino estricto en ayunas. Descartar pesajes vespertinos/nocturnos (ej. 88.3 kg con ropa/comida) por retención osmótica de bolo alimenticio.
    - NUNCA sugerir 2.200 kcal; detendría la pérdida de grasa por su NEAT de oficina.
-2. PAULA (160 cm, 63 kg, 41 años, PAL 1.28):
+
+2. PAULA (160 cm, 63 kg, 41 años, PAL 1.28, ~45.0 kg masa magra):
    - Meta Calórica Techo: 1.220 a 1.250 kcal/día (TDEE real ~1.618 kcal con déficit seguro).
-   - ALERTA DIGESTIVA: Techo duro de grasas en MÁXIMO 42g/día. Su vesícula y colon sensible colapsan con grasas altas o frituras, especialmente de noche.
-   - Proteína calibrada liviana: 80 a 85g (máximo 88g). NUNCA sobrecargarla con 95-105g de proteína ni forzar batidos innecesarios.
-   - Cualquier aumento calórico en recomposición o hipertrofia debe financiarse 100% con carbohidratos limpios (arroz, papas, avena, marraqueta, frutas), jamás con grasas.
+   - 🛡️ ALERTA DIGESTIVA & HARD CAP DE GRASAS: MÁXIMO 42g/día (gatillo de intolerancia en 45g). Su vesícula y colon sensible colapsan con grasas altas o frituras, especialmente de noche.
+   - Proteína calibrada liviana: 80 a 85g (máximo 88g en hipertrofia). NUNCA sobrecargarla con 95-105g de proteína ni forzar batidos innecesarios.
+   - Carbohidratos limpios: 130-135g (arroz blanco, avena, papas, marraqueta, frutas) para financiar cualquier requerimiento extra de energía.
+   - Suplementación: 5g creatina diaria. Cáscara Foods solo como rescate eventual (máx 1 scoop).
+   - Preferencias alimentarias: Adora el quesillo Colun, tomate fresco c/cilantro/ajo, yogurt griego Quillayes proteico, pechuga de pollo, pescados magros (merluza a la plancha, salmón) y marraqueta.
+   - 🚫 REGLA DE REFLUJO NOCTURNO: CERO embutidos densos, cuero de pollo asado o quesos grasos en la once. La longaniza casera solo al almuerzo para facilitar el vaciamiento gástrico antes de dormir.
 
 ====================================================
 🥗 CALORÍAS Y NUTRICIÓN DE HOY:
@@ -1062,27 +1070,29 @@ No eres un chat pasivo; eres su AGENTE INTELIGENTE AUTÓNOMO DE NUTRICIÓN Y REN
 DIRECTRICES METABÓLICAS CLÍNICAS ESTRICTAS (ANTI-SOBREESTIMACIÓN DE FACTOR DE ACTIVIDAD):
 No caigas en la trampa de inflar el gasto diario por entrenar 1 hora si la jornada laboral es de oficina/escritorio:
 
-👨‍💻 REGLAS METABÓLICAS DE DIONICIO (86 kg, 180 cm, 40 años, ~23% grasa corporal, ~65.5 kg masa magra):
-1. TMB Base (Mifflin-St Jeor): 1.790 kcal/día (energía vital en reposo absoluto).
-2. Factor de Actividad Real: 1.32 sobre TMB (TDEE promedio real = ~2.360 kcal/día). NUNCA USES factores >= 1.45 o 1.55 porque sobreestimarían el gasto llevando a un estancamiento total.
-3. Déficit Calórico Real: -750 kcal/día (~5.250 kcal semanales de déficit, financiadas de forma segura por sus ~20 kg de tejido adiposo de reserva para oxidar ~0.7 kg de grasa pura por semana).
+👨‍💻 REGLAS METABÓLICAS DE DIONICIO (86 kg, 180 cm, 40 años, ~23.5% grasa corporal, ~65.5 kg masa magra):
+1. TMB Base (Mifflin-St Jeor): 1.785 a 1.790 kcal/día (energía vital en reposo absoluto).
+2. Factor de Actividad Real: 1.32 sobre TMB (TDEE promedio real = ~2.360 kcal/día). NUNCA USES factores >= 1.45 o 1.55.
+3. Déficit Calórico Real: -760 kcal/día (~5.300 kcal semanales de déficit para oxidar grasa visceral).
 4. Meta Calórica Diaria: 1.550 a 1.650 kcal (TARGET EXACTO: 1.600 kcal/día).
-5. Proteína Diaria: 125 a 130 g/día (TARGET: 130g = 520 kcal). Calculada a 2.0 g/kg sobre masa magra (65.5 kg), no sobre tejido graso.
-6. Grasas Saludables: 50 a 60 g/día (TARGET: 57g = 513 kcal). Piso biológico estricto a 0.66 g/kg de peso para soporte hormonal de testosterona.
-7. Carbohidratos: 135 a 150 g/día (TARGET: 140g = 560 kcal). Remanente glucolítico para rendir con fuerza máxima en las mancuernas y caminadora inclinada.
+5. Proteína Diaria: 125 a 130 g/día (TARGET: 130g = 520 kcal). Calculada a 2.0 g/kg sobre masa magra (65.5 kg).
+6. Grasas Saludables: 50 a 57 g/día (TARGET: 55-57g). Piso biológico estricto.
+7. Carbohidratos: 140 a 145 g/día. Remanente glucolítico para fuerza en trotadora y mancuernas.
+8. Suplementación & Cáscara Foods: 5g creatina continua diaria. Cáscara Foods MÁXIMO 1 scoop diario (por los 300 mg de magnesio elemental bioasimilable).
+9. Gustos & Dislikes: Le gusta posta rosada, pollo ganso cocido, marraqueta, huevos, queso Gauda Frutillar, sardinas al agua, pan amasado con aceite (sin manteca), longaniza casera en almuerzo. 🚫 DETESTA EL QUESILLO (nunca sugerirle quesillo).
 - Ingerido hoy antes de este mensaje: ${dioNut.todayCals} / 1600 kcal | ${dioNut.todayProtein}g / 130g proteína.
 - Faltan para cerrar el día: ${Math.max(0, 1600 - dioNut.todayCals)} kcal y ${Math.max(0, 130 - dioNut.todayProtein)}g proteína.
 
-👩‍💼 REGLAS METABÓLICAS DE PAULA (65 kg, 160 cm, 41 años, ~28% grasa, ~47 kg masa magra):
-1. TMB Base (Mifflin-St Jeor): 1.284 kcal/día.
-2. Factor de Actividad Real: 1.28 sobre TMB (TDEE real = ~1.644 kcal/día).
-3. Déficit Calórico: -400 kcal/día para pérdida sostenida de grasa visceral y subcutánea.
-4. Meta Calórica Diaria: 1.200 a 1.250 kcal (TARGET EXACTO: 1.250 kcal/día).
-5. Proteína Diaria: 95 a 100 g/día (~2.0 g/kg masa magra = 380 kcal).
-6. Grasas Saludables: 40 a 45 g/día (piso hormonal = 378 kcal).
-7. Carbohidratos: 110 a 125 g/día (remanente = 460 kcal).
-- Ingerido hoy antes de este mensaje: ${pauNut.todayCals} / 1250 kcal | ${pauNut.todayProtein}g / 95g proteína.
-- Faltan para cerrar el día: ${Math.max(0, 1250 - pauNut.todayCals)} kcal y ${Math.max(0, 95 - pauNut.todayProtein)}g proteína.
+👩‍💼 REGLAS METABÓLICAS DE PAULA (63 kg, 160 cm, 41 años, ~28% grasa, ~45.0 kg masa magra):
+1. TMB Base (Mifflin-St Jeor): 1.264 kcal/día (pesaje basal en ayunas: 63.0 kg).
+2. Factor de Actividad Real: 1.28 sobre TMB (TDEE real = ~1.618 kcal/día).
+3. Meta Calórica Diaria: 1.200 a 1.250 kcal (TARGET EXACTO: 1.220 a 1.250 kcal/día).
+4. Proteína Diaria Liviana: 80 a 85 g/día (TARGET: 82g, máx 88g). Anti-distensión gástrica y de colon. NUNCA forzar 95-105g ni batidos innecesarios.
+5. 🛡️ HARD CAP ESTRICTO DE GRASAS: MÁXIMO 42 g/día (gatillo clínico de intolerancia en 45g). Cuidar vesícula y colon sensible.
+6. Carbohidratos Limpios: 130 a 135 g/día (arroz blanco, papas, marraqueta, avena, frutas).
+7. Gustos & Restricciones: Le gusta el quesillo Colun, tomate fresco c/cilantro/ajo, yogurt griego Quillayes, pechuga de pollo, merluza a la plancha, salmón y marraqueta. 🚫 REGLA DE REFLUJO NOCTURNO: Cero embutidos densos, cuero de pollo asado o quesos grasos en la once. La longaniza casera solo al almuerzo.
+- Ingerido hoy antes de este mensaje: ${pauNut.todayCals} / 1250 kcal | ${pauNut.todayProtein}g / 82g proteína.
+- Faltan para cerrar el día: ${Math.max(0, 1250 - pauNut.todayCals)} kcal y ${Math.max(0, 82 - pauNut.todayProtein)}g proteína.
 
 ====================================================
 INVENTARIO REAL DE ALIMENTOS EN SU DESPENSA ACTIVA:

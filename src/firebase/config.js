@@ -23,6 +23,7 @@ import {
   onSnapshot,
   enableIndexedDbPersistence
 } from 'firebase/firestore';
+import { INITIAL_HISTORICAL_NUTRITION_LOGS } from '../data/nutritionHistoryData.js';
 
 const LOCAL_STORAGE_KEY = 'fitness_duo_firebase_config';
 const LOCAL_STORAGE_LOGS_KEY = 'fitness_duo_logs_prod';
@@ -254,13 +255,32 @@ export async function deleteWeightEntry(entryId, userId, householdId = 'hogar-di
 // ==========================================
 
 export function getLocalNutritionLogs(householdId = 'hogar-dionicio-paula') {
+  let stored = [];
   try {
     const raw = localStorage.getItem(`${LOCAL_STORAGE_NUTRITION_KEY}_${householdId}`);
-    if (raw) return JSON.parse(raw);
+    if (raw) stored = JSON.parse(raw);
   } catch (e) {
     console.error('Error loading local nutrition logs', e);
   }
-  return [];
+
+  // Fusionar registros históricos verificados con logs personalizados
+  const mergedMap = new Map();
+  if (Array.isArray(INITIAL_HISTORICAL_NUTRITION_LOGS)) {
+    INITIAL_HISTORICAL_NUTRITION_LOGS.forEach(log => {
+      mergedMap.set(log.id, log);
+    });
+  }
+  if (Array.isArray(stored)) {
+    stored.forEach(log => {
+      mergedMap.set(log.id, log);
+    });
+  }
+
+  return Array.from(mergedMap.values()).sort((a, b) => {
+    const timeA = a.timestamp || (a.date ? new Date(a.date).getTime() : 0);
+    const timeB = b.timestamp || (b.date ? new Date(b.date).getTime() : 0);
+    return timeB - timeA;
+  });
 }
 
 export function saveLocalNutritionLogs(logs, householdId = 'hogar-dionicio-paula') {
@@ -336,7 +356,16 @@ export function subscribeToNutritionLogs(householdId = 'hogar-dionicio-paula', o
   let logsPaula = [];
 
   const mergeAndEmit = () => {
-    const combined = [...logsDionicio, ...logsPaula].sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+    const mergedMap = new Map();
+    if (Array.isArray(INITIAL_HISTORICAL_NUTRITION_LOGS)) {
+      INITIAL_HISTORICAL_NUTRITION_LOGS.forEach(log => mergedMap.set(log.id, log));
+    }
+    [...logsDionicio, ...logsPaula].forEach(log => mergedMap.set(log.id, log));
+    const combined = Array.from(mergedMap.values()).sort((a, b) => {
+      const timeA = a.timestamp || (a.date ? new Date(a.date).getTime() : 0);
+      const timeB = b.timestamp || (b.date ? new Date(b.date).getTime() : 0);
+      return timeB - timeA;
+    });
     saveLocalNutritionLogs(combined, householdId);
     onUpdate(combined);
   };

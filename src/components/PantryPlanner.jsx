@@ -360,11 +360,20 @@ export function PantryPlanner() {
     }
   };
 
-  // Cálculos Nutricionales de Hoy
+  // Cálculos Nutricionales y Selección de Fecha (Historial Diario)
   const todayStr = new Date().toISOString().split('T')[0];
+  const [selectedDate, setSelectedDate] = useState(todayStr);
+
+  const availableDates = Array.from(new Set([
+    todayStr,
+    ...nutritionLogs.map(n => n.date || (n.timestamp ? new Date(n.timestamp).toISOString().split('T')[0] : '')).filter(Boolean)
+  ])).sort().reverse();
+
   const athleteMealsToday = nutritionLogs.filter(
-    n => n.userId === selectedAthlete && (n.date === todayStr || (!n.date && new Date(n.timestamp).toISOString().split('T')[0] === todayStr))
+    n => n.userId === selectedAthlete && (n.date === selectedDate || (!n.date && new Date(n.timestamp).toISOString().split('T')[0] === selectedDate))
   );
+
+  const selectedDateClinicalNote = athleteMealsToday.find(m => m.notes)?.notes || null;
 
   const totalCalsToday = athleteMealsToday.reduce((acc, m) => acc + (Number(m.caloriesKcal) || 0), 0);
   const totalProteinToday = athleteMealsToday.reduce((acc, m) => acc + (Number(m.proteinG) || 0), 0);
@@ -751,12 +760,58 @@ export function PantryPlanner() {
             </form>
           )}
 
+          {/* Selector de Fechas del Diario Nutricional */}
+          {availableDates.length > 0 && (
+            <div className="bg-gym-800/80 border border-gym-700/80 rounded-2xl p-3 shadow-md flex flex-wrap sm:flex-nowrap items-center justify-between gap-2 overflow-x-auto">
+              <div className="flex items-center gap-1.5 text-xs text-slate-400 font-bold shrink-0">
+                <Calendar className="w-4 h-4 text-emerald-400" />
+                <span>Fecha del Diario:</span>
+              </div>
+              <div className="flex items-center gap-1.5 overflow-x-auto py-0.5 max-w-full">
+                {availableDates.map(d => {
+                  const isToday = d === todayStr;
+                  const isSelected = d === selectedDate;
+                  const parts = d.split('-');
+                  const shortLabel = parts.length === 3 ? `${parts[2]}/${parts[1]}` : d;
+                  return (
+                    <button
+                      key={d}
+                      type="button"
+                      onClick={() => setSelectedDate(d)}
+                      className={`px-3 py-1 rounded-xl text-xs font-mono font-bold transition-all shrink-0 flex items-center gap-1.5 ${
+                        isSelected
+                          ? 'bg-gradient-to-r from-emerald-500 to-sky-500 text-gym-950 shadow-md shadow-emerald-500/20 scale-102'
+                          : 'bg-gym-900/80 hover:bg-gym-750 text-slate-300 border border-gym-700/80 hover:text-white'
+                      }`}
+                    >
+                      <span>{isToday ? 'Hoy' : shortLabel}</span>
+                      {isToday && <span className="w-1.5 h-1.5 rounded-full bg-gym-950"></span>}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Nota Clínica del Día si existe */}
+          {selectedDateClinicalNote && (
+            <div className="p-3.5 rounded-2xl bg-amber-950/30 border border-amber-500/40 text-amber-300 text-xs flex items-start gap-2.5 animate-fadeIn">
+              <Info className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+              <div>
+                <strong className="block text-white mb-0.5">Nota Clínica & Observación del Día:</strong>
+                <span className="text-slate-300 leading-relaxed">{selectedDateClinicalNote}</span>
+              </div>
+            </div>
+          )}
+
           {/* Caloric & Macro Overview Card */}
           <div className="bg-gym-800/90 border border-gym-700 rounded-2xl p-5 shadow-xl space-y-4">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
                 <div className="flex items-center gap-2 mb-1">
-                  <span className="text-[11px] text-slate-400 uppercase tracking-wider font-bold">Consumo Acumulado Hoy</span>
+                  <span className="text-[11px] text-slate-400 uppercase tracking-wider font-bold">
+                    Consumo Acumulado {selectedDate === todayStr ? 'Hoy' : `(${selectedDate})`}
+                  </span>
                   <button
                     type="button"
                     onClick={() => setShowBiometricsModal(true)}
@@ -846,10 +901,10 @@ export function PantryPlanner() {
             <div className="flex items-center justify-between border-b border-gym-700 pb-3">
               <h3 className="font-extrabold text-sm sm:text-base text-white flex items-center gap-2">
                 <Clock className="w-4 h-4 text-emerald-400" />
-                <span>Comidas Registradas Hoy ({athleteMealsToday.length})</span>
+                <span>Comidas Registradas {selectedDate === todayStr ? 'Hoy' : `(${selectedDate})`} ({athleteMealsToday.length})</span>
               </h3>
               <span className="text-[11px] text-slate-400">
-                {athleteMealsToday.length === 0 ? 'Sin registros aún' : 'Sincronizadas'}
+                {athleteMealsToday.length === 0 ? 'Sin registros' : 'Sincronizadas'}
               </span>
             </div>
 
@@ -858,7 +913,7 @@ export function PantryPlanner() {
                 <div className="w-12 h-12 rounded-2xl bg-gym-900 border border-gym-700 flex items-center justify-center mx-auto text-slate-500">
                   <Apple className="w-6 h-6" />
                 </div>
-                <p className="text-xs text-slate-300 font-semibold">No hay comidas registradas hoy para {USERS[selectedAthlete]?.name}.</p>
+                <p className="text-xs text-slate-300 font-semibold">No hay comidas registradas para {USERS[selectedAthlete]?.name} en {selectedDate === todayStr ? 'el día de hoy' : selectedDate}.</p>
                 <p className="text-[11px] text-slate-500 max-w-sm mx-auto">
                   Escribe en el <strong>Coach Gemini</strong> (ej: "Comí 2 huevos y pan integral") o usa el botón <strong>"+ Agregar Comida Rápida"</strong> arriba.
                 </p>

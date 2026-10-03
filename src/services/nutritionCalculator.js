@@ -11,6 +11,10 @@
  */
 
 import { getLocalWeightEntries } from '../firebase/config.js';
+import { HOUSEHOLD_NUTRITION_CONTEXT } from '../data/nutritionHistoryData.js';
+
+export { HOUSEHOLD_NUTRITION_CONTEXT };
+export const ATHLETE_FOOD_PREFERENCES = HOUSEHOLD_NUTRITION_CONTEXT.athletes;
 
 export const DEFAULT_BIOMETRICS = {
   dionicio: {
@@ -475,6 +479,9 @@ export function calculateAthleteNutrition(userId = 'dionicio', householdId = 'ho
     targetProtein: targetProteinG,
     targetCarbs: targetCarbsG,
     targetFats: targetFatsG,
+    foodPreferences: HOUSEHOLD_NUTRITION_CONTEXT.athletes[userId]?.foodPreferences || null,
+    supplementation: HOUSEHOLD_NUTRITION_CONTEXT.athletes[userId]?.supplementation || null,
+    clinicalConstraints: HOUSEHOLD_NUTRITION_CONTEXT.athletes[userId]?.clinicalConstraints || null,
     macroPercentages: {
       proteinPct: Math.round((proteinKcal / targetCals) * 100),
       carbsPct: Math.round(((targetCarbsG * 4) / targetCals) * 100),
