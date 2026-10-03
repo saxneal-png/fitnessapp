@@ -13,7 +13,9 @@ import {
 } from '../firebase/config';
 import { calculateAthleteNutrition } from '../services/nutritionCalculator';
 import { subscribeToFoodCatalog, saveFoodItemToKnowledgeBase } from '../services/foodKnowledgeService';
+import { subscribeToMealSettings } from '../services/mealSettingsService';
 import { BiometricsModal } from './BiometricsModal';
+import { MealSettingsModal } from './MealSettingsModal';
 import { 
   Utensils, 
   Sparkles, 
@@ -99,6 +101,8 @@ export function PantryPlanner() {
   const [showAddMealForm, setShowAddMealForm] = useState(false);
   const [showManualNumberForm, setShowManualNumberForm] = useState(false);
   const [showBiometricsModal, setShowBiometricsModal] = useState(false);
+  const [showMealSettingsModal, setShowMealSettingsModal] = useState(false);
+  const [mealConfig, setMealConfig] = useState(null);
   
   // Estados para Registro Asistido por Coach IA (Lenguaje Natural)
   const [smartMealText, setSmartMealText] = useState('');
@@ -149,11 +153,18 @@ export function PantryPlanner() {
       }
     });
 
+    const unsubMealSettings = subscribeToMealSettings(householdId, (config) => {
+      if (config) {
+        setMealConfig(config);
+      }
+    });
+
     return () => {
       unsubPantry();
       unsubMenu();
       unsubNutrition();
       unsubCatalog();
+      unsubMealSettings();
     };
   }, [householdId]);
 
@@ -459,6 +470,14 @@ export function PantryPlanner() {
 
             <div className="flex items-center gap-2">
               <button
+                type="button"
+                onClick={() => setShowMealSettingsModal(true)}
+                className="text-[11px] text-emerald-400 hover:text-emerald-300 bg-emerald-500/10 border border-emerald-500/30 px-2.5 py-1 rounded-lg font-bold flex items-center gap-1 transition-all"
+                title="Configuración de horarios y comidas chilenas (Desayuno, Almuerzo, Once)"
+              >
+                <span>🇨🇱 Horarios & Once</span>
+              </button>
+              <button
                 onClick={() => setShowManualNumberForm(!showManualNumberForm)}
                 className="text-[11px] text-slate-400 hover:text-slate-200 underline transition-all"
               >
@@ -622,12 +641,12 @@ export function PantryPlanner() {
                   )}
                 </div>
 
-                {/* Propuesta de Cena 20:00 con despensa */}
+                {/* Propuesta de Once Dúo 20:00 con despensa */}
                 {lastAiMealResult.detectedMeal?.sharedDinnerProposal && (
                   <div className="p-3 bg-emerald-950/30 border border-emerald-500/30 rounded-xl space-y-1 text-xs">
                     <span className="font-extrabold text-emerald-400 flex items-center gap-1.5">
                       <Utensils className="w-3.5 h-3.5" />
-                      <span>{lastAiMealResult.detectedMeal.sharedDinnerProposal.title || 'Cena Dúo Post-Entreno (20:00) con su Despensa'}:</span>
+                      <span>{lastAiMealResult.detectedMeal.sharedDinnerProposal.title || 'Once Dúo Post-Entreno (20:00) con su Despensa'}:</span>
                     </span>
                     <p className="text-slate-200">{lastAiMealResult.detectedMeal.sharedDinnerProposal.recipe}</p>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1 font-mono text-[11px]">
@@ -677,9 +696,9 @@ export function PantryPlanner() {
                   >
                     <option value="desayuno">Desayuno</option>
                     <option value="almuerzo">Almuerzo</option>
-                    <option value="once">Once / Merienda</option>
-                    <option value="cena">Cena (20:00)</option>
-                    <option value="snack">Snack / Colación</option>
+                    <option value="once">Once / Once-Comida (20:00)</option>
+                    <option value="snack">Colación / Snack</option>
+                    <option value="cena">Cena (Opcional)</option>
                   </select>
                 </div>
               </div>
@@ -746,6 +765,14 @@ export function PantryPlanner() {
                   >
                     <Dna className="w-3 h-3" />
                     <span>Mifflin: {athletePlan.bmr} kcal • {athletePlan.weightKg}kg</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowMealSettingsModal(true)}
+                    className="text-[10px] text-emerald-400 hover:text-emerald-300 bg-emerald-500/10 border border-emerald-500/30 px-2 py-0.5 rounded-full font-bold flex items-center gap-1 transition-all"
+                    title="Configurar horarios y porcentajes de comida chilena"
+                  >
+                    <span>🇨🇱 Once: {mealConfig?.meals?.once?.time || '20:00'} ({mealConfig?.meals?.once?.targetCaloriesPercent || 30}%)</span>
                   </button>
                 </div>
                 <div className="flex items-baseline gap-2 mt-0.5">
@@ -830,7 +857,7 @@ export function PantryPlanner() {
                       <div className="flex items-center gap-2">
                         <span className="font-black text-xs text-white truncate">{meal.title}</span>
                         <span className="text-[10px] uppercase font-bold px-2 py-0.5 rounded bg-gym-800 text-slate-300 border border-gym-700">
-                          {meal.mealType}
+                          {meal.mealType === 'once' ? '🥪 Once' : meal.mealType}
                         </span>
                         {meal.source === 'coach_ai' && (
                           <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-pink-500/20 text-pink-300 border border-pink-500/30">
@@ -875,7 +902,7 @@ export function PantryPlanner() {
               </div>
               <div className="text-xs">
                 <span className="font-extrabold text-white block">1 Sola Cocinada</span>
-                <span className="text-slate-400">Mismo plato/receta para ambos en almuerzos y cenas (20:00).</span>
+                <span className="text-slate-400">Mismo plato/receta para ambos en almuerzos y en la Once (20:00).</span>
               </div>
             </div>
 
@@ -1155,7 +1182,7 @@ export function PantryPlanner() {
                     <span>👨‍💻 Dionicio (180 cm):</span>
                   </span>
                   <p className="text-slate-300 leading-relaxed">
-                    Ayuno matutino • Almuerzo 13:30 (Porción grande) • <strong>Cena fuerte post-entreno a las 20:00</strong>.
+                    Ayuno matutino o desayuno • Almuerzo 13:30 (Porción grande) • <strong>Once / Once-Comida post-entreno a las 20:00</strong>.
                   </p>
                 </div>
                 <div className="space-y-1">
@@ -1163,7 +1190,7 @@ export function PantryPlanner() {
                     <span>👩‍💼 Paula (41 años, 160 cm):</span>
                   </span>
                   <p className="text-slate-300 leading-relaxed">
-                    Desayuno liviano proteico • Almuerzo balanceado • <strong>Cena post-entreno a las 20:00 (Porción ajustada)</strong>.
+                    Desayuno liviano proteico • Almuerzo balanceado • <strong>Once post-entreno a las 20:00 (Porción ajustada)</strong>.
                   </p>
                 </div>
               </div>
@@ -1184,6 +1211,13 @@ export function PantryPlanner() {
         householdId={householdId}
         initialAthlete={selectedAthlete}
         onSaved={() => {}}
+      />
+
+      {/* Modal de Configuración de Horarios & Once Chilenos */}
+      <MealSettingsModal
+        isOpen={showMealSettingsModal}
+        onClose={() => setShowMealSettingsModal(false)}
+        householdId={householdId}
       />
     </div>
   );

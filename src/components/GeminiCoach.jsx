@@ -13,7 +13,9 @@ import {
 } from '../services/geminiService';
 import { saveNutritionLog } from '../firebase/config';
 import { calculateAthleteNutrition } from '../services/nutritionCalculator';
+import { subscribeToFoodCatalog, saveFoodItemToKnowledgeBase } from '../services/foodKnowledgeService';
 import { BiometricsModal } from './BiometricsModal';
+import { MealSettingsModal } from './MealSettingsModal';
 import confetti from 'canvas-confetti';
 import { 
   Sparkles, 
@@ -26,18 +28,21 @@ import {
   Flame, 
   Utensils, 
   Dumbbell, 
-  ShieldCheck,
-  Check,
-  Activity,
-  Layers,
-  ShoppingBag,
-  Scale,
-  PlusCircle,
-  Apple,
-  CheckCircle2,
-  BookmarkPlus,
-  Target,
-  Dna
+  ShieldCheck, 
+  Check, 
+  Activity, 
+  Layers, 
+  ShoppingBag, 
+  Scale, 
+  PlusCircle, 
+  Apple, 
+  CheckCircle2, 
+  BookmarkPlus, 
+  Target, 
+  Dna,
+  Settings2,
+  Database,
+  Coffee
 } from 'lucide-react';
 
 export function GeminiCoach() {
@@ -46,6 +51,8 @@ export function GeminiCoach() {
   const [selectedModel, setSelectedModel] = useState(() => getStoredGeminiModel());
   const [showKeyInput, setShowKeyInput] = useState(!getStoredGeminiKey());
   const [showBiometricsModal, setShowBiometricsModal] = useState(false);
+  const [showMealSettingsModal, setShowMealSettingsModal] = useState(false);
+  const [learnedCatalog, setLearnedCatalog] = useState([]);
   const [tempKey, setTempKey] = useState(apiKey);
   const [householdStats, setHouseholdStats] = useState(() => buildHouseholdContext(householdId));
   const [savingMealIdx, setSavingMealIdx] = useState(null);
@@ -57,16 +64,27 @@ export function GeminiCoach() {
     {
       role: 'assistant',
       content: `¡Hola Dionicio y Paula! Soy su Agente Fitness y Asesor Nutricional Autónomo para su programa "Dúo en Casa" (19:00 a 20:00).
-Tengo acceso en tiempo real a sus entrenamientos, su Despensa y su Diario de Calorías:
-- 🥗 **Dime lo que comiste** en lenguaje natural (ej: "Almorcé 200g de pollo con arroz y ensalada") y calcularé automáticamente sus nutrientes, guardándolos en la base de datos.
-- 🎯 **Te diré con exactitud matemática qué y cuánto te falta para cerrar el día** (calorías y proteína restante).
-- 🥘 **Te sugeriré tu cena o siguiente comida usando EXCLUSIVAMENTE los alimentos que tienen en su despensa.**
+🇨🇱 Adaptado a la estructura chilena: Desayuno, Almuerzo y Once / Once-Comida (¡sin cena!).
+Tengo acceso en tiempo real a sus entrenamientos, su Despensa y la Base de Alimentos & Marcas del Hogar:
+- 🥗 **Dime lo que comieron** en lenguaje natural (ej: "Yo 1 diente de marraqueta con pollo y café, Paula 1 vaso de leche loncoleche full pro") y calcularé los nutrientes exactos para ambos.
+- 🎯 **Te diré con exactitud clínica qué y cuánto les falta para cerrar el día** (Dionicio: 1.600 kcal / 130g P • Paula: 1.250 kcal / 95g P).
+- 🥪 **Les sugeriré su Once Dúo Post-Entreno (20:00) usando EXCLUSIVAMENTE los alimentos de su despensa compartida.**
 
-¿Qué comiste hoy o cómo quieres organizar tu día?`
+¿Qué comieron hoy o cómo organizamos su Once tras el entreno?`
     }
   ]);
   const [inputQuery, setInputQuery] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+
+  // Suscripción al catálogo de marcas aprendidas del hogar
+  useEffect(() => {
+    const unsub = subscribeToFoodCatalog(householdId, (catalog) => {
+      if (catalog && Array.isArray(catalog)) {
+        setLearnedCatalog(catalog);
+      }
+    });
+    return () => unsub();
+  }, [householdId]);
 
   // Toggle auto-save setting
   const toggleAutoSave = () => {
@@ -193,6 +211,18 @@ Tengo acceso en tiempo real a sus entrenamientos, su Despensa y su Diario de Cal
             }, householdId);
           }
 
+          // Guardar también cualquier marca comercial aprendida por el Coach IA
+          if (Array.isArray(response.detectedMeal.learnedFoods) && response.detectedMeal.learnedFoods.length > 0) {
+            for (const food of response.detectedMeal.learnedFoods) {
+              try {
+                await saveFoodItemToKnowledgeBase(food, householdId);
+                console.log(`✨ [Coach Chat] Alimento comercial aprendido: ${food.name}`);
+              } catch (e) {
+                console.warn('Error guardando alimento aprendido:', e);
+              }
+            }
+          }
+
           wasAutoSaved = true;
 
           try {
@@ -247,11 +277,13 @@ Tengo acceso en tiempo real a sus entrenamientos, su Despensa y su Diario de Cal
     if (type === 'closure_check') {
       executeCoachPrompt(`¿Qué y cuánto me falta exactamente para cerrar el día según mi meta calórica y proteica? Dime qué puedo preparar hoy con los alimentos que tenemos registrados en nuestra despensa.`);
     } else if (type === 'sync_dinner') {
-      executeCoachPrompt(`Viendo lo que he comido hoy y los ingredientes de nuestra despensa (${householdStats.pantryItems.slice(0, 8).join(', ')}), ¿cuál es la cena perfecta para las 20:00 post-entreno para ambos?`);
+      executeCoachPrompt(`Viendo lo que hemos comido hoy y los ingredientes de nuestra despensa (${householdStats.pantryItems.slice(0, 8).join(', ')}), ¿cuál es la Once / Once-Comida post-entreno perfecta para las 20:00 para ambos atletas?`);
     } else if (type === 'log_meal_lunch') {
       executeCoachPrompt(`Registra mi almuerzo de hoy: Comí 200g de pechuga de pollo a la plancha con una taza de arroz y ensalada de espinaca con una cucharadita de aceite de oliva.`);
     } else if (type === 'log_duo_day') {
       executeCoachPrompt(`Esto llevamos al día de hoy: yo al desayuno: un diente de marraqueta con 40 gramos de pechuga de pollo con un café endulzado con alulosa, de almuerzo comí 178 gramos de arroz con 57 gramos de salmón y 61 gramos de merluza a la plancha, y 190 gramos de zapallo italiano cocido. Mi esposa al desayuno: un diente de marraqueta con 40 gramos de pechuga de pollo con un café endulzado con alulosa, de almuerzo comí 80 gramos de arroz con 55 gramos de salmón y 45 gramos de merluza a la plancha, y 150 gramos de zapallo italiano cocido.`);
+    } else if (type === 'log_chile_once') {
+      executeCoachPrompt(`Registra nuestra Once post-entreno (20:00): Yo tomé 1 vaso de leche loncoleche full pro con un diente de marraqueta y 50g de pechuga de pollo. Mi esposa tomó 1 vaso de leche loncoleche full pro con medio diente de marraqueta y 40g de pechuga de pollo.`);
     } else if (type === 'live_session_briefing') {
       executeCoachPrompt(`Actúa como nuestro coach en vivo. Genera el Briefing Estratégico para la sesión de hoy (19:00 a 20:00). Analiza nuestras últimas series registradas, recomienda qué pesos debemos calibrar hoy en las mancuernas y cómo debemos coordinar la rotación de 25 min.`);
     }
@@ -268,17 +300,33 @@ Tengo acceso en tiempo real a sus entrenamientos, su Despensa y su Diario de Cal
             <h2 className="text-2xl font-black text-white">Centro de Inteligencia Gemini Coach</h2>
           </div>
           <p className="text-xs sm:text-sm text-slate-400">
-            Conectado en vivo con los registros de fuerza, trotadora y despensa del hogar compartido.
+            Conectado en vivo con los registros de fuerza, trotadora, despensa y base de marcas del hogar.
           </p>
         </div>
 
-        <button
-          onClick={() => setShowKeyInput(!showKeyInput)}
-          className="flex items-center gap-1.5 px-3 py-1.5 bg-gym-800 hover:bg-gym-700 text-slate-300 border border-gym-700 rounded-xl text-xs font-semibold transition-all"
-        >
-          <Key className="w-3.5 h-3.5 text-amber-400" />
-          <span>{apiKey ? 'API Key Configurada' : 'Ingresar API Key'}</span>
-        </button>
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            onClick={() => setShowMealSettingsModal(true)}
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-sky-500/20 to-emerald-500/20 hover:bg-gym-700 text-sky-300 border border-sky-500/40 rounded-xl text-xs font-bold transition-all shadow-sm"
+            title="Configurar esquema de comidas en Chile (Desayuno, Almuerzo, Once)"
+          >
+            <Settings2 className="w-3.5 h-3.5 text-emerald-400" />
+            <span>🇨🇱 Horarios & Once</span>
+          </button>
+
+          <span className="text-[11px] font-mono text-sky-300 bg-sky-950/60 border border-sky-500/30 px-2.5 py-1.5 rounded-xl hidden sm:flex items-center gap-1">
+            <Database className="w-3 h-3 text-sky-400" />
+            <span>{learnedCatalog.length} marcas</span>
+          </span>
+
+          <button
+            onClick={() => setShowKeyInput(!showKeyInput)}
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-gym-800 hover:bg-gym-700 text-slate-300 border border-gym-700 rounded-xl text-xs font-semibold transition-all"
+          >
+            <Key className="w-3.5 h-3.5 text-amber-400" />
+            <span>{apiKey ? 'API Key Configurada' : 'Ingresar API Key'}</span>
+          </button>
+        </div>
       </div>
 
       {/* 360° Live Household Context Status Bar */}
@@ -324,7 +372,7 @@ Tengo acceso en tiempo real a sus entrenamientos, su Despensa y su Diario de Cal
           <div className="text-xl font-black text-white">
             {householdStats.hasActiveMenu ? 'Activo' : 'Pendiente'}
           </div>
-          <span className="text-[10px] text-slate-400 block">Cena fijada a las 20:00</span>
+          <span className="text-[10px] text-slate-400 block">Once fijada a las 20:00</span>
         </div>
       </div>
 
@@ -462,11 +510,11 @@ Tengo acceso en tiempo real a sus entrenamientos, su Despensa y su Diario de Cal
           className="p-3.5 rounded-2xl bg-gradient-to-br from-gym-800 to-emerald-950/40 border border-emerald-500/30 hover:border-emerald-400 text-left transition-all group"
         >
           <div className="flex items-center gap-2 text-emerald-400 font-bold text-xs mb-1">
-            <Utensils className="w-4 h-4 group-hover:scale-110 transition-transform" />
-            <span>🥗 Coordinar Cena (20:00)</span>
+            <Coffee className="w-4 h-4 group-hover:scale-110 transition-transform" />
+            <span>🥪 Coordinar Once Dúo (20:00)</span>
           </div>
           <p className="text-[11px] text-slate-400">
-            Sincroniza la cena compartida con el gasto calórico de la sesión.
+            Sincroniza la Once / Once-Comida compartida con el gasto de la sesión.
           </p>
         </button>
 
@@ -689,12 +737,13 @@ Tengo acceso en tiempo real a sus entrenamientos, su Despensa y su Diario de Cal
                       </div>
 
                       {/* Tarjetas de Atletas: Dionicio y Paula */}
+                      {/* Tarjetas de Atletas: Dionicio y Paula */}
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                         {/* Dionicio */}
                         <div className="bg-gym-900/90 border border-sky-500/30 rounded-xl p-3 space-y-2">
                           <div className="flex items-center justify-between text-xs font-bold text-sky-400">
                             <span>👨‍💻 Dionicio (180 cm)</span>
-                            <span className="text-[10px] text-slate-400 font-mono">Meta: 2300 kcal • 150g P</span>
+                            <span className="text-[10px] text-slate-400 font-mono">Meta: 1.600 kcal • 130g P</span>
                           </div>
                           
                           {/* Comidas de Dionicio */}
@@ -724,7 +773,7 @@ Tengo acceso en tiempo real a sus entrenamientos, su Despensa y su Diario de Cal
                             <div className="p-2 rounded-lg bg-sky-950/40 border border-sky-500/20 text-[10px] space-y-0.5 font-mono">
                               <div className="flex justify-between text-slate-300">
                                 <span>Total hoy:</span>
-                                <strong className="text-white">{m.detectedMeal.dionicioClosure.todayTotalCals} / 2300 kcal</strong>
+                                <strong className="text-white">{m.detectedMeal.dionicioClosure.todayTotalCals} / {m.detectedMeal.dionicioClosure.targetCals || 1600} kcal</strong>
                               </div>
                               <div className="flex justify-between text-amber-300 font-bold">
                                 <span>Faltan para cerrar:</span>
@@ -738,7 +787,7 @@ Tengo acceso en tiempo real a sus entrenamientos, su Despensa y su Diario de Cal
                         <div className="bg-gym-900/90 border border-pink-500/30 rounded-xl p-3 space-y-2">
                           <div className="flex items-center justify-between text-xs font-bold text-pink-400">
                             <span>👩‍💼 Paula (160 cm)</span>
-                            <span className="text-[10px] text-slate-400 font-mono">Meta: 1600 kcal • 100g P</span>
+                            <span className="text-[10px] text-slate-400 font-mono">Meta: 1.250 kcal • 95g P</span>
                           </div>
                           
                           {/* Comidas de Paula */}
@@ -768,7 +817,7 @@ Tengo acceso en tiempo real a sus entrenamientos, su Despensa y su Diario de Cal
                             <div className="p-2 rounded-lg bg-pink-950/40 border border-pink-500/20 text-[10px] space-y-0.5 font-mono">
                               <div className="flex justify-between text-slate-300">
                                 <span>Total hoy:</span>
-                                <strong className="text-white">{m.detectedMeal.paulaClosure.todayTotalCals} / 1600 kcal</strong>
+                                <strong className="text-white">{m.detectedMeal.paulaClosure.todayTotalCals} / {m.detectedMeal.paulaClosure.targetCals || 1250} kcal</strong>
                               </div>
                               <div className="flex justify-between text-amber-300 font-bold">
                                 <span>Faltan para cerrar:</span>
@@ -779,12 +828,27 @@ Tengo acceso en tiempo real a sus entrenamientos, su Despensa y su Diario de Cal
                         </div>
                       </div>
 
-                      {/* Cena Dúo Coordinada con Despensa */}
+                      {/* Alimentos de Marcas Aprendidas */}
+                      {Array.isArray(m.detectedMeal.learnedFoods) && m.detectedMeal.learnedFoods.length > 0 && (
+                        <div className="p-2.5 rounded-xl bg-sky-950/40 border border-sky-500/30 text-[11px] text-sky-200 space-y-1">
+                          <span className="font-bold flex items-center gap-1.5 text-sky-300">
+                            <Sparkles className="w-3.5 h-3.5" />
+                            <span>Producto comercial aprendido y guardado en Firestore:</span>
+                          </span>
+                          {m.detectedMeal.learnedFoods.map((f, fIdx) => (
+                            <div key={fIdx} className="text-slate-300">
+                              • <strong>{f.name}</strong> ({f.brand || 'Marca'}): {f.servingDesc || `${f.servingSize}g`} ➔ <strong className="text-emerald-400">{f.calories} kcal</strong>, <strong className="text-sky-300">{f.proteinG}g P</strong>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Once Dúo Coordinada con Despensa */}
                       {m.detectedMeal.sharedDinnerProposal && (
                         <div className="p-3 rounded-xl bg-gym-900 border border-amber-500/30 space-y-1.5 text-xs">
                           <div className="font-extrabold text-amber-300 text-[11px] uppercase tracking-wider flex items-center gap-1.5">
-                            <Utensils className="w-3.5 h-3.5 text-amber-400" />
-                            <span>{m.detectedMeal.sharedDinnerProposal.title || 'Cena Post-Entreno Dúo (20:00) — Despensa'}</span>
+                            <Coffee className="w-3.5 h-3.5 text-amber-400" />
+                            <span>{m.detectedMeal.sharedDinnerProposal.title || 'Once Dúo Post-Entreno (20:00) — Despensa'}</span>
                           </div>
                           <div className="text-[11px] text-slate-200 leading-relaxed bg-gym-950/80 p-2.5 rounded-lg border border-gym-800 space-y-1">
                             <div className="text-emerald-400 font-semibold">{m.detectedMeal.sharedDinnerProposal.recipe}</div>
@@ -951,6 +1015,13 @@ Tengo acceso en tiempo real a sus entrenamientos, su Despensa y su Diario de Cal
         householdId={householdId}
         initialAthlete={currentUser}
         onSaved={() => setHouseholdStats(buildHouseholdContext(householdId))}
+      />
+
+      {/* Modal de Configuración de Horarios & Once Chilenos */}
+      <MealSettingsModal
+        isOpen={showMealSettingsModal}
+        onClose={() => setShowMealSettingsModal(false)}
+        householdId={householdId}
       />
     </div>
   );

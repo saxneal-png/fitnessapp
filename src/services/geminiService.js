@@ -3,6 +3,7 @@ import { USERS, WORKOUT_DAYS, TREADMILL_PROTOCOLS } from '../data/workoutCatalog
 import { getLocalLogs, getLocalWeightEntries, getLocalNutritionLogs } from '../firebase/config';
 import { calculateAthleteNutrition, getAthleteBiometrics } from './nutritionCalculator';
 import { getLocalFoodCatalog, searchFoodInKnowledgeBase, saveFoodItemToKnowledgeBase } from './foodKnowledgeService';
+import { getLocalMealSettings } from './mealSettingsService';
 
 
 export const GEMINI_STORAGE_KEY = 'fitness_gemini_api_key';
@@ -287,9 +288,12 @@ export function buildHouseholdContext(householdId = 'hogar-dionicio-paula') {
         todayMealsCount: paulaTodayNutrition.length,
         todayMeals: paulaTodayNutrition
       }
-    }
+    },
+    mealSettings: getLocalMealSettings(householdId),
+    foodCatalog: getLocalFoodCatalog(householdId)
   };
 }
+
 
 
 /**
@@ -865,20 +869,21 @@ export function estimateDeterministicMeal(text = '', currentUser = 'dionicio', h
       } else {
         let mType = 'almuerzo';
         if (hasBreakfast) mType = 'desayuno';
-        else if (segmentText.includes('cena')) mType = 'cena';
+        else if (segmentText.includes('once') || segmentText.includes('cena') || segmentText.includes('tarde') || segmentText.includes('noche')) mType = 'once';
 
         const data = parseMealFragment(segmentText, userId);
+        const displayTypeName = mType === 'once' ? 'Once / Once-Comida' : (mType.charAt(0).toUpperCase() + mType.slice(1));
         entries.push({
           userId,
           athleteName,
           mealType: mType,
-          title: `${mType.charAt(0).toUpperCase() + mType.slice(1)}: ${data.titleSummary}`,
+          title: `${displayTypeName}: ${data.titleSummary}`,
           caloriesKcal: data.caloriesKcal,
           proteinG: data.proteinG,
           carbsG: data.carbsG,
           fatsG: data.fatsG,
           items: data.items,
-          coachFeedback: `Comida registrada para ${athleteName}.`
+          coachFeedback: `Comida (${displayTypeName}) registrada para ${athleteName}.`
         });
       }
       return entries;
@@ -899,10 +904,10 @@ export function estimateDeterministicMeal(text = '', currentUser = 'dionicio', h
     const pauRemProt = Math.max(0, pauTargetProtein - pauNewProtein);
 
     const dinnerProposal = {
-      title: 'Cena Dúo Post-Entreno Compartida (20:00)',
-      recipe: 'Pechuga de pollo o merluza a la plancha con salteado de zapallo italiano, espinacas y toque de palta.',
-      dionicioPortion: `220g proteína + 150g arroz/papas + zapallo italiano abundante + 1/2 palta (~${dioRemCals > 600 ? 650 : dioRemCals} kcal, ~${Math.min(50, dioRemProt)}g prot)`,
-      paulaPortion: `130g proteína + 60g arroz/papas + zapallo italiano abundante + 1/4 palta (~${pauRemCals > 450 ? 450 : pauRemCals} kcal, ~${Math.min(32, pauRemProt)}g prot)`
+      title: 'Once Dúo Post-Entreno (20:00) con Despensa',
+      recipe: 'Pechuga de pollo o merluza a la plancha con marraqueta o salteado de zapallo italiano, espinacas y toque de palta.',
+      dionicioPortion: `220g proteína + 1 diente marraqueta o 150g papas + zapallo italiano abundante + 1/2 palta (~${dioRemCals > 600 ? 650 : dioRemCals} kcal, ~${Math.min(50, dioRemProt)}g prot)`,
+      paulaPortion: `130g proteína + 1/2 diente marraqueta o 60g papas + zapallo italiano abundante + 1/4 palta (~${pauRemCals > 450 ? 450 : pauRemCals} kcal, ~${Math.min(32, pauRemProt)}g prot)`
     };
 
     return {
@@ -945,9 +950,8 @@ export function estimateDeterministicMeal(text = '', currentUser = 'dionicio', h
 
   let mealType = 'almuerzo';
   if (lower.includes('desayun')) mealType = 'desayuno';
-  else if (lower.includes('cena')) mealType = 'cena';
-  else if (lower.includes('once') || lower.includes('merienda')) mealType = 'once';
-  else if (lower.includes('snack')) mealType = 'snack';
+  else if (lower.includes('once') || lower.includes('cena') || lower.includes('tarde') || lower.includes('noche') || lower.includes('merienda')) mealType = 'once';
+  else if (lower.includes('snack') || lower.includes('colacion') || lower.includes('colación')) mealType = 'snack';
 
   const data = parseMealFragment(text, targetUser);
   const currentTodayCals = context.nutrition?.[targetUser]?.todayCals || 0;
@@ -957,17 +961,18 @@ export function estimateDeterministicMeal(text = '', currentUser = 'dionicio', h
   const remainingCals = Math.max(0, targetCals - newTotalCals);
   const remainingProtein = Math.max(0, targetProtein - newTotalProtein);
 
+  const displayTypeName = mealType === 'once' ? 'Once / Once-Comida' : (mealType.charAt(0).toUpperCase() + mealType.slice(1));
   const entry = {
     userId: targetUser,
     athleteName,
     mealType,
-    title: `${mealType.charAt(0).toUpperCase() + mealType.slice(1)}: ${data.titleSummary}`,
+    title: `${displayTypeName}: ${data.titleSummary}`,
     caloriesKcal: data.caloriesKcal,
     proteinG: data.proteinG,
     carbsG: data.carbsG,
     fatsG: data.fatsG,
     items: data.items,
-    coachFeedback: `Aporte calculado para ${athleteName}.`
+    coachFeedback: `Aporte calculado (${displayTypeName}) para ${athleteName}.`
   };
 
   return {
@@ -989,7 +994,7 @@ export function estimateDeterministicMeal(text = '', currentUser = 'dionicio', h
       newTotalProtein,
       remainingCals,
       remainingProtein,
-      suggestedRecipe: `Cena sugerida post-entreno (20:00): Combina tu fuente de proteína (${pantry[0] || 'pollo / pescado'}) con verduras para sumar ~${remainingCals} kcal y ~${remainingProtein}g de proteína.`,
+      suggestedRecipe: `Once / Once-Comida post-entreno (20:00): Combina tu fuente de proteína (${pantry[0] || 'pollo / pescado'}) con verduras o marraqueta para sumar ~${remainingCals} kcal y ~${remainingProtein}g de proteína.`,
       availablePantrySnippet: pantry.slice(0, 6).join(', ')
     }
   };
@@ -1087,8 +1092,9 @@ REGLAS MANDATORIAS:
    - Si te preguntan por cómo se determinaron sus necesidades, explica detalladamente que se descartaron los multiplicadores inflados de gimnasio (PAL >= 1.55) que fijaban 2.200 kcal y habrían estancado la pérdida de grasa por el trabajo sedentario de oficina.
    - Detalla que su TMB real es de 1.790 kcal, con factor PAL 1.32 (TDEE ~2.360 kcal), y que al tener ~20 kg de grasa de reserva, su déficit real es de -750 kcal diarias (meta: ~1.600 kcal) con 130g de proteína calculados sobre masa magra (65.5 kg).
 
-5. PROPUESTA DE CENA COMPARTIDA DÚO (20:00 POST-ENTRENO) CON DESPENSA:
-   - Basándote EXCLUSIVAMENTE en su Despensa real, diseña la CENA COMPARTIDA (20:00): MISMA preparación/receta pero con los gramajes específicos y diferenciados para Dionicio y Paula para que ambos cierren su día exacto.
+5. PROPUESTA DE ONCE / ONCE-COMIDA COMPARTIDA DÚO (20:00 POST-ENTRENO) CON DESPENSA:
+   - 🇨🇱 CULTURA CHILENA OBLIGATORIA: En Chile NO SE CENA. Los atletas desayunan, almuerzan y toman ONCE (u Once-Comida).
+   - Basándote EXCLUSIVAMENTE en su Despensa real, diseña la ONCE DÚO (20:00): MISMA preparación/receta pero con los gramajes específicos y diferenciados para Dionicio y Paula para que ambos cierren su día exacto.
 
 6. BLOQUE OBLIGATORIO DE PERSISTENCIA AUTOMÁTICA EN BASE DE DATOS:
    Si el mensaje describe alimentos o ingesta, DEBES INCLUIR AL FINAL de tu respuesta este bloque JSON exacto para que el sistema actualice Firestore y LocalStorage para cada atleta:
@@ -1101,7 +1107,7 @@ REGLAS MANDATORIAS:
     {
       "userId": "dionicio",
       "athleteName": "Dionicio",
-      "mealType": "desayuno | almuerzo | cena | once | snack",
+      "mealType": "desayuno | almuerzo | once | snack",
       "title": "Nombre de la comida",
       "caloriesKcal": 210,
       "proteinG": 16,
@@ -1152,7 +1158,7 @@ REGLAS MANDATORIAS:
     "remainingProtein": ${Math.max(0, pauPlan.targetProtein - pauNut.todayProtein)}
   },
   "sharedDinnerProposal": {
-    "title": "Cena Post-Entreno Dúo (20:00)",
+    "title": "Once Dúo Post-Entreno (20:00) con Despensa",
     "recipe": "Receta compartida con despensa",
     "dionicioPortion": "Porción exacta para Dionicio",
     "paulaPortion": "Porción exacta para Paula"
