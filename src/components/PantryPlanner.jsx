@@ -816,21 +816,27 @@ export function PantryPlanner() {
                 <div className="text-base sm:text-lg font-black text-sky-400 font-mono mt-0.5">
                   {totalProteinToday}g <span className="text-[10px] text-slate-400 font-normal">/ {targetProtein}g</span>
                 </div>
-                <span className="text-[9px] text-sky-300/80 block mt-0.5 font-mono">{athletePlan.formulaDetails.proteinTargetInfo}</span>
+                <span className="text-[9px] text-sky-300/80 block mt-0.5 font-mono">
+                  {selectedAthlete === 'paula' ? '80-85g liviano (antidistensión)' : athletePlan.formulaDetails.proteinTargetInfo}
+                </span>
               </div>
               <div className="bg-gym-900/80 border border-amber-500/30 rounded-xl p-3 text-center">
                 <span className="text-[10px] text-slate-400 uppercase block font-bold">Carbohidratos</span>
                 <div className="text-base sm:text-lg font-black text-amber-400 font-mono mt-0.5">
                   {totalCarbsToday}g <span className="text-[10px] text-slate-400 font-normal">/ {targetCarbs}g</span>
                 </div>
-                <span className="text-[9px] text-amber-300/80 block mt-0.5 font-mono">Energía 19:00</span>
+                <span className="text-[9px] text-amber-300/80 block mt-0.5 font-mono">
+                  {selectedAthlete === 'paula' ? 'Carbos limpios para energía' : 'Energía 19:00'}
+                </span>
               </div>
               <div className="bg-gym-900/80 border border-pink-500/30 rounded-xl p-3 text-center">
                 <span className="text-[10px] text-slate-400 uppercase block font-bold">Grasas</span>
                 <div className="text-base sm:text-lg font-black text-pink-400 font-mono mt-0.5">
                   {totalFatsToday}g <span className="text-[10px] text-slate-400 font-normal">/ {targetFats}g</span>
                 </div>
-                <span className="text-[9px] text-pink-300/80 block mt-0.5 font-mono">{athletePlan.formulaDetails.fatsTargetInfo}</span>
+                <span className="text-[9px] text-pink-300/80 block mt-0.5 font-mono">
+                  {selectedAthlete === 'paula' ? '🛡️ Techo digestivo máx 42g' : athletePlan.formulaDetails.fatsTargetInfo}
+                </span>
               </div>
             </div>
           </div>

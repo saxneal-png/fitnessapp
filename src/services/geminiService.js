@@ -626,12 +626,26 @@ DIRECTRICES DE TUS RESPUESTAS:
 - Medida Cintura: ${context.nutrition?.[currentUser]?.plan?.waistCm ? `${context.nutrition?.[currentUser]?.plan?.waistCm} cm` : 'Pendiente'} | Ratio Cintura/Altura: ${context.nutrition?.[currentUser]?.plan?.recommendation?.waistHeightRatio || '0.51'} (${context.nutrition?.[currentUser]?.plan?.recommendation?.riskLevel || 'Moderado'})
 - Diagnóstico Clínico del Asesor: ${context.nutrition?.[currentUser]?.plan?.recommendation?.clinicalRationale || 'Déficit para reducción de grasa visceral'}
 - Próximo Hito para cambiar de modo: ${context.nutrition?.[currentUser]?.plan?.recommendation?.milestoneToNextMode || 'Bajar cintura a <88cm'}
+- Bloqueo de Hipertrofia: ${context.nutrition?.[currentUser]?.plan?.recommendation?.isHypertrophyBlocked ? 'ACTIVADO (WHtR ≥ 0.50, prohibido superávit hasta bajar cintura)' : 'DESBLOQUEADO'}
 - Modo de su Pareja (${partner.name}): ${context.nutrition?.[partnerId]?.plan?.activeModeConfig?.name || 'Pérdida de Grasa Visceral'}
 
 ====================================================
+🛡️ REGLAS CLÍNICAS Y DIGESTIVAS ESTRICTAS DE AMBOS ATLETAS:
+1. DIONICIO (180 cm, 86 kg, PAL 1.32):
+   - Meta Calórica Techo: 1.600 kcal/día (Déficit forzado de -760 kcal para oxidar grasa visceral).
+   - Proteína: 130g (fijada sobre masa magra ~65.5 kg).
+   - Grasas: 55-57g (piso hormonal). Carbohidratos: 140g.
+   - NUNCA sugerir 2.200 kcal; detendría la pérdida de grasa por su NEAT de oficina.
+2. PAULA (160 cm, 63 kg, 41 años, PAL 1.28):
+   - Meta Calórica Techo: 1.220 a 1.250 kcal/día (TDEE real ~1.618 kcal con déficit seguro).
+   - ALERTA DIGESTIVA: Techo duro de grasas en MÁXIMO 42g/día. Su vesícula y colon sensible colapsan con grasas altas o frituras, especialmente de noche.
+   - Proteína calibrada liviana: 80 a 85g (máximo 88g). NUNCA sobrecargarla con 95-105g de proteína ni forzar batidos innecesarios.
+   - Cualquier aumento calórico en recomposición o hipertrofia debe financiarse 100% con carbohidratos limpios (arroz, papas, avena, marraqueta, frutas), jamás con grasas.
+
+====================================================
 🥗 CALORÍAS Y NUTRICIÓN DE HOY:
-- ${user.name}: ${context.nutrition?.[currentUser]?.todayCals || 0} / ${context.nutrition?.[currentUser]?.targetCals || 1600} kcal (${context.nutrition?.[currentUser]?.todayProtein || 0}g proteína)
-- ${partner.name}: ${context.nutrition?.[partnerId]?.todayCals || 0} / ${context.nutrition?.[partnerId]?.targetCals || 1250} kcal`;
+- ${user.name}: ${context.nutrition?.[currentUser]?.todayCals || 0} / ${context.nutrition?.[currentUser]?.targetCals || 1600} kcal (${context.nutrition?.[currentUser]?.todayProtein || 0}g proteína | ${context.nutrition?.[currentUser]?.plan?.targetFats || 57}g grasas)
+- ${partner.name}: ${context.nutrition?.[partnerId]?.todayCals || 0} / ${context.nutrition?.[partnerId]?.targetCals || 1220} kcal (${context.nutrition?.[partnerId]?.todayProtein || 0}g proteína | ${context.nutrition?.[partnerId]?.plan?.targetFats || 40}g grasas)`;
 
   return await callGemini(systemInstruction, queryText, apiKey);
 }

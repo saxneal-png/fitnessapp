@@ -10,7 +10,7 @@
  * - Los carbohidratos cubren el remanente glucolítico para rendir con fuerza.
  */
 
-import { getLocalWeightEntries } from '../firebase/config';
+import { getLocalWeightEntries } from '../firebase/config.js';
 
 export const DEFAULT_BIOMETRICS = {
   dionicio: {
@@ -37,17 +37,17 @@ export const DEFAULT_BIOMETRICS = {
     gender: 'female',
     age: 41,
     heightCm: 160,
-    baselineWeightKg: 65.0,
+    baselineWeightKg: 63.0, // Calibrado al peso real en ayunas (63 kg)
     bodyFatPct: 28.0, // ~28% grasa corporal
-    leanMassKg: 46.8, // ~47 kg masa magra
+    leanMassKg: 45.4, // ~45.4 kg masa magra (63 * 0.72)
     activityLevel: 'desk_job_with_training', // PAL 1.28 real
     activeMode: 'visceral_fat_loss', // Modo predeterminado
     goal: 'fat_loss',
     deficitKcal: 400, // -400 kcal/día
-    targetCals: 1250, // Rango clínico exacto: 1.200 a 1.250 kcal
-    targetProtein: 95, // ~2.0 g/kg masa magra (95g = 380 kcal)
-    targetFats: 42, // 0.65 g/kg de peso total (42g = 378 kcal)
-    targetCarbs: 115 // Remanente (115g = 460 kcal)
+    targetCals: 1220, // Rango clínico exacto: 1.200 a 1.250 kcal
+    targetProtein: 82, // 80 a 85g óptimo (anti-distensión, sin colapso de colon)
+    targetFats: 40, // Piso biológico y Techo Digestivo Estricto (Máx 42g/día)
+    targetCarbs: 132 // Remanente con carbohidratos limpios (132g = 528 kcal)
   }
 };
 
@@ -177,6 +177,11 @@ export function getAthleteBiometrics(userId = 'dionicio', householdId = 'hogar-d
     }
   }
 
+  // Normalización clínica: Si Paula tenía el antiguo valor por defecto (65kg) y no proviene de un registro real de pesaje, fijar en 63.0 kg
+  if (userId === 'paula' && !isWeightFromLog && (activeWeight === 65.0 || !userStored.baselineWeightKg)) {
+    activeWeight = 63.0;
+  }
+
   const activeMode = userStored.activeMode || base.activeMode || 'visceral_fat_loss';
 
   return {
@@ -247,19 +252,24 @@ export function evaluateAthleteModeRecommendation(userId = 'dionicio', household
   // WHtR >= 0.50 indica riesgo cardiovascular y acumulación visceral significativa
   const waistHeightRatio = Number((waistCm / heightCm).toFixed(2));
   
+  // Regla de Oro Clínica: Si WHtR >= 0.50 (Grasa Visceral activa), el modo Aumento Muscular (Hipertrofia) queda bloqueado
+  const isHypertrophyBlocked = waistHeightRatio >= 0.50;
+  const targetWaistGoalCm = userId === 'dionicio' ? 88 : 74;
+  const hypertrophyBlockedReason = isHypertrophyBlocked
+    ? `⛔ Bloqueo Clínico Activo: Tu ratio cintura/altura es ${waistHeightRatio} (≥ 0.50 con cintura ${waistCm}cm). Iniciar un superávit en este punto expandiría la grasa visceral y empeoraría la sensibilidad a la insulina. Debes reducir cintura bajo ${targetWaistGoalCm} cm antes de autorizar aumento muscular.`
+    : null;
+
   let recommendedMode = 'visceral_fat_loss';
   let confidencePct = 95;
   let riskLevel = 'Moderado';
   let clinicalRationale = '';
-  let targetWaistGoalCm = userId === 'dionicio' ? 88 : 74;
   let milestoneToNextMode = '';
   let actionableTips = [];
 
   if (waistHeightRatio >= 0.52) {
     recommendedMode = 'visceral_fat_loss';
     riskLevel = 'Elevado (Grasa Visceral Activa)';
-    targetWaistGoalCm = userId === 'dionicio' ? 88 : 74;
-    clinicalRationale = `Tu ratio cintura/altura actual es de ${waistHeightRatio} (cintura ${waistCm}cm sobre ${heightCm}cm). Clínicamente, un ratio mayor a 0.50 confirma adiposidad visceral acumulada. La prioridad metabólica número 1 debe ser continuar con déficit acelerado (-750 kcal) para movilizar esta grasa interna y desinflamar el hígado/órganos.`;
+    clinicalRationale = `Tu ratio cintura/altura actual es de ${waistHeightRatio} (cintura ${waistCm}cm sobre ${heightCm}cm). Clínicamente, un ratio ≥ 0.52 confirma adiposidad visceral activa. La prioridad metabólica número 1 debe ser continuar con déficit acelerado (-750 kcal) para movilizar esta grasa profunda y desinflamar órganos. El modo Aumento Muscular está bloqueado preventivamente.`;
     milestoneToNextMode = `Reducir cintura a menos de ${targetWaistGoalCm} cm para desbloquear el modo Recomposición Corporal.`;
     actionableTips = [
       'Mantener caminadora con pendiente (Zona 2 aeróbica de 20-30 min) para maximizar la oxidación de ácidos grasos libres.',
@@ -269,7 +279,6 @@ export function evaluateAthleteModeRecommendation(userId = 'dionicio', household
   } else if (waistHeightRatio >= 0.46 && waistHeightRatio < 0.52) {
     recommendedMode = 'body_recomposition';
     riskLevel = 'Saludable / Transición';
-    targetWaistGoalCm = userId === 'dionicio' ? 82 : 69;
     clinicalRationale = `Tu ratio cintura/altura se encuentra en una zona saludable de ${waistHeightRatio} (${waistCm}cm). Ya has controlado el riesgo de grasa visceral profunda. Este es el estado metabólico óptimo para Recomposición Corporal: déficit suave (-350 kcal) que permite ganar tono y masa magra mientras se eliminan los últimos depósitos subcutáneos.`;
     milestoneToNextMode = `Mantener cargas en mancuernas (RPE 7-8.5) y llevar la cintura a ${targetWaistGoalCm} cm para poder pasar a Hipertrofia Limpia.`;
     actionableTips = [
@@ -281,7 +290,6 @@ export function evaluateAthleteModeRecommendation(userId = 'dionicio', household
     // WHtR < 0.46: Muy magro
     recommendedMode = 'hypertrophy_muscle_gain';
     riskLevel = 'Excelente / Magro';
-    targetWaistGoalCm = waistCm;
     clinicalRationale = `Tu ratio cintura/altura es óptimo (${waistHeightRatio}). Tienes una sensibilidad a la insulina excepcional y niveles mínimos de grasa visceral. Puedes realizar un superávit controlado (+250 kcal) para construir masa muscular neta sin ganar grasa indeseada.`;
     milestoneToNextMode = `Monitorear perímetro de cintura quincenalmente: si sube más de 2 cm sin aumento proporcional de fuerza, ajustar a recomposición.`;
     actionableTips = [
@@ -330,6 +338,8 @@ export function evaluateAthleteModeRecommendation(userId = 'dionicio', household
     targetWaistGoalCm,
     clinicalRationale,
     milestoneToNextMode,
+    isHypertrophyBlocked,
+    hypertrophyBlockedReason,
     actionableTips
   };
 }
@@ -372,17 +382,19 @@ export function calculateAthleteNutrition(userId = 'dionicio', householdId = 'ho
   const gender = profile.gender || (userId === 'dionicio' ? 'male' : 'female');
 
   // 1. Tasa Metabólica Basal (BMR) con Mifflin-St Jeor
+  // Dionicio: 10*86 + 6.25*180 - 5*40 + 5 = 1790 kcal
+  // Paula (63kg): 10*63 + 6.25*160 - 5*41 - 161 = 630 + 1000 - 205 - 161 = 1264 kcal
   const bmr = calculateMifflinBMR(weightKg, heightCm, age, gender);
 
   // 2. Gasto Energético Total Diario (TDEE Real de Oficina + Entreno)
-  // Dionicio: 1.32 (2.360 kcal) | Paula: 1.28 (1.644 kcal)
+  // Dionicio: PAL 1.32 (~2.360 kcal) | Paula: PAL 1.28 (~1.618 kcal)
   const defaultPal = userId === 'dionicio' ? 1.32 : 1.28;
   const palMultiplier = ACTIVITY_MULTIPLIERS[profile.activityLevel]?.value || defaultPal;
   const tdee = Math.round(bmr * palMultiplier);
 
   // 3. Masa Magra Estimada
   // Dionicio con 86kg y ~23% grasa = ~65.5kg magros
-  // Paula con 65kg y ~28% grasa = ~46.8kg magros
+  // Paula con 63kg y ~28% grasa = ~45.4kg magros
   const bodyFatPct = Number(profile.bodyFatPct) || (gender === 'male' ? 23.0 : 28.0);
   const leanMassKg = Number((weightKg * (1 - (bodyFatPct / 100))).toFixed(1));
 
@@ -398,26 +410,32 @@ export function calculateAthleteNutrition(userId = 'dionicio', householdId = 'ho
 
   if (activeMode === 'visceral_fat_loss') {
     deficitKcal = userId === 'dionicio' ? 760 : 400;
-    targetCals = userId === 'dionicio' ? 1600 : 1250;
-    targetProteinG = userId === 'dionicio' ? 130 : Math.round(leanMassKg * 2.0);
-    targetFatsG = userId === 'dionicio' ? 57 : Math.round(weightKg * 0.65);
+    targetCals = userId === 'dionicio' ? 1600 : 1220; // Exacto 1.200 a 1.250 kcal para Paula con 63 kg
+    targetProteinG = userId === 'dionicio' ? 130 : 82; // 80-85g para Paula (protección estricta de colon y vesícula)
+    targetFatsG = userId === 'dionicio' ? 57 : 40; // Max 42g
   } else if (activeMode === 'body_recomposition') {
-    deficitKcal = userId === 'dionicio' ? 350 : 220;
+    deficitKcal = userId === 'dionicio' ? 350 : 200;
     targetCals = Math.round(tdee - deficitKcal);
-    targetProteinG = userId === 'dionicio' ? 140 : Math.round(leanMassKg * 2.15);
-    targetFatsG = userId === 'dionicio' ? 65 : Math.round(weightKg * 0.74);
+    targetProteinG = userId === 'dionicio' ? 140 : 85; // 85g óptimo
+    targetFatsG = userId === 'dionicio' ? 65 : 42; // Techo duro 42g
   } else if (activeMode === 'hypertrophy_muscle_gain') {
     const surplusKcal = userId === 'dionicio' ? 250 : 150;
     deficitKcal = -surplusKcal; // Negativo para reflejar superávit
     targetCals = Math.round(tdee + surplusKcal);
-    targetProteinG = userId === 'dionicio' ? 145 : Math.round(leanMassKg * 2.2);
-    targetFatsG = userId === 'dionicio' ? 75 : Math.round(weightKg * 0.85);
+    targetProteinG = userId === 'dionicio' ? 145 : 88; // Máximo 88g para no saturar digestión
+    targetFatsG = userId === 'dionicio' ? 75 : 42; // Techo duro 42g
   } else {
     // metabolic_maintenance
     deficitKcal = 0;
     targetCals = tdee;
-    targetProteinG = userId === 'dionicio' ? 135 : Math.round(leanMassKg * 2.0);
-    targetFatsG = userId === 'dionicio' ? 70 : Math.round(weightKg * 0.78);
+    targetProteinG = userId === 'dionicio' ? 135 : 82;
+    targetFatsG = userId === 'dionicio' ? 70 : 42; // Techo duro 42g
+  }
+
+  // TECHO DURO DE GRASAS PARA PAULA (Alerta Digestiva / Vesícula y Colon sensible)
+  // Cualquier aumento calórico debe financiarse 100% con carbohidratos limpios, jamás con grasas
+  if (userId === 'paula') {
+    targetFatsG = Math.min(targetFatsG, 42);
   }
 
   // 5. Reparto Bioquímico de Macronutrientes

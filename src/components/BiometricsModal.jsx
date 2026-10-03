@@ -212,6 +212,26 @@ export function BiometricsModal({ isOpen, onClose, householdId, initialAthlete =
               {recommendation.clinicalRationale}
             </p>
 
+            {/* Aviso de Bloqueo Clínico si WHtR >= 0.50 */}
+            {recommendation.isHypertrophyBlocked && (
+              <div className="mb-3 p-2.5 rounded-xl bg-rose-950/40 border border-rose-500/40 text-xs text-rose-300 flex items-center gap-2">
+                <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0" />
+                <span>
+                  <strong>Aviso Clínico:</strong> El modo Aumento Muscular está bloqueado preventivamente por exceso de grasa visceral. Primero debes reducir la cintura a &lt; {recommendation.targetWaistGoalCm} cm.
+                </span>
+              </div>
+            )}
+
+            {/* Aviso de Protección Digestiva para Paula */}
+            {!isDionicio && (
+              <div className="mb-3 p-2.5 rounded-xl bg-sky-950/40 border border-sky-500/40 text-xs text-sky-300 flex items-center gap-2">
+                <ShieldCheck className="w-4 h-4 text-sky-400 shrink-0" />
+                <span>
+                  <strong>Protección Digestiva Activa:</strong> Techo estricto de grasa fijado en máx 42g/día y proteína en 80-85g para cuidar la vesícula y colon sensible. Cualquier superávit se financia con carbohidratos limpios.
+                </span>
+              </div>
+            )}
+
             <div className="flex flex-wrap items-center justify-between gap-3 pt-2.5 border-t border-gym-800/80">
               <div className="text-[11px] text-slate-400 flex items-center gap-1.5">
                 <Target className="w-3.5 h-3.5 text-sky-400 shrink-0" />
@@ -256,16 +276,23 @@ export function BiometricsModal({ isOpen, onClose, householdId, initialAthlete =
               {Object.entries(FITNESS_MODES).map(([modeKey, mode]) => {
                 const isSelected = formData.activeMode === modeKey;
                 const isRecommended = recommendation.recommendedMode === modeKey;
+                const isBlocked = modeKey === 'hypertrophy_muscle_gain' && recommendation.isHypertrophyBlocked;
 
                 return (
                   <button
                     key={modeKey}
                     type="button"
-                    onClick={() => handleSelectMode(modeKey)}
+                    disabled={isBlocked}
+                    onClick={() => {
+                      if (isBlocked) return;
+                      handleSelectMode(modeKey);
+                    }}
                     className={`p-3.5 rounded-2xl border text-left transition-all relative overflow-hidden flex flex-col justify-between ${
-                      isSelected
-                        ? 'bg-gym-800/90 border-emerald-500/80 shadow-lg shadow-emerald-500/10 ring-1 ring-emerald-500/50'
-                        : 'bg-gym-950/60 border-gym-800 hover:border-gym-700 hover:bg-gym-900/60'
+                      isBlocked
+                        ? 'bg-gym-950/40 border-rose-900/30 opacity-60 cursor-not-allowed'
+                        : isSelected
+                          ? 'bg-gym-800/90 border-emerald-500/80 shadow-lg shadow-emerald-500/10 ring-1 ring-emerald-500/50'
+                          : 'bg-gym-950/60 border-gym-800 hover:border-gym-700 hover:bg-gym-900/60'
                     }`}
                   >
                     <div className="space-y-1.5">
@@ -279,10 +306,15 @@ export function BiometricsModal({ isOpen, onClose, householdId, initialAthlete =
                             <Check className="w-3.5 h-3.5 stroke-[3]" />
                           </span>
                         )}
+                        {isBlocked && (
+                          <span className="text-[9px] bg-rose-500/20 text-rose-400 border border-rose-500/40 px-1.5 py-0.5 rounded font-bold uppercase shrink-0">
+                            Bloqueado
+                          </span>
+                        )}
                       </div>
 
                       <p className="text-[11px] text-slate-400 leading-relaxed line-clamp-2">
-                        {mode.description}
+                        {isBlocked ? recommendation.hypertrophyBlockedReason : mode.description}
                       </p>
                     </div>
 
@@ -295,7 +327,7 @@ export function BiometricsModal({ isOpen, onClose, householdId, initialAthlete =
                               : '0 kcal (Mantenimiento)')}
                       </span>
 
-                      {isRecommended && (
+                      {isRecommended && !isBlocked && (
                         <span className="bg-amber-500/20 text-amber-300 border border-amber-500/40 px-1.5 py-0.5 rounded font-bold uppercase tracking-wider text-[9px]">
                           Recomendado IA
                         </span>
