@@ -33,7 +33,8 @@ import {
   PlusCircle,
   Apple,
   CheckCircle2,
-  BookmarkPlus
+  BookmarkPlus,
+  Target
 } from 'lucide-react';
 
 export function GeminiCoach() {
@@ -44,20 +45,31 @@ export function GeminiCoach() {
   const [tempKey, setTempKey] = useState(apiKey);
   const [householdStats, setHouseholdStats] = useState(() => buildHouseholdContext(householdId));
   const [savingMealIdx, setSavingMealIdx] = useState(null);
+  const [autoSaveMeals, setAutoSaveMeals] = useState(() => {
+    return localStorage.getItem('fitness_duo_auto_save_meals') !== 'false';
+  });
 
   const [messages, setMessages] = useState([
     {
       role: 'assistant',
-      content: `¡Hola Dionicio y Paula! Soy su Asesor Nutricional y Deportivo Personal para la rutina "Dúo en Casa" (19:00 a 20:00).
-Ahora puedo llevar el registro de todo lo que comen y calcular sus calorías automáticamente:
-- Si me cuentas qué almorzaste o cenaste (ej: "Comí 2 huevos y una tostada con palta"), calcularé sus calorías y las guardaré en tu base de datos para tus estadísticas.
-- Puedes hacerme cualquier pregunta sobre cómo sincronizar la comida con el entrenamiento de hoy.
+      content: `¡Hola Dionicio y Paula! Soy su Agente Fitness y Asesor Nutricional Autónomo para su programa "Dúo en Casa" (19:00 a 20:00).
+Tengo acceso en tiempo real a sus entrenamientos, su Despensa y su Diario de Calorías:
+- 🥗 **Dime lo que comiste** en lenguaje natural (ej: "Almorcé 200g de pollo con arroz y ensalada") y calcularé automáticamente sus nutrientes, guardándolos en la base de datos.
+- 🎯 **Te diré con exactitud matemática qué y cuánto te falta para cerrar el día** (calorías y proteína restante).
+- 🥘 **Te sugeriré tu cena o siguiente comida usando EXCLUSIVAMENTE los alimentos que tienen en su despensa.**
 
-¿Qué comiste hoy o qué dudas tienes?`
+¿Qué comiste hoy o cómo quieres organizar tu día?`
     }
   ]);
   const [inputQuery, setInputQuery] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+
+  // Toggle auto-save setting
+  const toggleAutoSave = () => {
+    const nextVal = !autoSaveMeals;
+    setAutoSaveMeals(nextVal);
+    localStorage.setItem('fitness_duo_auto_save_meals', String(nextVal));
+  };
 
   // Refresh household context stats periodically or on focus
   useEffect(() => {
@@ -124,13 +136,51 @@ Ahora puedo llevar el registro de todo lo que comen y calcular sus calorías aut
 
     try {
       const response = await analyzeCoachChatWithAction(promptText, currentUser, householdId, apiKey);
+      
+      let wasAutoSaved = false;
+      let savedLogId = null;
+
+      // Auto-guardado autónomo si está habilitado
+      if (response.detectedMeal && autoSaveMeals) {
+        try {
+          const savedEntry = await saveNutritionLog({
+            userId: currentUser,
+            mealType: response.detectedMeal.mealType || 'almuerzo',
+            title: response.detectedMeal.title || 'Comida registrada con Coach',
+            caloriesKcal: response.detectedMeal.caloriesKcal || 0,
+            proteinG: response.detectedMeal.proteinG || 0,
+            carbsG: response.detectedMeal.carbsG || 0,
+            fatsG: response.detectedMeal.fatsG || 0,
+            items: response.detectedMeal.items || [],
+            coachFeedback: response.detectedMeal.summary || '',
+            source: 'coach_autonomous'
+          }, householdId);
+
+          wasAutoSaved = true;
+          savedLogId = savedEntry.id;
+
+          try {
+            confetti({
+              particleCount: 40,
+              spread: 55,
+              origin: { y: 0.85 }
+            });
+          } catch (e) {}
+
+          setHouseholdStats(buildHouseholdContext(householdId));
+        } catch (saveErr) {
+          console.warn('Error en auto-guardado autónomo de comida:', saveErr);
+        }
+      }
+
       setMessages((prev) => [
         ...prev,
         { 
           role: 'assistant', 
           content: response.text,
           detectedMeal: response.detectedMeal,
-          mealSaved: false
+          mealSaved: wasAutoSaved,
+          savedLogId
         }
       ]);
     } catch (err) {
@@ -159,16 +209,14 @@ Ahora puedo llevar el registro de todo lo que comen y calcular sus calorías aut
     const isDionicio = currentUser === 'dionicio';
     const athleteName = isDionicio ? 'Dionicio' : 'Paula';
 
-    if (type === 'live_session_briefing') {
-      executeCoachPrompt(`Actúa como nuestro coach en vivo. Genera el Briefing Estratégico para la sesión de hoy (19:00 a 20:00). Analiza nuestras últimas series registradas, recomienda qué pesos debemos calibrar hoy en las mancuernas y cómo debemos coordinar la rotación de 25 min.`);
-    } else if (type === 'analyze_fatigue') {
-      executeCoachPrompt(`Analiza mis últimos registros de series y RPE (${athleteName}). ¿Estoy en el rango óptimo de RPE 6-7 de la Semana 0 o he acumulado fatiga excesiva? Dame recomendaciones puntuales de descanso.`);
+    if (type === 'closure_check') {
+      executeCoachPrompt(`¿Qué y cuánto me falta exactamente para cerrar el día según mi meta calórica y proteica? Dime qué puedo preparar hoy con los alimentos que tenemos registrados en nuestra despensa.`);
     } else if (type === 'sync_dinner') {
-      executeCoachPrompt(`Considerando nuestro entrenamiento de hoy a las 19:00 y los ingredientes informados en nuestra despensa (${householdStats.pantryItems.join(', ')}), ¿cómo optimizamos la cena de las 20:00 (misma receta para ambos con porciones diferenciadas) para maximizar la síntesis proteica?`);
+      executeCoachPrompt(`Viendo lo que he comido hoy y los ingredientes de nuestra despensa (${householdStats.pantryItems.slice(0, 8).join(', ')}), ¿cuál es la cena perfecta para las 20:00 post-entreno para ambos?`);
     } else if (type === 'log_meal_lunch') {
       executeCoachPrompt(`Registra mi almuerzo de hoy: Comí 200g de pechuga de pollo a la plancha con una taza de arroz y ensalada de espinaca con una cucharadita de aceite de oliva.`);
-    } else if (type === 'joint_comfort') {
-      executeCoachPrompt(`Si ${athleteName} siente ligera molestia o falta de movilidad en hombros o rodillas durante la rutina, ¿qué ajustes biomecánicos exactos o variantes en el suelo recomiendas para no suspender el entrenamiento?`);
+    } else if (type === 'live_session_briefing') {
+      executeCoachPrompt(`Actúa como nuestro coach en vivo. Genera el Briefing Estratégico para la sesión de hoy (19:00 a 20:00). Analiza nuestras últimas series registradas, recomienda qué pesos debemos calibrar hoy en las mancuernas y cómo debemos coordinar la rotación de 25 min.`);
     }
   };
 
@@ -425,7 +473,21 @@ Ahora puedo llevar el registro de todo lo que comen y calcular sus calorías aut
                 </div>
               </div>
 
-              <div className="flex items-center gap-4">
+              <div className="flex flex-wrap items-center gap-3">
+                <button
+                  type="button"
+                  onClick={toggleAutoSave}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold border transition-all flex items-center gap-1.5 active:scale-95 ${
+                    autoSaveMeals
+                      ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40 shadow-sm'
+                      : 'bg-gym-900 text-slate-400 border-gym-700'
+                  }`}
+                  title="Guarda automáticamente en BD al calcular tus comidas sin clics extra"
+                >
+                  <span className={`w-2 h-2 rounded-full ${autoSaveMeals ? 'bg-emerald-400 animate-pulse' : 'bg-slate-500'}`} />
+                  <span>{autoSaveMeals ? '⚡ Auto-guardado Activo' : 'Guardado Manual'}</span>
+                </button>
+
                 <div className="text-right">
                   <div className="text-xl sm:text-2xl font-black text-white font-mono">
                     {nutData.todayCals} <span className="text-xs text-slate-400 font-normal">/ {nutData.targetCals} kcal</span>
@@ -453,13 +515,14 @@ Ahora puedo llevar el registro de todo lo que comen y calcular sus calorías aut
                 <span className="text-[10px] text-slate-400">/ {nutData.targetProtein}g</span>
               </div>
               <div className="px-2.5 py-1 rounded-lg bg-gym-900/80 border border-gym-700 flex items-center gap-1.5 font-mono">
-                <span className="text-emerald-400 font-bold">Estado:</span>
-                <span className="text-slate-300">
-                  {nutData.todayCals === 0 ? 'Sin comidas registradas hoy' : nutData.todayCals < nutData.targetCals ? 'En rango controlado' : 'Meta cumplida'}
+                <span className="text-amber-400 font-bold">Faltan hoy:</span>
+                <span className="text-slate-200 font-bold">
+                  {Math.max(0, nutData.targetCals - nutData.todayCals)} kcal
                 </span>
+                <span className="text-slate-400">({Math.max(0, nutData.targetProtein - nutData.todayProtein)}g prot)</span>
               </div>
               <span className="text-[11px] text-slate-400 italic ml-auto hidden sm:inline">
-                💡 Escribe en el chat lo que comas para sumarlo automáticamente aquí.
+                💡 Cuéntale lo que comiste y el Coach calculará los macros y tu cena con la despensa.
               </span>
             </div>
           </div>
@@ -467,56 +530,56 @@ Ahora puedo llevar el registro de todo lo que comen y calcular sus calorías aut
       })()}
 
       {/* Quick Coaching Actions & Prompts */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-3">
         <button
-          onClick={() => handlePresetPrompt('log_meal_lunch')}
-          className="p-3.5 rounded-2xl bg-gradient-to-br from-gym-800 to-emerald-950/40 border border-emerald-500/30 hover:border-emerald-400 text-left transition-all group"
-        >
-          <div className="flex items-center gap-2 text-emerald-400 font-bold text-xs mb-1">
-            <BookmarkPlus className="w-4 h-4 group-hover:scale-110 transition-transform" />
-            <span>🥗 Registrar Almuerzo en BD</span>
-          </div>
-          <p className="text-[11px] text-slate-400">
-            Calcula calorías y macronutrientes para guardarlos en la base de datos.
-          </p>
-        </button>
-
-        <button
-          onClick={() => handlePresetPrompt('live_session_briefing')}
-          className="p-3.5 rounded-2xl bg-gradient-to-br from-gym-800 to-amber-950/40 border border-amber-500/30 hover:border-amber-400 text-left transition-all group"
+          onClick={() => handlePresetPrompt('closure_check')}
+          className="p-3.5 rounded-2xl bg-gradient-to-br from-gym-800 to-amber-950/40 border border-amber-500/30 hover:border-amber-400 text-left transition-all group active:scale-95"
         >
           <div className="flex items-center gap-2 text-amber-400 font-bold text-xs mb-1">
-            <Sparkles className="w-4 h-4 group-hover:scale-110 transition-transform" />
-            <span>🎯 Briefing Pre-Entreno (19:00)</span>
+            <Target className="w-4 h-4 group-hover:scale-110 transition-transform" />
+            <span>🎯 ¿Qué me falta para cerrar el día?</span>
           </div>
           <p className="text-[11px] text-slate-400">
-            Analiza historial y define metas de peso y rotación para hoy.
-          </p>
-        </button>
-
-        <button
-          onClick={() => handlePresetPrompt('analyze_fatigue')}
-          className="p-3.5 rounded-2xl bg-gradient-to-br from-gym-800 to-sky-950/40 border border-sky-500/30 hover:border-sky-400 text-left transition-all group"
-        >
-          <div className="flex items-center gap-2 text-sky-400 font-bold text-xs mb-1">
-            <Dumbbell className="w-4 h-4 group-hover:scale-110 transition-transform" />
-            <span>📊 Analizar Fatiga & RPE</span>
-          </div>
-          <p className="text-[11px] text-slate-400">
-            Evalúa la sobrecarga real de las series de {USERS[currentUser]?.name}.
+            Calcula el saldo calórico y qué preparar con los alimentos de tu despensa.
           </p>
         </button>
 
         <button
           onClick={() => handlePresetPrompt('sync_dinner')}
-          className="p-3.5 rounded-2xl bg-gradient-to-br from-gym-800 to-pink-950/40 border border-pink-500/30 hover:border-pink-400 text-left transition-all group"
+          className="p-3.5 rounded-2xl bg-gradient-to-br from-gym-800 to-emerald-950/40 border border-emerald-500/30 hover:border-emerald-400 text-left transition-all group active:scale-95"
         >
-          <div className="flex items-center gap-2 text-pink-400 font-bold text-xs mb-1">
+          <div className="flex items-center gap-2 text-emerald-400 font-bold text-xs mb-1">
             <Utensils className="w-4 h-4 group-hover:scale-110 transition-transform" />
-            <span>🍽️ Coordinar Cena (20:00)</span>
+            <span>🥘 Cena Post-Entreno (Despensa)</span>
           </div>
           <p className="text-[11px] text-slate-400">
-            Sincroniza la cena compartida con la despensa y porciones individuales.
+            Receta para las 20:00 adaptando porciones para Dionicio y Paula.
+          </p>
+        </button>
+
+        <button
+          onClick={() => handlePresetPrompt('log_meal_lunch')}
+          className="p-3.5 rounded-2xl bg-gradient-to-br from-gym-800 to-sky-950/40 border border-sky-500/30 hover:border-sky-400 text-left transition-all group active:scale-95"
+        >
+          <div className="flex items-center gap-2 text-sky-400 font-bold text-xs mb-1">
+            <BookmarkPlus className="w-4 h-4 group-hover:scale-110 transition-transform" />
+            <span>🥗 Registrar Almuerzo Típico</span>
+          </div>
+          <p className="text-[11px] text-slate-400">
+            Calcula y guarda autónomamente pollo, arroz y ensalada en BD.
+          </p>
+        </button>
+
+        <button
+          onClick={() => handlePresetPrompt('live_session_briefing')}
+          className="p-3.5 rounded-2xl bg-gradient-to-br from-gym-800 to-pink-950/40 border border-pink-500/30 hover:border-pink-400 text-left transition-all group active:scale-95"
+        >
+          <div className="flex items-center gap-2 text-pink-400 font-bold text-xs mb-1">
+            <Dumbbell className="w-4 h-4 group-hover:scale-110 transition-transform" />
+            <span>⏱️ Briefing Sesión en Vivo (19:00)</span>
+          </div>
+          <p className="text-[11px] text-slate-400">
+            Recomienda pesos y rotación de mancuernas y trotadora para hoy.
           </p>
         </button>
       </div>
@@ -594,12 +657,31 @@ Ahora puedo llevar el registro de todo lo que comen y calcular sus calorías aut
                     </div>
                   )}
 
-                  {/* Botón de Guardado en Base de Datos */}
+                  {/* Bloque Destacado: Orientación de Cierre del Día con Despensa */}
+                  {m.detectedMeal.closureAdvice && (
+                    <div className="mt-2.5 p-3 rounded-xl bg-gym-900 border border-amber-500/30 space-y-1.5 text-xs">
+                      <div className="flex flex-wrap items-center justify-between gap-1">
+                        <span className="font-extrabold text-amber-300 text-[11px] uppercase tracking-wider flex items-center gap-1.5">
+                          <Target className="w-3.5 h-3.5 text-amber-400" />
+                          <span>Para Cerrar Tu Día</span>
+                        </span>
+                        <span className="font-mono text-[11px] text-slate-300">
+                          Faltan: <strong className="text-amber-400">{m.detectedMeal.closureAdvice.remainingCals} kcal</strong> • <strong className="text-sky-400">{m.detectedMeal.closureAdvice.remainingProtein}g prot</strong>
+                        </span>
+                      </div>
+                      <div className="text-[11px] text-slate-300 leading-relaxed bg-gym-950/80 p-2.5 rounded-lg border border-gym-800">
+                        <strong className="text-emerald-400 block mb-0.5">🥘 Propuesta con tu Despensa:</strong>
+                        <span>{m.detectedMeal.closureAdvice.suggestedRecipe}</span>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Estado / Botón de Guardado en Base de Datos */}
                   <div className="pt-2">
                     {m.mealSaved ? (
-                      <div className="w-full py-2 rounded-xl bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 text-xs font-bold flex items-center justify-center gap-1.5">
-                        <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-                        <span>¡Guardado con éxito en Base de Datos! (+{m.detectedMeal.caloriesKcal} kcal sumadas)</span>
+                      <div className="w-full py-2 px-3 rounded-xl bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 text-xs font-bold flex items-center justify-center gap-1.5">
+                        <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                        <span>✅ Guardada autónomamente en tu Base de Datos (+{m.detectedMeal.caloriesKcal} kcal)</span>
                       </div>
                     ) : (
                       <button
