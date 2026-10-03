@@ -286,6 +286,10 @@ Tengo acceso en tiempo real a sus entrenamientos, su Despensa y la Base de Alime
       executeCoachPrompt(`Registra nuestra Once post-entreno (20:00): Yo tomé 1 vaso de leche loncoleche full pro con un diente de marraqueta y 50g de pechuga de pollo. Mi esposa tomó 1 vaso de leche loncoleche full pro con medio diente de marraqueta y 40g de pechuga de pollo.`);
     } else if (type === 'live_session_briefing') {
       executeCoachPrompt(`Actúa como nuestro coach en vivo. Genera el Briefing Estratégico para la sesión de hoy (19:00 a 20:00). Analiza nuestras últimas series registradas, recomienda qué pesos debemos calibrar hoy en las mancuernas y cómo debemos coordinar la rotación de 25 min.`);
+    } else if (type === 'evaluate_mode') {
+      const modeName = householdStats.nutrition?.[currentUser]?.plan?.activeModeConfig?.name || 'Pérdida de Grasa Visceral';
+      const wRatio = householdStats.nutrition?.[currentUser]?.plan?.recommendation?.waistHeightRatio || '0.51';
+      executeCoachPrompt(`Analiza mis datos biométricos actuales: estoy en modo "${modeName}" con un ratio cintura/altura de ${wRatio}. Viendo mis registros de peso, medidas corporales y progreso de sobrecarga en mancuernas, ¿qué opinas de mi evolución? ¿Debo seguir en este modo o ya cumplo los criterios para cambiar a Recomposición Corporal o Hipertrofia? Dame tu veredicto experto y qué priorizar.`);
     }
   };
 
@@ -345,12 +349,22 @@ Tengo acceso en tiempo real a sus entrenamientos, su Despensa y la Base de Alime
         <div className="bg-gym-800/90 border border-pink-500/30 rounded-2xl p-3.5 space-y-1">
           <div className="flex items-center gap-1.5 text-pink-400 text-xs font-bold">
             <Activity className="w-4 h-4" />
-            <span>Atleta Activo</span>
+            <span>Atleta & Modo</span>
           </div>
-          <div className="text-xl font-black text-white">
-            {USERS[currentUser]?.name}
+          <div className="text-xl font-black text-white flex items-center justify-between">
+            <span>{USERS[currentUser]?.name}</span>
+            <span className="text-sm">
+              {householdStats.nutrition?.[currentUser]?.plan?.activeModeConfig?.icon || '🔥'}
+            </span>
           </div>
-          <span className="text-[10px] text-pink-300 block">{USERS[currentUser]?.phase}</span>
+          <button
+            type="button"
+            onClick={() => setShowBiometricsModal(true)}
+            className="text-[10px] text-pink-300 hover:text-white underline block text-left truncate font-medium"
+            title="Ver diagnóstico biométrico y cambiar de modo"
+          >
+            Modo: {householdStats.nutrition?.[currentUser]?.plan?.activeModeConfig?.shortName || 'Grasa Visceral'}
+          </button>
         </div>
 
         <div className="bg-gym-800/90 border border-emerald-500/30 rounded-2xl p-3.5 space-y-1">
@@ -480,15 +494,15 @@ Tengo acceso en tiempo real a sus entrenamientos, su Despensa y la Base de Alime
       {/* 1-Click Smart Action Buttons */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
         <button
-          onClick={() => handlePresetPrompt('live_session_briefing')}
-          className="p-3.5 rounded-2xl bg-gradient-to-br from-gym-800 to-amber-950/40 border border-amber-500/30 hover:border-amber-400 text-left transition-all group"
+          onClick={() => handlePresetPrompt('evaluate_mode')}
+          className="p-3.5 rounded-2xl bg-gradient-to-br from-gym-800 to-rose-950/40 border border-rose-500/30 hover:border-rose-400 text-left transition-all group"
         >
-          <div className="flex items-center gap-2 text-amber-400 font-bold text-xs mb-1">
-            <Sparkles className="w-4 h-4 group-hover:scale-110 transition-transform" />
-            <span>🎯 Briefing Pre-Entreno (19:00)</span>
+          <div className="flex items-center gap-2 text-rose-400 font-bold text-xs mb-1">
+            <Target className="w-4 h-4 group-hover:scale-110 transition-transform" />
+            <span>🎯 Evaluar Modo & Avances</span>
           </div>
           <p className="text-[11px] text-slate-400">
-            Analiza historial y define metas de peso y rotación para hoy.
+            Analiza ratio cintura/altura, medidas y decide si cambiar de fase.
           </p>
         </button>
 

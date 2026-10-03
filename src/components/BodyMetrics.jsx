@@ -23,8 +23,19 @@ import {
   Sparkles,
   Info,
   CheckCircle2,
-  AlertCircle
+  AlertCircle,
+  Target,
+  Dna,
+  Zap,
+  Check
 } from 'lucide-react';
+import { 
+  FITNESS_MODES, 
+  evaluateAthleteModeRecommendation, 
+  saveAthleteMode, 
+  getAthleteBiometrics 
+} from '../services/nutritionCalculator';
+import { BiometricsModal } from './BiometricsModal';
 import {
   ResponsiveContainer,
   LineChart,
@@ -64,6 +75,11 @@ export function BodyMetrics() {
   const [armCm, setArmCm] = useState('');
   const [thighCm, setThighCm] = useState('');
   const [notes, setNotes] = useState('');
+  const [showBiometricsModal, setShowBiometricsModal] = useState(false);
+
+  const modeRecommendation = useMemo(() => {
+    return evaluateAthleteModeRecommendation(selectedUser, currentHousehold);
+  }, [selectedUser, currentHousehold, logs]);
 
   useEffect(() => {
     if (currentUser) {
@@ -292,6 +308,93 @@ export function BodyMetrics() {
           <p className="text-[11px] text-emerald-400/90 mt-1 font-medium">
             Sincronizado con Firebase
           </p>
+        </div>
+      </div>
+
+      {/* TARJETA DE MODO FISIOLÓGICO & ASESORÍA SEGÚN MEDIDAS */}
+      <div className="bg-gradient-to-br from-gym-900 via-gym-850 to-gym-950 border border-gym-700/80 rounded-2xl p-4 sm:p-5 shadow-xl space-y-3">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-gym-800 pb-3">
+          <div className="flex items-center gap-2.5">
+            <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-rose-500/20 to-amber-500/20 border border-rose-500/30 flex items-center justify-center text-lg">
+              {modeRecommendation.currentModeConfig?.icon || '🎯'}
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h3 className="font-black text-white text-sm sm:text-base">
+                  Modo Activo: {modeRecommendation.currentModeConfig?.name}
+                </h3>
+                <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-full border ${modeRecommendation.currentModeConfig?.badgeClass || 'bg-rose-500/20 text-rose-300 border-rose-500/30'}`}>
+                  {modeRecommendation.currentModeConfig?.shortName}
+                </span>
+              </div>
+              <p className="text-[11px] text-slate-400">
+                Adaptación dinámica según evolución de cintura ({modeRecommendation.waistCm} cm), peso y grasa visceral.
+              </p>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => setShowBiometricsModal(true)}
+            className="px-3 py-1.5 rounded-xl bg-gym-800 hover:bg-gym-700 border border-gym-700 text-xs font-bold text-slate-200 transition-all flex items-center gap-1.5"
+          >
+            <Dna className="w-3.5 h-3.5 text-sky-400" />
+            <span>Configurar Modo & Biometría</span>
+          </button>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
+          <div className="bg-gym-950/70 p-3 rounded-xl border border-gym-800 space-y-1">
+            <span className="text-[10px] font-bold uppercase text-slate-400 block">Ratio Cintura / Altura</span>
+            <div className="flex items-baseline gap-2">
+              <span className="text-xl font-black text-amber-400 font-mono">{modeRecommendation.waistHeightRatio}</span>
+              <span className="text-[10px] text-slate-400 font-mono">({modeRecommendation.waistCm}cm / {modeRecommendation.heightCm}cm)</span>
+            </div>
+            <span className="text-[10px] text-slate-300 block">
+              Estado: <strong className="text-white">{modeRecommendation.riskLevel}</strong>
+            </span>
+          </div>
+
+          <div className="sm:col-span-2 bg-gym-950/70 p-3 rounded-xl border border-gym-800 flex flex-col justify-between space-y-2">
+            <div>
+              <div className="flex items-center gap-1.5 text-xs font-bold text-slate-200 mb-1">
+                <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+                <span>Diagnóstico del Asesor:</span>
+                {!modeRecommendation.isCurrentOptimal ? (
+                  <span className="text-[10px] text-amber-400 bg-amber-500/10 border border-amber-500/30 px-1.5 py-0.2 rounded font-bold">
+                    Sugerencia de Cambio
+                  </span>
+                ) : (
+                  <span className="text-[10px] text-emerald-400 bg-emerald-500/10 border border-emerald-500/30 px-1.5 py-0.2 rounded font-bold">
+                    Modo Ideal Confirmado
+                  </span>
+                )}
+              </div>
+              <p className="text-xs text-slate-300 leading-relaxed line-clamp-2">
+                {modeRecommendation.clinicalRationale}
+              </p>
+            </div>
+
+            <div className="flex flex-wrap items-center justify-between gap-2 pt-1 border-t border-gym-800/60 text-[11px]">
+              <span className="text-slate-400">
+                <strong>Hito:</strong> {modeRecommendation.milestoneToNextMode}
+              </span>
+
+              {!modeRecommendation.isCurrentOptimal && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    saveAthleteMode(selectedUser, modeRecommendation.recommendedMode, currentHousehold);
+                    setShowBiometricsModal(true);
+                  }}
+                  className="px-2.5 py-1 rounded-lg bg-amber-500 hover:bg-amber-400 text-gym-950 font-black text-[11px] transition-all flex items-center gap-1 shadow-md shadow-amber-500/20"
+                >
+                  <Check className="w-3 h-3 stroke-[3]" />
+                  <span>Activar Modo {modeRecommendation.recommendedModeConfig?.shortName}</span>
+                </button>
+              )}
+            </div>
+          </div>
         </div>
       </div>
 
@@ -645,6 +748,19 @@ export function BodyMetrics() {
           </div>
         )}
       </div>
+
+      {/* Modal de Calibración de Modos & Biometría */}
+      <BiometricsModal
+        isOpen={showBiometricsModal}
+        onClose={() => setShowBiometricsModal(false)}
+        householdId={currentHousehold}
+        initialAthlete={selectedUser}
+        onSaved={() => {
+          const allLocal = getLocalWeightEntries(currentHousehold);
+          const userLocal = allLocal.filter(w => w.userId === selectedUser);
+          if (userLocal.length > 0) setLogs(userLocal);
+        }}
+      />
     </div>
   );
 }

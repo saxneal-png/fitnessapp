@@ -760,6 +760,14 @@ export function PantryPlanner() {
                   <button
                     type="button"
                     onClick={() => setShowBiometricsModal(true)}
+                    className="text-[10px] text-rose-300 hover:text-rose-200 bg-rose-500/10 border border-rose-500/30 px-2 py-0.5 rounded-full font-bold flex items-center gap-1 transition-all"
+                    title="Modo metabólico activo y diagnóstico del asesor"
+                  >
+                    <span>{athletePlan.activeModeConfig?.icon || '🔥'} Modo: {athletePlan.activeModeConfig?.shortName || 'Grasa Visceral'}</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowBiometricsModal(true)}
                     className="text-[10px] text-sky-400 hover:text-sky-300 bg-sky-500/10 border border-sky-500/30 px-2 py-0.5 rounded-full font-bold flex items-center gap-1 transition-all"
                     title="Ver y calibrar fórmula clínica de Mifflin-St Jeor"
                   >

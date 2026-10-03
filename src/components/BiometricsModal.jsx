@@ -11,15 +11,27 @@ import {
   Info, 
   Sparkles,
   TrendingDown,
+  TrendingUp,
   HelpCircle,
-  Apple
+  Apple,
+  Zap,
+  Dumbbell,
+  Shield,
+  Ruler,
+  Award,
+  CheckCircle2,
+  ChevronRight,
+  ArrowRight
 } from 'lucide-react';
 import { USERS } from '../data/workoutCatalog';
 import { 
   getAthleteBiometrics, 
   saveAthleteBiometrics, 
+  saveAthleteMode,
   calculateAthleteNutrition,
+  evaluateAthleteModeRecommendation,
   ACTIVITY_MULTIPLIERS,
+  FITNESS_MODES,
   GOAL_PRESETS 
 } from '../services/nutritionCalculator';
 import confetti from 'canvas-confetti';
@@ -28,6 +40,7 @@ export function BiometricsModal({ isOpen, onClose, householdId, initialAthlete =
   const [selectedAthlete, setSelectedAthlete] = useState(initialAthlete);
   const [formData, setFormData] = useState(() => getAthleteBiometrics(initialAthlete, householdId));
   const [activePlan, setActivePlan] = useState(() => calculateAthleteNutrition(initialAthlete, householdId));
+  const [recommendation, setRecommendation] = useState(() => evaluateAthleteModeRecommendation(initialAthlete, householdId));
   const [showFormulaInfo, setShowFormulaInfo] = useState(false);
 
   useEffect(() => {
@@ -36,6 +49,7 @@ export function BiometricsModal({ isOpen, onClose, householdId, initialAthlete =
       const bio = getAthleteBiometrics(initialAthlete, householdId);
       setFormData(bio);
       setActivePlan(calculateAthleteNutrition(initialAthlete, householdId));
+      setRecommendation(evaluateAthleteModeRecommendation(initialAthlete, householdId));
     }
   }, [isOpen, initialAthlete, householdId]);
 
@@ -44,6 +58,7 @@ export function BiometricsModal({ isOpen, onClose, householdId, initialAthlete =
     const bio = getAthleteBiometrics(athleteId, householdId);
     setFormData(bio);
     setActivePlan(calculateAthleteNutrition(athleteId, householdId));
+    setRecommendation(evaluateAthleteModeRecommendation(athleteId, householdId));
   };
 
   const handleFieldChange = (field, value) => {
@@ -52,6 +67,29 @@ export function BiometricsModal({ isOpen, onClose, householdId, initialAthlete =
     // Recalcular dinámicamente el plan para visualización en vivo
     const tempPlan = calculateAthleteNutrition(selectedAthlete, householdId, updated.currentWeightKg);
     setActivePlan(tempPlan);
+    setRecommendation(evaluateAthleteModeRecommendation(selectedAthlete, householdId));
+  };
+
+  const handleSelectMode = (modeId) => {
+    const updated = { ...formData, activeMode: modeId };
+    setFormData(updated);
+    saveAthleteMode(selectedAthlete, modeId, householdId);
+    setActivePlan(calculateAthleteNutrition(selectedAthlete, householdId, updated.currentWeightKg));
+    setRecommendation(evaluateAthleteModeRecommendation(selectedAthlete, householdId));
+
+    try {
+      confetti({
+        particleCount: 35,
+        spread: 50,
+        origin: { y: 0.85 }
+      });
+    } catch (e) {}
+  };
+
+  const handleApplyRecommendation = () => {
+    if (recommendation?.recommendedMode) {
+      handleSelectMode(recommendation.recommendedMode);
+    }
   };
 
   const handleSubmit = (e) => {
@@ -60,9 +98,11 @@ export function BiometricsModal({ isOpen, onClose, householdId, initialAthlete =
       age: Number(formData.age),
       heightCm: Number(formData.heightCm),
       baselineWeightKg: Number(formData.currentWeightKg),
+      waistCm: formData.waistCm ? Number(formData.waistCm) : null,
+      hipsCm: formData.hipsCm ? Number(formData.hipsCm) : null,
       activityLevel: formData.activityLevel,
-      goal: formData.goal,
-      deficitPct: Number(formData.deficitPct),
+      activeMode: formData.activeMode,
+      goal: formData.activeMode === 'visceral_fat_loss' ? 'aggressive_fat_loss' : formData.activeMode,
       proteinPerKg: Number(formData.proteinPerKg),
       fatPerKg: Number(formData.fatPerKg)
     }, householdId);
@@ -82,7 +122,8 @@ export function BiometricsModal({ isOpen, onClose, householdId, initialAthlete =
   if (!isOpen) return null;
 
   const isDionicio = selectedAthlete === 'dionicio';
-  const athleteColor = isDionicio ? 'sky' : 'pink';
+  const currentModeInfo = FITNESS_MODES[formData.activeMode] || FITNESS_MODES.visceral_fat_loss;
+  const isRecommendedActive = formData.activeMode === recommendation.recommendedMode;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-gym-950/80 backdrop-blur-md animate-fadeIn">
@@ -95,10 +136,10 @@ export function BiometricsModal({ isOpen, onClose, householdId, initialAthlete =
             </div>
             <div>
               <h3 className="font-black text-white text-base sm:text-lg flex items-center gap-2">
-                <span>Perfil Biométrico & Necesidades Científicas</span>
+                <span>Modos Fisiológicos & Perfil Biométrico</span>
               </h3>
               <p className="text-[11px] text-slate-400">
-                Fórmulas clínicas de Mifflin-St Jeor + TDEE. Sin números al azar.
+                Ajuste inteligente por medidas corporales, grasa visceral y objetivos del atleta.
               </p>
             </div>
           </div>
@@ -141,12 +182,137 @@ export function BiometricsModal({ isOpen, onClose, householdId, initialAthlete =
             </button>
           </div>
 
-          {/* Real-time Scientific Diagnosis Dashboard */}
+          {/* TARJETA 1: RECOMENDACIÓN INTELIGENTE SEGÚN MEDIDAS REALES */}
+          <div className={`p-4 rounded-2xl border transition-all ${
+            isRecommendedActive
+              ? 'bg-gradient-to-br from-gym-950 via-gym-900 to-gym-950 border-emerald-500/40 shadow-lg shadow-emerald-500/5'
+              : 'bg-gradient-to-br from-amber-950/30 via-gym-900 to-gym-950 border-amber-500/50 shadow-lg shadow-amber-500/10'
+          }`}>
+            <div className="flex flex-wrap items-center justify-between gap-2 mb-2.5">
+              <div className="flex items-center gap-2">
+                <div className="w-7 h-7 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center">
+                  <Sparkles className="w-4 h-4" />
+                </div>
+                <span className="text-xs font-black uppercase text-white tracking-wider">
+                  Recomendación del Asesor Deportivo
+                </span>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <span className="text-[11px] font-mono text-slate-300 bg-gym-800/80 px-2 py-0.5 rounded-lg border border-gym-700">
+                  Cintura: <strong className="text-white">{recommendation.waistCm} cm</strong> (Ratio: <strong className="text-amber-400">{recommendation.waistHeightRatio}</strong>)
+                </span>
+                <span className="text-[10px] uppercase font-black px-2 py-0.5 rounded-full bg-gym-800 text-slate-400 border border-gym-700">
+                  {recommendation.riskLevel}
+                </span>
+              </div>
+            </div>
+
+            <p className="text-xs text-slate-300 leading-relaxed mb-3">
+              {recommendation.clinicalRationale}
+            </p>
+
+            <div className="flex flex-wrap items-center justify-between gap-3 pt-2.5 border-t border-gym-800/80">
+              <div className="text-[11px] text-slate-400 flex items-center gap-1.5">
+                <Target className="w-3.5 h-3.5 text-sky-400 shrink-0" />
+                <span>
+                  <strong>Próximo Hito:</strong> {recommendation.milestoneToNextMode}
+                </span>
+              </div>
+
+              {!isRecommendedActive && (
+                <button
+                  type="button"
+                  onClick={handleApplyRecommendation}
+                  className="px-3 py-1.5 rounded-xl bg-gradient-to-r from-amber-500 to-emerald-500 hover:from-amber-400 hover:to-emerald-400 text-gym-950 font-black text-xs shadow-md transition-all flex items-center gap-1.5 active:scale-95 shrink-0"
+                >
+                  <Check className="w-3.5 h-3.5" />
+                  <span>Aplicar Modo Recomendado ({recommendation.recommendedModeConfig?.shortName})</span>
+                </button>
+              )}
+
+              {isRecommendedActive && (
+                <span className="text-[11px] text-emerald-400 font-bold flex items-center gap-1">
+                  <CheckCircle2 className="w-3.5 h-3.5" />
+                  <span>Modo Óptimo Activo</span>
+                </span>
+              )}
+            </div>
+          </div>
+
+          {/* TARJETA 2: SELECTOR INTERACTIVO DE MODOS */}
+          <div className="space-y-2.5">
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-black uppercase text-slate-300 tracking-wider flex items-center gap-1.5">
+                <Target className="w-4 h-4 text-emerald-400" />
+                <span>Modo de Enfoque Fisiológico Activo</span>
+              </label>
+              <span className="text-[11px] text-slate-400">
+                Selecciona tu objetivo metabólico actual
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+              {Object.entries(FITNESS_MODES).map(([modeKey, mode]) => {
+                const isSelected = formData.activeMode === modeKey;
+                const isRecommended = recommendation.recommendedMode === modeKey;
+
+                return (
+                  <button
+                    key={modeKey}
+                    type="button"
+                    onClick={() => handleSelectMode(modeKey)}
+                    className={`p-3.5 rounded-2xl border text-left transition-all relative overflow-hidden flex flex-col justify-between ${
+                      isSelected
+                        ? 'bg-gym-800/90 border-emerald-500/80 shadow-lg shadow-emerald-500/10 ring-1 ring-emerald-500/50'
+                        : 'bg-gym-950/60 border-gym-800 hover:border-gym-700 hover:bg-gym-900/60'
+                    }`}
+                  >
+                    <div className="space-y-1.5">
+                      <div className="flex items-center justify-between gap-1.5">
+                        <span className="text-sm font-black text-white flex items-center gap-1.5">
+                          <span>{mode.icon}</span>
+                          <span>{mode.name}</span>
+                        </span>
+                        {isSelected && (
+                          <span className="w-5 h-5 rounded-full bg-emerald-500 text-gym-950 flex items-center justify-center shrink-0">
+                            <Check className="w-3.5 h-3.5 stroke-[3]" />
+                          </span>
+                        )}
+                      </div>
+
+                      <p className="text-[11px] text-slate-400 leading-relaxed line-clamp-2">
+                        {mode.description}
+                      </p>
+                    </div>
+
+                    <div className="mt-2.5 pt-2 border-t border-gym-800/80 flex items-center justify-between text-[10px]">
+                      <span className="font-mono text-slate-300">
+                        {mode.targetDeficitKcal[selectedAthlete] > 0
+                          ? `Déficit -${mode.targetDeficitKcal[selectedAthlete]} kcal`
+                          : (mode.targetDeficitKcal[selectedAthlete] < 0 
+                              ? `Superávit +${Math.abs(mode.targetDeficitKcal[selectedAthlete])} kcal` 
+                              : '0 kcal (Mantenimiento)')}
+                      </span>
+
+                      {isRecommended && (
+                        <span className="bg-amber-500/20 text-amber-300 border border-amber-500/40 px-1.5 py-0.5 rounded font-bold uppercase tracking-wider text-[9px]">
+                          Recomendado IA
+                        </span>
+                      )}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* TARJETA 3: DIAGNÓSTICO METABÓLICO EN VIVO */}
           <div className="p-4 rounded-2xl bg-gradient-to-br from-gym-950 to-gym-900 border border-gym-800 space-y-3">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <span className="text-xs font-black uppercase text-slate-300 flex items-center gap-1.5">
                 <Flame className="w-4 h-4 text-amber-400" />
-                <span>Diagnóstico Metabólico Calculado</span>
+                <span>Metas Calculadas para el Modo: {currentModeInfo.shortName}</span>
               </span>
               <button
                 type="button"
@@ -162,17 +328,17 @@ export function BiometricsModal({ isOpen, onClose, householdId, initialAthlete =
               <div className="p-3.5 rounded-xl bg-gym-900/95 border border-amber-500/40 text-[11px] text-slate-300 space-y-2 font-mono">
                 <div className="text-amber-400 font-bold flex items-center gap-1.5">
                   <ShieldCheck className="w-4 h-4 text-amber-400 shrink-0" />
-                  <span>Calibración Clínica Realista (Sin la Trampa del TDEE Inflado)</span>
+                  <span>Calibración Realista por Masa Magra & Antropometría</span>
                 </div>
                 <p className="text-slate-300 leading-relaxed font-sans text-xs">
-                  Los algoritmos genéricos asumen factores de actividad inflados (&ge;1.55) sugiriendo 2.200 kcal, lo cual detiene la pérdida de grasa por el bajo NEAT de un trabajo de escritorio.
+                  {activePlan.formulaDetails.formulaName}: TMB calculada con Mifflin-St Jeor multiplicada por PAL realista de oficina (1.32 para Dionicio, 1.28 para Paula).
                 </p>
                 <div className="p-2.5 rounded-lg bg-gym-950 border border-gym-800 space-y-1 text-[11px]">
                   <div>• <strong>TMB Mifflin-St Jeor:</strong> {activePlan.bmr} kcal/día en reposo absoluto.</div>
-                  <div>• <strong>TDEE Real (Oficina + 1h Dúo, PAL {activePlan.palMultiplier}):</strong> ~{activePlan.tdee} kcal/día.</div>
-                  <div>• <strong>Déficit Real ({activePlan.deficitKcal} kcal/día):</strong> financiado por reservas de tejido adiposo.</div>
-                  <div>• <strong>Meta Calórica Diaria:</strong> <strong className="text-emerald-400">{activePlan.targetCals} kcal</strong> (permite oxidar ~0.7 kg grasa pura/semana).</div>
-                  <div>• <strong>Proteína ({activePlan.targetProtein}g):</strong> calculada sobre masa magra ({activePlan.leanMassKg} kg), no sobre tejido graso.</div>
+                  <div>• <strong>TDEE Total ({activePlan.activityLabel}):</strong> ~{activePlan.tdee} kcal/día.</div>
+                  <div>• <strong>Ajuste del Modo:</strong> {activePlan.formulaDetails.adjustment}.</div>
+                  <div>• <strong>Meta Diaria:</strong> <strong className="text-emerald-400">{activePlan.targetCals} kcal</strong>.</div>
+                  <div>• <strong>Proteína ({activePlan.targetProtein}g):</strong> {activePlan.formulaDetails.proteinTargetInfo}.</div>
                 </div>
               </div>
             )}
@@ -181,7 +347,7 @@ export function BiometricsModal({ isOpen, onClose, householdId, initialAthlete =
               <div className="bg-gym-900/80 p-2.5 rounded-xl border border-gym-800 text-center">
                 <span className="text-[10px] text-slate-400 block uppercase font-bold">Tasa Basal (BMR)</span>
                 <strong className="text-sm sm:text-base font-black text-white font-mono">{activePlan.bmr}</strong>
-                <span className="text-[9px] text-slate-500 block">kcal/día en reposo</span>
+                <span className="text-[9px] text-slate-500 block">kcal/día reposo</span>
               </div>
               <div className="bg-gym-900/80 p-2.5 rounded-xl border border-gym-800 text-center">
                 <span className="text-[10px] text-slate-400 block uppercase font-bold">Gasto Total (TDEE)</span>
@@ -191,10 +357,10 @@ export function BiometricsModal({ isOpen, onClose, householdId, initialAthlete =
               <div className="bg-gym-900/80 p-2.5 rounded-xl border border-emerald-500/40 text-center bg-emerald-500/10">
                 <span className="text-[10px] text-emerald-300 block uppercase font-bold">Meta Calórica</span>
                 <strong className="text-sm sm:text-base font-black text-emerald-400 font-mono">{activePlan.targetCals}</strong>
-                <span className="text-[9px] text-emerald-300/80 block">kcal para cerrar</span>
+                <span className="text-[9px] text-emerald-300/80 block">kcal objetivo</span>
               </div>
               <div className="bg-gym-900/80 p-2.5 rounded-xl border border-gym-800 text-center">
-                <span className="text-[10px] text-slate-400 block uppercase font-bold">IMC Actual</span>
+                <span className="text-[10px] text-slate-400 block uppercase font-bold">IMC & Estado</span>
                 <strong className="text-sm sm:text-base font-black text-sky-400 font-mono">{activePlan.bmi}</strong>
                 <span className="text-[9px] text-slate-400 block truncate">{activePlan.bmiCategory}</span>
               </div>
@@ -205,7 +371,7 @@ export function BiometricsModal({ isOpen, onClose, householdId, initialAthlete =
               <div className="p-2 rounded-xl bg-sky-950/40 border border-sky-500/30">
                 <span className="text-[10px] text-sky-400 block font-bold">Proteína ({activePlan.macroPercentages.proteinPct}%)</span>
                 <strong className="text-white text-sm">{activePlan.targetProtein}g</strong>
-                <span className="text-[9px] text-slate-400 block">({formData.proteinPerKg} g/kg)</span>
+                <span className="text-[9px] text-slate-400 block">({(activePlan.targetProtein / activePlan.weightKg).toFixed(1)} g/kg)</span>
               </div>
               <div className="p-2 rounded-xl bg-amber-950/40 border border-amber-500/30">
                 <span className="text-[10px] text-amber-400 block font-bold">Carbohidratos ({activePlan.macroPercentages.carbsPct}%)</span>
@@ -215,61 +381,80 @@ export function BiometricsModal({ isOpen, onClose, householdId, initialAthlete =
               <div className="p-2 rounded-xl bg-pink-950/40 border border-pink-500/30">
                 <span className="text-[10px] text-pink-400 block font-bold">Grasas ({activePlan.macroPercentages.fatsPct}%)</span>
                 <strong className="text-white text-sm">{activePlan.targetFats}g</strong>
-                <span className="text-[9px] text-slate-400 block">({formData.fatPerKg} g/kg)</span>
+                <span className="text-[9px] text-slate-400 block">({(activePlan.targetFats / activePlan.weightKg).toFixed(2)} g/kg)</span>
               </div>
             </div>
           </div>
 
-          {/* Form to Edit Biometric Constants */}
+          {/* FORMULARIO DE MEDIDAS & CALIBRACIÓN BIOMÉTRICA */}
           <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              <div>
-                <label className="block text-[11px] font-bold text-slate-300 mb-1">
-                  Edad (años)
-                </label>
-                <input
-                  type="number"
-                  min="18"
-                  max="90"
-                  value={formData.age}
-                  onChange={(e) => handleFieldChange('age', e.target.value)}
-                  className="w-full bg-gym-950 border border-gym-700 rounded-xl px-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-emerald-500"
-                  required
-                />
-              </div>
+            <div className="border-t border-gym-800 pt-3">
+              <span className="text-xs font-black uppercase text-slate-300 tracking-wider block mb-2">
+                Medidas Corporales & Antropometría
+              </span>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-300 mb-1">
+                    Edad (años)
+                  </label>
+                  <input
+                    type="number"
+                    min="18"
+                    max="90"
+                    value={formData.age}
+                    onChange={(e) => handleFieldChange('age', e.target.value)}
+                    className="w-full bg-gym-950 border border-gym-700 rounded-xl px-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-emerald-500"
+                    required
+                  />
+                </div>
 
-              <div>
-                <label className="block text-[11px] font-bold text-slate-300 mb-1">
-                  Altura (cm)
-                </label>
-                <input
-                  type="number"
-                  min="130"
-                  max="220"
-                  value={formData.heightCm}
-                  onChange={(e) => handleFieldChange('heightCm', e.target.value)}
-                  className="w-full bg-gym-950 border border-gym-700 rounded-xl px-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-emerald-500"
-                  required
-                />
-              </div>
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-300 mb-1">
+                    Altura (cm)
+                  </label>
+                  <input
+                    type="number"
+                    min="130"
+                    max="220"
+                    value={formData.heightCm}
+                    onChange={(e) => handleFieldChange('heightCm', e.target.value)}
+                    className="w-full bg-gym-950 border border-gym-700 rounded-xl px-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-emerald-500"
+                    required
+                  />
+                </div>
 
-              <div>
-                <label className="block text-[11px] font-bold text-slate-300 mb-1">
-                  Peso Activo (kg)
-                  {formData.isWeightFromLog && (
-                    <span className="text-[10px] text-emerald-400 ml-1 font-normal">(de pesajes)</span>
-                  )}
-                </label>
-                <input
-                  type="number"
-                  step="0.1"
-                  min="40"
-                  max="180"
-                  value={formData.currentWeightKg}
-                  onChange={(e) => handleFieldChange('currentWeightKg', e.target.value)}
-                  className="w-full bg-gym-950 border border-gym-700 rounded-xl px-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-emerald-500"
-                  required
-                />
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-300 mb-1">
+                    Peso Activo (kg)
+                  </label>
+                  <input
+                    type="number"
+                    step="0.1"
+                    min="40"
+                    max="180"
+                    value={formData.currentWeightKg}
+                    onChange={(e) => handleFieldChange('currentWeightKg', e.target.value)}
+                    className="w-full bg-gym-950 border border-gym-700 rounded-xl px-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-emerald-500"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-bold text-pink-400 mb-1 flex items-center gap-1">
+                    <Ruler className="w-3 h-3" />
+                    <span>Cintura (cm)</span>
+                  </label>
+                  <input
+                    type="number"
+                    step="0.5"
+                    min="50"
+                    max="160"
+                    placeholder="Ej: 92"
+                    value={formData.waistCm || ''}
+                    onChange={(e) => handleFieldChange('waistCm', e.target.value)}
+                    className="w-full bg-gym-950 border border-pink-500/40 rounded-xl px-3 py-2 text-xs text-pink-300 font-mono font-bold focus:outline-none focus:border-pink-500"
+                  />
+                </div>
               </div>
             </div>
 
@@ -293,64 +478,18 @@ export function BiometricsModal({ isOpen, onClose, householdId, initialAthlete =
 
               <div>
                 <label className="block text-[11px] font-bold text-slate-300 mb-1">
-                  Objetivo Nutricional
+                  Cadera Opcional (cm)
                 </label>
-                <select
-                  value={formData.goal}
-                  onChange={(e) => {
-                    const goal = e.target.value;
-                    const defDeficit = GOAL_PRESETS[goal]?.defaultDeficit || 15;
-                    setFormData(prev => ({ ...prev, goal, deficitPct: defDeficit }));
-                    setActivePlan(calculateAthleteNutrition(selectedAthlete, householdId, formData.currentWeightKg));
-                  }}
-                  className="w-full bg-gym-950 border border-gym-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500"
-                >
-                  {Object.entries(GOAL_PRESETS).map(([key, opt]) => (
-                    <option key={key} value={key}>
-                      {opt.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
-
-            {/* Macro Ratio Sliders */}
-            <div className="p-3 rounded-2xl bg-gym-950/60 border border-gym-800 space-y-2 text-xs">
-              <span className="font-bold text-slate-300 block text-[11px]">
-                Ajuste Avanzado de Macronutrientes por Peso Corporal
-              </span>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <div className="flex justify-between text-[11px] text-slate-400 mb-1 font-mono">
-                    <span>Proteína: <strong className="text-sky-400">{formData.proteinPerKg} g/kg</strong></span>
-                    <span>Total: ~{Math.round(formData.currentWeightKg * formData.proteinPerKg)}g</span>
-                  </div>
-                  <input
-                    type="range"
-                    min="1.4"
-                    max="2.4"
-                    step="0.1"
-                    value={formData.proteinPerKg}
-                    onChange={(e) => handleFieldChange('proteinPerKg', e.target.value)}
-                    className="w-full accent-sky-400 cursor-pointer"
-                  />
-                </div>
-
-                <div>
-                  <div className="flex justify-between text-[11px] text-slate-400 mb-1 font-mono">
-                    <span>Grasas Saludables: <strong className="text-pink-400">{formData.fatPerKg} g/kg</strong></span>
-                    <span>Total: ~{Math.round(formData.currentWeightKg * formData.fatPerKg)}g</span>
-                  </div>
-                  <input
-                    type="range"
-                    min="0.6"
-                    max="1.2"
-                    step="0.05"
-                    value={formData.fatPerKg}
-                    onChange={(e) => handleFieldChange('fatPerKg', e.target.value)}
-                    className="w-full accent-pink-400 cursor-pointer"
-                  />
-                </div>
+                <input
+                  type="number"
+                  step="0.5"
+                  min="60"
+                  max="160"
+                  placeholder="Ej: 102"
+                  value={formData.hipsCm || ''}
+                  onChange={(e) => handleFieldChange('hipsCm', e.target.value)}
+                  className="w-full bg-gym-950 border border-gym-700 rounded-xl px-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-emerald-500"
+                />
               </div>
             </div>
 
@@ -368,7 +507,7 @@ export function BiometricsModal({ isOpen, onClose, householdId, initialAthlete =
                 className="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-emerald-500 to-sky-500 hover:from-emerald-400 hover:to-sky-400 text-gym-950 font-black text-xs transition-all shadow-lg shadow-emerald-500/20 flex items-center justify-center gap-1.5"
               >
                 <Check className="w-4 h-4" />
-                <span>Guardar Biometría y Recalcular Metas</span>
+                <span>Guardar Modos & Medidas</span>
               </button>
             </div>
           </form>

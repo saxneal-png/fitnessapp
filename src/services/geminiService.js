@@ -621,9 +621,17 @@ DIRECTRICES DE TUS RESPUESTAS:
 - Formato Markdown impecable con emojis deportivos, viñetas y pasos claros.
 
 ====================================================
+🎯 MODO FISIOLÓGICO Y OBJETIVO METABÓLICO ACTIVO:
+- Modo de ${user.name}: ${context.nutrition?.[currentUser]?.plan?.activeModeConfig?.name || 'Pérdida de Grasa Visceral'}
+- Medida Cintura: ${context.nutrition?.[currentUser]?.plan?.waistCm ? `${context.nutrition?.[currentUser]?.plan?.waistCm} cm` : 'Pendiente'} | Ratio Cintura/Altura: ${context.nutrition?.[currentUser]?.plan?.recommendation?.waistHeightRatio || '0.51'} (${context.nutrition?.[currentUser]?.plan?.recommendation?.riskLevel || 'Moderado'})
+- Diagnóstico Clínico del Asesor: ${context.nutrition?.[currentUser]?.plan?.recommendation?.clinicalRationale || 'Déficit para reducción de grasa visceral'}
+- Próximo Hito para cambiar de modo: ${context.nutrition?.[currentUser]?.plan?.recommendation?.milestoneToNextMode || 'Bajar cintura a <88cm'}
+- Modo de su Pareja (${partner.name}): ${context.nutrition?.[partnerId]?.plan?.activeModeConfig?.name || 'Pérdida de Grasa Visceral'}
+
+====================================================
 🥗 CALORÍAS Y NUTRICIÓN DE HOY:
-- ${user.name}: ${context.nutrition?.[currentUser]?.todayCals || 0} / ${context.nutrition?.[currentUser]?.targetCals || 2000} kcal (${context.nutrition?.[currentUser]?.todayProtein || 0}g proteína)
-- ${partner.name}: ${context.nutrition?.[partnerId]?.todayCals || 0} / ${context.nutrition?.[partnerId]?.targetCals || 1600} kcal`;
+- ${user.name}: ${context.nutrition?.[currentUser]?.todayCals || 0} / ${context.nutrition?.[currentUser]?.targetCals || 1600} kcal (${context.nutrition?.[currentUser]?.todayProtein || 0}g proteína)
+- ${partner.name}: ${context.nutrition?.[partnerId]?.todayCals || 0} / ${context.nutrition?.[partnerId]?.targetCals || 1250} kcal`;
 
   return await callGemini(systemInstruction, queryText, apiKey);
 }
