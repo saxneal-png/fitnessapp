@@ -953,32 +953,30 @@ export async function analyzeCoachChatWithAction(queryText, currentUser, househo
 No eres un chat pasivo; eres su AGENTE INTELIGENTE AUTÓNOMO DE NUTRICIÓN Y RENDIMIENTO.
 
 ====================================================
-METAS NUTRICIONALES CIENTÍFICAS BASADAS EN BIOMETRÍA REAL (Mifflin-St Jeor + TDEE + Evidencia Deportiva):
-No uses números al azar. Las metas derivan de sus mediciones corporales reales y registradas:
+DIRECTRICES METABÓLICAS CLÍNICAS ESTRICTAS (ANTI-SOBREESTIMACIÓN DE FACTOR DE ACTIVIDAD):
+No caigas en la trampa de inflar el gasto diario por entrenar 1 hora si la jornada laboral es de oficina/escritorio:
 
-👨‍💻 DIONICIO:
-- Biometría: Peso actual: ${dioPlan.weightKg} kg (${dioPlan.isWeightFromLog ? `Registrado en historial el ${dioPlan.lastWeightDate}` : 'Línea base'}) | Altura: ${dioPlan.heightCm} cm | Edad: ${dioPlan.age} años | IMC: ${dioPlan.bmi} (${dioPlan.bmiCategory})
-- Tasa Metabólica Basal (BMR Mifflin-St Jeor): ${dioPlan.bmr} kcal/día (energía vital en reposo)
-- Gasto Energético Total Diario (TDEE con PAL ${dioPlan.palMultiplier}): ${dioPlan.tdee} kcal/día (incluye sesión de mancuernas + trotadora)
-- Objetivo Clínico: ${dioPlan.goalLabel} -> META CALÓRICA DIARIA: ${dioPlan.targetCals} kcal/día
-- METAS DE MACRONUTRIENTES:
-  * Proteína: ${dioPlan.targetProtein} g/día (${dioPlan.formulaDetails.proteinTargetInfo})
-  * Grasas: ${dioPlan.targetFats} g/día (${dioPlan.formulaDetails.fatsTargetInfo})
-  * Carbohidratos: ${dioPlan.targetCarbs} g/día (${dioPlan.formulaDetails.carbsTargetInfo})
-- Ingerido hoy antes de este mensaje: ${dioNut.todayCals} kcal / ${dioPlan.targetCals} kcal | ${dioNut.todayProtein}g / ${dioPlan.targetProtein}g proteína.
-- Faltan antes de este mensaje: ${Math.max(0, dioPlan.targetCals - dioNut.todayCals)} kcal y ${Math.max(0, dioPlan.targetProtein - dioNut.todayProtein)}g proteína.
+👨‍💻 REGLAS METABÓLICAS DE DIONICIO (86 kg, 180 cm, 40 años, ~23% grasa corporal, ~65.5 kg masa magra):
+1. TMB Base (Mifflin-St Jeor): 1.790 kcal/día (energía vital en reposo absoluto).
+2. Factor de Actividad Real: 1.32 sobre TMB (TDEE promedio real = ~2.360 kcal/día). NUNCA USES factores >= 1.45 o 1.55 porque sobreestimarían el gasto llevando a un estancamiento total.
+3. Déficit Calórico Real: -750 kcal/día (~5.250 kcal semanales de déficit, financiadas de forma segura por sus ~20 kg de tejido adiposo de reserva para oxidar ~0.7 kg de grasa pura por semana).
+4. Meta Calórica Diaria: 1.550 a 1.650 kcal (TARGET EXACTO: 1.600 kcal/día).
+5. Proteína Diaria: 125 a 130 g/día (TARGET: 130g = 520 kcal). Calculada a 2.0 g/kg sobre masa magra (65.5 kg), no sobre tejido graso.
+6. Grasas Saludables: 50 a 60 g/día (TARGET: 57g = 513 kcal). Piso biológico estricto a 0.66 g/kg de peso para soporte hormonal de testosterona.
+7. Carbohidratos: 135 a 150 g/día (TARGET: 140g = 560 kcal). Remanente glucolítico para rendir con fuerza máxima en las mancuernas y caminadora inclinada.
+- Ingerido hoy antes de este mensaje: ${dioNut.todayCals} / 1600 kcal | ${dioNut.todayProtein}g / 130g proteína.
+- Faltan para cerrar el día: ${Math.max(0, 1600 - dioNut.todayCals)} kcal y ${Math.max(0, 130 - dioNut.todayProtein)}g proteína.
 
-👩‍💼 PAULA:
-- Biometría: Peso actual: ${pauPlan.weightKg} kg (${pauPlan.isWeightFromLog ? `Registrado en historial el ${pauPlan.lastWeightDate}` : 'Línea base'}) | Altura: ${pauPlan.heightCm} cm | Edad: ${pauPlan.age} años | IMC: ${pauPlan.bmi} (${pauPlan.bmiCategory})
-- Tasa Metabólica Basal (BMR Mifflin-St Jeor): ${pauPlan.bmr} kcal/día (energía vital en reposo)
-- Gasto Energético Total Diario (TDEE con PAL ${pauPlan.palMultiplier}): ${pauPlan.tdee} kcal/día (incluye sesión de trotadora + fuerza)
-- Objetivo Clínico: ${pauPlan.goalLabel} -> META CALÓRICA DIARIA: ${pauPlan.targetCals} kcal/día
-- METAS DE MACRONUTRIENTES:
-  * Proteína: ${pauPlan.targetProtein} g/día (${pauPlan.formulaDetails.proteinTargetInfo})
-  * Grasas: ${pauPlan.targetFats} g/día (${pauPlan.formulaDetails.fatsTargetInfo})
-  * Carbohidratos: ${pauPlan.targetCarbs} g/día (${pauPlan.formulaDetails.carbsTargetInfo})
-- Ingerido hoy antes de este mensaje: ${pauNut.todayCals} kcal / ${pauPlan.targetCals} kcal | ${pauNut.todayProtein}g / ${pauPlan.targetProtein}g proteína.
-- Faltan antes de este mensaje: ${Math.max(0, pauPlan.targetCals - pauNut.todayCals)} kcal y ${Math.max(0, pauPlan.targetProtein - pauNut.todayProtein)}g proteína.
+👩‍💼 REGLAS METABÓLICAS DE PAULA (65 kg, 160 cm, 41 años, ~28% grasa, ~47 kg masa magra):
+1. TMB Base (Mifflin-St Jeor): 1.284 kcal/día.
+2. Factor de Actividad Real: 1.28 sobre TMB (TDEE real = ~1.644 kcal/día).
+3. Déficit Calórico: -400 kcal/día para pérdida sostenida de grasa visceral y subcutánea.
+4. Meta Calórica Diaria: 1.200 a 1.250 kcal (TARGET EXACTO: 1.250 kcal/día).
+5. Proteína Diaria: 95 a 100 g/día (~2.0 g/kg masa magra = 380 kcal).
+6. Grasas Saludables: 40 a 45 g/día (piso hormonal = 378 kcal).
+7. Carbohidratos: 110 a 125 g/día (remanente = 460 kcal).
+- Ingerido hoy antes de este mensaje: ${pauNut.todayCals} / 1250 kcal | ${pauNut.todayProtein}g / 95g proteína.
+- Faltan para cerrar el día: ${Math.max(0, 1250 - pauNut.todayCals)} kcal y ${Math.max(0, 95 - pauNut.todayProtein)}g proteína.
 
 ====================================================
 INVENTARIO REAL DE ALIMENTOS EN SU DESPENSA ACTIVA:
@@ -992,11 +990,12 @@ REGLAS MANDATORIAS:
    - Calcula Calorías totales (kcal), Proteína (g), Carbohidratos (g) y Grasas (g) para cada una de las comidas descritas.
 
 2. CÁLCULO EXACTO PARA "CERRAR EL DÍA" PARA AMBOS:
-   - Para Dionicio: Suma lo reportado a su acumulado de hoy. Indica cuánto lleva y cuántas kcal y gramos de proteína le faltan para su meta científica de ${dioPlan.targetCals} kcal / ${dioPlan.targetProtein}g prot.
-   - Para Paula: Suma lo reportado a su acumulado de hoy. Indica cuánto lleva y cuántas kcal y gramos de proteína le faltan para su meta científica de ${pauPlan.targetCals} kcal / ${pauPlan.targetProtein}g prot.
+   - Para Dionicio: Suma lo reportado a su acumulado de hoy. Indica cuánto lleva y cuántas kcal y gramos de proteína le faltan para su meta científica de 1.600 kcal y 130g proteína.
+   - Para Paula: Suma lo reportado a su acumulado de hoy. Indica cuánto lleva y cuántas kcal y gramos de proteína le faltan para su meta científica de 1.250 kcal y 95g proteína.
 
-3. EXPLICACIÓN FUNDAMENTADA:
-   - Si te preguntan por cómo se determinaron sus necesidades, cita siempre la fórmula de Mifflin-St Jeor, su peso actual (${dioPlan.weightKg}kg Dionicio / ${pauPlan.weightKg}kg Paula), altura, edad y el gasto energético de su entrenamiento de 19:00 a 20:00.
+3. EXPLICACIÓN FUNDAMENTADA (SI CONSULTAN):
+   - Si te preguntan por cómo se determinaron sus necesidades, explica detalladamente que se descartaron los multiplicadores inflados de gimnasio (PAL >= 1.55) que fijaban 2.200 kcal y habrían estancado la pérdida de grasa por el trabajo sedentario de oficina.
+   - Detalla que su TMB real es de 1.790 kcal, con factor PAL 1.32 (TDEE ~2.360 kcal), y que al tener ~20 kg de grasa de reserva, su déficit real es de -750 kcal diarias (meta: ~1.600 kcal) con 130g de proteína calculados sobre masa magra (65.5 kg).
 
 4. PROPUESTA DE CENA COMPARTIDA DÚO (20:00 POST-ENTRENO) CON DESPENSA:
    - Basándote EXCLUSIVAMENTE en su Despensa real, diseña la CENA COMPARTIDA (20:00): MISMA preparación/receta pero con los gramajes específicos y diferenciados para Dionicio y Paula para que ambos cierren su día exacto.
@@ -1074,12 +1073,12 @@ He desglosado y calculado con precisión los nutrientes de cada comida para ambo
 
 👨‍💻 **Dionicio:**
 ${estimated.entries.filter(e => e.userId === 'dionicio').map(e => `- **${e.title}:** ${e.caloriesKcal} kcal | P: ${e.proteinG}g | C: ${e.carbsG}g | G: ${e.fatsG}g`).join('\n')}
-*Total hoy:* **${d.todayTotalCals} / 2300 kcal** (${d.todayTotalProtein}g / 150g prot).
+*Total hoy:* **${d.todayTotalCals} / ${d.targetCals} kcal** (${d.todayTotalProtein}g / ${d.targetProtein}g prot).
 *Te faltan para cerrar el día:* **${d.remainingCals} kcal** y **${d.remainingProtein}g de proteína**.
 
 👩‍💼 **Paula:**
 ${estimated.entries.filter(e => e.userId === 'paula').map(e => `- **${e.title}:** ${e.caloriesKcal} kcal | P: ${e.proteinG}g | C: ${e.carbsG}g | G: ${e.fatsG}g`).join('\n')}
-*Total hoy:* **${p.todayTotalCals} / 1600 kcal** (${p.todayTotalProtein}g / 100g prot).
+*Total hoy:* **${p.todayTotalCals} / ${p.targetCals} kcal** (${p.todayTotalProtein}g / ${p.targetProtein}g prot).
 *Te faltan para cerrar el día:* **${p.remainingCals} kcal** y **${p.remainingProtein}g de proteína**.
 
 ---

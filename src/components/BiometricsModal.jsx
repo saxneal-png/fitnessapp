@@ -159,11 +159,20 @@ export function BiometricsModal({ isOpen, onClose, householdId, initialAthlete =
             </div>
 
             {showFormulaInfo && (
-              <div className="p-3 rounded-xl bg-gym-900/90 border border-gym-700/80 text-[11px] text-slate-300 space-y-1 font-mono">
-                <div className="text-amber-400 font-bold">Ecuación de Mifflin-St Jeor (Estándar de Oro Clínico):</div>
-                <div>{activePlan.formulaDetails.equation}</div>
-                <div className="text-slate-400 text-[10px]">
-                  BMR ({activePlan.bmr} kcal) x PAL Actividad ({activePlan.palMultiplier}) = {activePlan.tdee} kcal TDEE.
+              <div className="p-3.5 rounded-xl bg-gym-900/95 border border-amber-500/40 text-[11px] text-slate-300 space-y-2 font-mono">
+                <div className="text-amber-400 font-bold flex items-center gap-1.5">
+                  <ShieldCheck className="w-4 h-4 text-amber-400 shrink-0" />
+                  <span>Calibración Clínica Realista (Sin la Trampa del TDEE Inflado)</span>
+                </div>
+                <p className="text-slate-300 leading-relaxed font-sans text-xs">
+                  Los algoritmos genéricos asumen factores de actividad inflados (&ge;1.55) sugiriendo 2.200 kcal, lo cual detiene la pérdida de grasa por el bajo NEAT de un trabajo de escritorio.
+                </p>
+                <div className="p-2.5 rounded-lg bg-gym-950 border border-gym-800 space-y-1 text-[11px]">
+                  <div>• <strong>TMB Mifflin-St Jeor:</strong> {activePlan.bmr} kcal/día en reposo absoluto.</div>
+                  <div>• <strong>TDEE Real (Oficina + 1h Dúo, PAL {activePlan.palMultiplier}):</strong> ~{activePlan.tdee} kcal/día.</div>
+                  <div>• <strong>Déficit Real ({activePlan.deficitKcal} kcal/día):</strong> financiado por reservas de tejido adiposo.</div>
+                  <div>• <strong>Meta Calórica Diaria:</strong> <strong className="text-emerald-400">{activePlan.targetCals} kcal</strong> (permite oxidar ~0.7 kg grasa pura/semana).</div>
+                  <div>• <strong>Proteína ({activePlan.targetProtein}g):</strong> calculada sobre masa magra ({activePlan.leanMassKg} kg), no sobre tejido graso.</div>
                 </div>
               </div>
             )}

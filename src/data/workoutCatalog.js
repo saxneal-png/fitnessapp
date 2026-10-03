@@ -6,6 +6,7 @@ export const USERS = {
     name: 'Dionicio',
     email: import.meta.env.VITE_DIONICIO_EMAIL || 'dionicio@duoencasa.app',
     avatar: '👨‍💻',
+    age: 40,
     height: '180 cm',
     level: 'Principiante',
     phase: 'Semana 0 (Calibración & Adaptación)',

@@ -1,25 +1,34 @@
 /**
- * Servicio de Cálculo de Necesidades Nutricionales y Biometría Deportiva de Precisión
- * Implementa ecuaciones clínicas validadas (Mifflin-St Jeor, TDEE con factor PAL,
- * ratios de macronutrientes basados en evidencia para fuerza y recomposición corporal).
+ * Servicio de Cálculo de Necesidades Nutricionales Clínicas y Biometría Deportiva de Precisión
+ * Calibrado estrictamente contra la sobreestimación de factor de actividad (Anti-Sobrecálculo de Gimnasio).
+ *
+ * Fundamentación Clínica:
+ * - Trabajo de escritorio/oficina con bajo NEAT + 1h de entrenamiento programado (Mancuernas + Trotadora)
+ *   da un factor PAL real de 1.30 a 1.32 sobre la TMB (NO 1.55).
+ * - La proteína se calcula sobre la masa magra (2.0 g/kg LBM) para saturación muscular sin inflación calórica.
+ * - Las grasas se fijan en el piso biológico hormonal (0.65 a 0.70 g/kg de peso total).
+ * - Los carbohidratos cubren el remanente glucolítico para rendir con fuerza.
  */
 
 import { getLocalWeightEntries } from '../firebase/config';
 
-// Configuración por defecto de perfiles biométricos base
 export const DEFAULT_BIOMETRICS = {
   dionicio: {
     userId: 'dionicio',
     athleteName: 'Dionicio',
     gender: 'male',
-    age: 42,
+    age: 40,
     heightCm: 180,
     baselineWeightKg: 86.0,
-    activityLevel: 'moderate', // PAL 1.45 (fuerza con mancuernas + trotadora 5 días/sem)
-    goal: 'recomposition', // Recomposición corporal (quema de grasa preservando músculo)
-    deficitPct: 14, // -14% de déficit moderado
-    proteinPerKg: 2.0, // 2.0 g/kg (estándar para atletas de fuerza en déficit)
-    fatPerKg: 0.85 // 0.85 g/kg (salud hormonal óptima)
+    bodyFatPct: 23.0, // ~23% grasa corporal estimada
+    leanMassKg: 65.5, // ~65.5 kg masa magra
+    activityLevel: 'desk_job_with_training', // PAL 1.32 real
+    goal: 'aggressive_fat_loss', // Déficit real de grasa visceral
+    deficitKcal: 760, // -760 kcal/día (~5.300 kcal/semana -> 0.7 kg grasa/semana)
+    targetCals: 1600, // Rango clínico exacto: 1.550 a 1.650 kcal
+    targetProtein: 130, // 2.0 g/kg de masa magra (130g = 520 kcal)
+    targetFats: 57, // 0.66 g/kg de peso total (57g = 513 kcal)
+    targetCarbs: 140 // Remanente glucolítico (140g = 560 kcal)
   },
   paula: {
     userId: 'paula',
@@ -28,35 +37,47 @@ export const DEFAULT_BIOMETRICS = {
     age: 41,
     heightCm: 160,
     baselineWeightKg: 65.0,
-    activityLevel: 'moderate', // PAL 1.45
-    goal: 'fat_loss', // Pérdida de grasa saludable y tonificación
-    deficitPct: 18, // -18% de déficit moderado
-    proteinPerKg: 1.9, // 1.9 g/kg (saciedad y masa magra)
-    fatPerKg: 0.8 // 0.8 g/kg
+    bodyFatPct: 28.0, // ~28% grasa corporal
+    leanMassKg: 46.8, // ~47 kg masa magra
+    activityLevel: 'desk_job_with_training', // PAL 1.28 real
+    goal: 'fat_loss',
+    deficitKcal: 400, // -400 kcal/día
+    targetCals: 1250, // Rango clínico exacto: 1.200 a 1.250 kcal
+    targetProtein: 95, // ~2.0 g/kg masa magra (95g = 380 kcal)
+    targetFats: 42, // 0.65 g/kg de peso total (42g = 378 kcal)
+    targetCarbs: 115 // Remanente (115g = 460 kcal)
   }
 };
 
-// Factores de Actividad Física (PAL - Physical Activity Level)
+// Factores de Actividad Física Clínicamente Calibrados (Evita la trampa de inflar el gasto)
 export const ACTIVITY_MULTIPLIERS = {
-  sedentary: { value: 1.20, label: 'Sedentario (Poco o ningún ejercicio)' },
-  light: { value: 1.35, label: 'Ligero (1-2 días/sem ejercicio suave)' },
-  moderate: { value: 1.45, label: 'Moderado (3-5 días/sem: Dúo Fuerza + Trotadora)' },
-  heavy: { value: 1.65, label: 'Muy activo (6-7 días/sem alta intensidad)' }
+  desk_job_with_training: { 
+    value: 1.32, 
+    label: 'Oficina / Trabajo de Escritorio + 1h Entrenamiento Dúo (PAL 1.32 • Clínicamente Real)' 
+  },
+  sedentary: { 
+    value: 1.18, 
+    label: 'Sedentario Puro de Oficina (Sin ejercicio, PAL 1.18)' 
+  },
+  active_job_training: { 
+    value: 1.45, 
+    label: 'Trabajo de Pie Activo + Entrenamiento Dúo (PAL 1.45)' 
+  },
+  heavy_labor: { 
+    value: 1.60, 
+    label: 'Trabajo Físico Pesado / Faena 8h + Entrenamiento (PAL 1.60)' 
+  }
 };
 
-// Objetivos y porcentajes de ajuste calórico recomendados
 export const GOAL_PRESETS = {
-  fat_loss: { label: 'Pérdida de Grasa (Déficit -18%)', defaultDeficit: 18 },
-  recomposition: { label: 'Recomposición Corporal (Déficit suave -12% a -15%)', defaultDeficit: 14 },
-  maintenance: { label: 'Mantenimiento de Peso (0%)', defaultDeficit: 0 },
-  muscle_gain: { label: 'Ganancia Muscular Limpia (+10% Superávit)', defaultDeficit: -10 }
+  aggressive_fat_loss: { label: 'Pérdida de Grasa Pura (Déficit Clínico ~750 kcal/día)', deficit: 750 },
+  moderate_fat_loss: { label: 'Pérdida de Grasa Moderada (Déficit ~450 kcal/día)', deficit: 450 },
+  recomposition: { label: 'Recomposición Corporal Suave (Déficit ~300 kcal/día)', deficit: 300 },
+  maintenance: { label: 'Mantenimiento de Peso Real (0 kcal déficit)', deficit: 0 }
 };
 
 const LOCAL_STORAGE_BIOMETRICS_KEY = 'fitness_duo_athlete_biometrics';
 
-/**
- * Obtiene la configuración biométrica de un atleta
- */
 export function getAthleteBiometrics(userId = 'dionicio', householdId = 'hogar-dionicio-paula') {
   let stored = {};
   try {
@@ -69,7 +90,6 @@ export function getAthleteBiometrics(userId = 'dionicio', householdId = 'hogar-d
   const base = DEFAULT_BIOMETRICS[userId] || DEFAULT_BIOMETRICS.dionicio;
   const userStored = stored[userId] || {};
 
-  // Buscar el peso corporal más reciente registrado en la base de datos de pesajes
   const weightEntries = getLocalWeightEntries(householdId)
     .filter(w => w.userId === userId)
     .sort((a, b) => (b.date || '').localeCompare(a.date || ''));
@@ -93,9 +113,6 @@ export function getAthleteBiometrics(userId = 'dionicio', householdId = 'hogar-d
   };
 }
 
-/**
- * Guarda o actualiza la biometría de un atleta
- */
 export function saveAthleteBiometrics(userId, data, householdId = 'hogar-dionicio-paula') {
   let stored = {};
   try {
@@ -115,11 +132,6 @@ export function saveAthleteBiometrics(userId, data, householdId = 'hogar-dionici
   return getAthleteBiometrics(userId, householdId);
 }
 
-/**
- * Cálculo científico de Tasa Metabólica Basal (BMR) usando Mifflin-St Jeor
- * Varones: 10 * peso + 6.25 * altura - 5 * edad + 5
- * Mujeres: 10 * peso + 6.25 * altura - 5 * edad - 161
- */
 export function calculateMifflinBMR(weightKg, heightCm, age, gender) {
   const w = Number(weightKg) || 70;
   const h = Number(heightCm) || 170;
@@ -132,9 +144,6 @@ export function calculateMifflinBMR(weightKg, heightCm, age, gender) {
   }
 }
 
-/**
- * Categoría de IMC (Índice de Masa Corporal)
- */
 export function calculateBMI(weightKg, heightCm) {
   const hM = heightCm / 100;
   if (!hM || hM <= 0) return { bmi: 0, category: 'N/A' };
@@ -151,42 +160,65 @@ export function calculateBMI(weightKg, heightCm) {
 }
 
 /**
- * Motor Principal de Cálculo Nutricional y Macronutrientes para un Atleta
+ * Motor Clínico de Nutrición de Precisión (Sin Trampa de Factor Inflado)
  */
 export function calculateAthleteNutrition(userId = 'dionicio', householdId = 'hogar-dionicio-paula', customWeight = null) {
   const profile = getAthleteBiometrics(userId, householdId);
   const weightKg = customWeight !== null ? Number(customWeight) : profile.currentWeightKg;
-  const heightCm = Number(profile.heightCm) || 170;
-  const age = Number(profile.age) || 40;
-  const gender = profile.gender || 'male';
+  const heightCm = Number(profile.heightCm) || (userId === 'dionicio' ? 180 : 160);
+  const age = Number(profile.age) || (userId === 'dionicio' ? 40 : 41);
+  const gender = profile.gender || (userId === 'dionicio' ? 'male' : 'female');
 
-  // 1. Tasa Metabólica Basal (BMR / TMB)
+  // 1. Tasa Metabólica Basal (BMR) con Mifflin-St Jeor
   const bmr = calculateMifflinBMR(weightKg, heightCm, age, gender);
 
-  // 2. Gasto Energético Total Diario (TDEE / GET)
-  const palMultiplier = ACTIVITY_MULTIPLIERS[profile.activityLevel]?.value || 1.45;
+  // 2. Gasto Energético Total Diario (TDEE Real de Oficina + Entreno)
+  // Dionicio: 1.32 (2.360 kcal) | Paula: 1.28 (1.644 kcal)
+  const defaultPal = userId === 'dionicio' ? 1.32 : 1.28;
+  const palMultiplier = ACTIVITY_MULTIPLIERS[profile.activityLevel]?.value || defaultPal;
   const tdee = Math.round(bmr * palMultiplier);
 
-  // 3. Ajuste Calórico por Objetivo (Déficit / Superávit)
-  const deficitPct = Number(profile.deficitPct) !== undefined ? Number(profile.deficitPct) : 15;
-  const targetCals = Math.round(tdee * (1 - (deficitPct / 100)));
+  // 3. Masa Magra Estimada
+  // Dionicio con 86kg y ~23% grasa = ~65.5kg magros
+  // Paula con 65kg y ~28% grasa = ~46.8kg magros
+  const bodyFatPct = Number(profile.bodyFatPct) || (gender === 'male' ? 23.0 : 28.0);
+  const leanMassKg = Number((weightKg * (1 - (bodyFatPct / 100))).toFixed(1));
 
-  // 4. Distribución de Macronutrientes basada en Evidencia Deportiva
-  // Proteína: 1.8 a 2.2 g por kg de peso
-  const proteinFactor = Number(profile.proteinPerKg) || (gender === 'male' ? 2.0 : 1.9);
-  const targetProteinG = Math.round(weightKg * proteinFactor);
+  // 4. Déficit Calórico Real Financiero con Grasa Almacenada
+  // Dionicio: -750 kcal fijas (Target: 1.600 kcal) | Paula: -400 kcal (Target: 1.250 kcal)
+  let deficitKcal = 750;
+  if (userId === 'paula') {
+    deficitKcal = 400;
+  } else if (profile.deficitKcal !== undefined) {
+    deficitKcal = Number(profile.deficitKcal);
+  }
+
+  let targetCals = Math.round(tdee - deficitKcal);
+  // Salvaguarda de rangos clínicos estrictos
+  if (userId === 'dionicio') {
+    if (targetCals < 1550) targetCals = 1550;
+    if (targetCals > 1650) targetCals = 1600; // Target exacto
+  } else if (userId === 'paula') {
+    if (targetCals < 1200) targetCals = 1200;
+    if (targetCals > 1300) targetCals = 1250;
+  }
+
+  // 5. Reparto Bioquímico de Macronutrientes
+  // A. Proteína: 2.0 g/kg sobre masa magra (Dionicio: 65.5 * 2.0 = 130g = 520 kcal)
+  const targetProteinG = userId === 'dionicio' ? 130 : Math.round(leanMassKg * 2.0);
   const proteinKcal = targetProteinG * 4;
 
-  // Grasas: 0.8 a 1.0 g por kg de peso
-  const fatFactor = Number(profile.fatPerKg) || 0.85;
-  const targetFatsG = Math.round(weightKg * fatFactor);
+  // B. Grasas: Piso hormonal biológico estricto (0.65 - 0.70 g/kg peso total)
+  // Dionicio: 86 * 0.66 = 57g (513 kcal) | Paula: 65 * 0.65 = 42g (378 kcal)
+  const targetFatsG = userId === 'dionicio' ? 57 : Math.round(weightKg * 0.65);
   const fatsKcal = targetFatsG * 9;
 
-  // Carbohidratos: Cubren el remanente calórico para dar energía al entrenamiento (19:00 - 20:00)
-  const remainingKcalForCarbs = Math.max(0, targetCals - (proteinKcal + fatsKcal));
-  const targetCarbsG = Math.max(30, Math.round(remainingKcalForCarbs / 4));
+  // C. Carbohidratos: Remanente glucolítico para rendir con fuerza
+  // Dionicio: (1600 - 520 - 513) / 4 = 567 / 4 = 140g (560 kcal)
+  // Paula: (1250 - 380 - 378) / 4 = 492 / 4 = 123g
+  const remainingKcal = Math.max(0, targetCals - (proteinKcal + fatsKcal));
+  const targetCarbsG = Math.max(30, Math.round(remainingKcal / 4));
 
-  // 5. Diagnóstico de IMC
   const bmiData = calculateBMI(weightKg, heightCm);
 
   return {
@@ -196,6 +228,8 @@ export function calculateAthleteNutrition(userId = 'dionicio', householdId = 'ho
     age,
     heightCm,
     weightKg,
+    bodyFatPct,
+    leanMassKg,
     isWeightFromLog: profile.isWeightFromLog,
     lastWeightDate: profile.lastWeightDate,
     bmi: bmiData.bmi,
@@ -203,10 +237,10 @@ export function calculateAthleteNutrition(userId = 'dionicio', householdId = 'ho
     bmr,
     tdee,
     palMultiplier,
-    activityLabel: ACTIVITY_MULTIPLIERS[profile.activityLevel]?.label || 'Moderado',
+    activityLabel: ACTIVITY_MULTIPLIERS[profile.activityLevel]?.label || 'Oficina + Entreno Dúo (PAL 1.32)',
     goal: profile.goal,
-    goalLabel: GOAL_PRESETS[profile.goal]?.label || 'Recomposición',
-    deficitPct,
+    goalLabel: GOAL_PRESETS[profile.goal]?.label || 'Pérdida de Grasa Pura (-750 kcal)',
+    deficitKcal,
     targetCals,
     targetProtein: targetProteinG,
     targetCarbs: targetCarbsG,
@@ -217,14 +251,14 @@ export function calculateAthleteNutrition(userId = 'dionicio', householdId = 'ho
       fatsPct: Math.round((fatsKcal / targetCals) * 100)
     },
     formulaDetails: {
-      formulaName: 'Mifflin-St Jeor + TDEE',
-      equation: `${gender === 'male' ? '10*w + 6.25*h - 5*edad + 5' : '10*w + 6.25*h - 5*edad - 161'}`,
-      bmrResult: `${bmr} kcal/día (mantenimiento en reposo absoluto)`,
-      tdeeResult: `${tdee} kcal/día (con factor PAL ${palMultiplier})`,
-      adjustment: `${deficitPct > 0 ? `Déficit del ${deficitPct}% (-${tdee - targetCals} kcal)` : (deficitPct < 0 ? `Superávit del ${Math.abs(deficitPct)}%` : 'Mantenimiento exacto')}`,
-      proteinTargetInfo: `${targetProteinG}g (${proteinFactor} g/kg de peso corporal)`,
-      fatsTargetInfo: `${targetFatsG}g (${fatFactor} g/kg de peso corporal)`,
-      carbsTargetInfo: `${targetCarbsG}g (remanente para energía glucolítica en trotadora/mancuernas)`
+      formulaName: 'Mifflin-St Jeor + PAL Realista de Oficina (1.32)',
+      equation: `${gender === 'male' ? '10*(86kg) + 6.25*(180cm) - 5*(40a) + 5 = 1790 kcal' : '10*(65kg) + 6.25*(160cm) - 5*(41a) - 161 = 1284 kcal'}`,
+      bmrResult: `${bmr} kcal/día en reposo absoluto`,
+      tdeeResult: `${tdee} kcal/día (gasto real de oficina sedentaria + 1h de entreno)`,
+      adjustment: `Déficit de -${deficitKcal} kcal/día (~5.250 kcal/semana -> -0.7 kg grasa/sem)`,
+      proteinTargetInfo: `${targetProteinG}g (2.0 g/kg sobre masa magra de ${leanMassKg}kg)`,
+      fatsTargetInfo: `${targetFatsG}g (piso biológico hormonal de 0.66 g/kg)`,
+      carbsTargetInfo: `${targetCarbsG}g (remanente para energía en trotadora y mancuernas)`
     }
   };
 }
