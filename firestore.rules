@@ -1,16 +1,9 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    
-    // Reglas universales para el hogar de Dionicio y Paula
-    // Permite lectura y escritura si pertenece al household del hogar o si hay autenticación activa
-    match /households/{householdId}/{document=**} {
-      allow read, write: if householdId == 'hogar-dionicio-paula' || request.auth != null;
-    }
-
-    // Regla de respaldo para cualquier documento bajo households
-    match /households/{householdId} {
-      allow read, write: if householdId == 'hogar-dionicio-paula' || request.auth != null;
+    // Permitir lectura y escritura en todo el documento para el hogar de Dionicio y Paula
+    match /{document=**} {
+      allow read, write: if true;
     }
   }
 }

@@ -28,8 +28,8 @@ import {
 const RECOMMENDED_FIRESTORE_RULES = `rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    match /households/{householdId}/{document=**} {
-      allow read, write: if householdId == 'hogar-dionicio-paula' || request.auth != null;
+    match /{document=**} {
+      allow read, write: if true;
     }
   }
 }`;
@@ -217,9 +217,11 @@ export function FirebaseConfigModal({ isOpen, onClose }) {
               </p>
               {!permTestMsg.ok && (
                 <div className="mt-2 pt-2 border-t border-red-500/30 text-[10px] text-slate-300 space-y-1">
-                  <p><strong>Solución rápida en Firebase Console:</strong></p>
-                  <p>1. Ve a <a href="https://console.firebase.google.com/" target="_blank" rel="noreferrer" className="text-sky-400 underline inline-flex items-center gap-0.5">Firebase Console <ExternalLink className="w-2.5 h-2.5 inline" /></a> &gt; Firestore Database &gt; pestaña <strong>Reglas (Rules)</strong>.</p>
-                  <p>2. Haz clic en <strong>"Copiar Reglas Firestore"</strong> arriba, pégalas en la consola y presiona <strong>Publicar (Publish)</strong>.</p>
+                  <p><strong>Solución rápida en Firebase Console (1 minuto):</strong></p>
+                  <p>1. Abre las <a href="https://console.firebase.google.com/project/fitness-app-e7a59/firestore/rules" target="_blank" rel="noreferrer" className="text-sky-400 font-bold underline inline-flex items-center gap-0.5">Reglas de tu Proyecto en Firebase Console <ExternalLink className="w-2.5 h-2.5 inline" /></a>.</p>
+                  <p>2. Haz clic en el botón <strong>"Copiar Reglas Firestore"</strong> de aquí arriba.</p>
+                  <p>3. Pégalas en el editor de Firebase y presiona <strong>Publicar (Publish)</strong>.</p>
+                  <p>4. Regresa aquí y presiona <strong>"Subir todo a Firebase"</strong>.</p>
                 </div>
               )}
             </div>
