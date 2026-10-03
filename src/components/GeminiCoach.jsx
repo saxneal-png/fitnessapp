@@ -89,23 +89,40 @@ Tengo acceso en tiempo real a sus entrenamientos, su Despensa y su Diario de Cal
     setSavingMealIdx(messageIdx);
 
     try {
-      const savedEntry = await saveNutritionLog({
-        userId: currentUser,
-        mealType: mealData.mealType || 'almuerzo',
-        title: mealData.title || 'Comida registrada con Coach',
-        caloriesKcal: mealData.caloriesKcal || 0,
-        proteinG: mealData.proteinG || 0,
-        carbsG: mealData.carbsG || 0,
-        fatsG: mealData.fatsG || 0,
-        items: mealData.items || [],
-        coachFeedback: mealData.summary || '',
-        source: 'coach_ai'
-      }, householdId);
+      const entriesToSave = Array.isArray(mealData.entries) && mealData.entries.length > 0
+        ? mealData.entries
+        : [{
+            userId: mealData.userId || currentUser,
+            mealType: mealData.mealType || 'almuerzo',
+            title: mealData.title || 'Comida registrada con Coach',
+            caloriesKcal: mealData.caloriesKcal || 0,
+            proteinG: mealData.proteinG || 0,
+            carbsG: mealData.carbsG || 0,
+            fatsG: mealData.fatsG || 0,
+            items: mealData.items || [],
+            coachFeedback: mealData.summary || '',
+            source: 'coach_ai'
+          }];
+
+      for (const entry of entriesToSave) {
+        await saveNutritionLog({
+          userId: entry.userId || currentUser,
+          mealType: entry.mealType || 'almuerzo',
+          title: entry.title || 'Comida registrada con Coach',
+          caloriesKcal: entry.caloriesKcal || 0,
+          proteinG: entry.proteinG || 0,
+          carbsG: entry.carbsG || 0,
+          fatsG: entry.fatsG || 0,
+          items: entry.items || [],
+          coachFeedback: entry.coachFeedback || mealData.summary || '',
+          source: 'coach_ai'
+        }, householdId);
+      }
 
       // Actualizar estado del mensaje para mostrar "Guardado"
       setMessages(prev => prev.map((msg, i) => {
         if (i === messageIdx) {
-          return { ...msg, mealSaved: true, savedLogId: savedEntry.id };
+          return { ...msg, mealSaved: true };
         }
         return msg;
       }));
@@ -138,26 +155,41 @@ Tengo acceso en tiempo real a sus entrenamientos, su Despensa y su Diario de Cal
       const response = await analyzeCoachChatWithAction(promptText, currentUser, householdId, apiKey);
       
       let wasAutoSaved = false;
-      let savedLogId = null;
 
       // Auto-guardado autónomo si está habilitado
       if (response.detectedMeal && autoSaveMeals) {
         try {
-          const savedEntry = await saveNutritionLog({
-            userId: currentUser,
-            mealType: response.detectedMeal.mealType || 'almuerzo',
-            title: response.detectedMeal.title || 'Comida registrada con Coach',
-            caloriesKcal: response.detectedMeal.caloriesKcal || 0,
-            proteinG: response.detectedMeal.proteinG || 0,
-            carbsG: response.detectedMeal.carbsG || 0,
-            fatsG: response.detectedMeal.fatsG || 0,
-            items: response.detectedMeal.items || [],
-            coachFeedback: response.detectedMeal.summary || '',
-            source: 'coach_autonomous'
-          }, householdId);
+          const entriesToSave = Array.isArray(response.detectedMeal.entries) && response.detectedMeal.entries.length > 0
+            ? response.detectedMeal.entries
+            : [{
+                userId: response.detectedMeal.userId || currentUser,
+                mealType: response.detectedMeal.mealType || 'almuerzo',
+                title: response.detectedMeal.title || 'Comida registrada con Coach',
+                caloriesKcal: response.detectedMeal.caloriesKcal || 0,
+                proteinG: response.detectedMeal.proteinG || 0,
+                carbsG: response.detectedMeal.carbsG || 0,
+                fatsG: response.detectedMeal.fatsG || 0,
+                items: response.detectedMeal.items || [],
+                coachFeedback: response.detectedMeal.summary || '',
+                source: 'coach_autonomous'
+              }];
+
+          for (const entry of entriesToSave) {
+            await saveNutritionLog({
+              userId: entry.userId || currentUser,
+              mealType: entry.mealType || 'almuerzo',
+              title: entry.title || 'Comida registrada con Coach',
+              caloriesKcal: entry.caloriesKcal || 0,
+              proteinG: entry.proteinG || 0,
+              carbsG: entry.carbsG || 0,
+              fatsG: entry.fatsG || 0,
+              items: entry.items || [],
+              coachFeedback: entry.coachFeedback || response.detectedMeal.summary || '',
+              source: 'coach_autonomous'
+            }, householdId);
+          }
 
           wasAutoSaved = true;
-          savedLogId = savedEntry.id;
 
           try {
             confetti({
@@ -179,8 +211,7 @@ Tengo acceso en tiempo real a sus entrenamientos, su Despensa y su Diario de Cal
           role: 'assistant', 
           content: response.text,
           detectedMeal: response.detectedMeal,
-          mealSaved: wasAutoSaved,
-          savedLogId
+          mealSaved: wasAutoSaved
         }
       ]);
     } catch (err) {
@@ -215,6 +246,8 @@ Tengo acceso en tiempo real a sus entrenamientos, su Despensa y su Diario de Cal
       executeCoachPrompt(`Viendo lo que he comido hoy y los ingredientes de nuestra despensa (${householdStats.pantryItems.slice(0, 8).join(', ')}), ¿cuál es la cena perfecta para las 20:00 post-entreno para ambos?`);
     } else if (type === 'log_meal_lunch') {
       executeCoachPrompt(`Registra mi almuerzo de hoy: Comí 200g de pechuga de pollo a la plancha con una taza de arroz y ensalada de espinaca con una cucharadita de aceite de oliva.`);
+    } else if (type === 'log_duo_day') {
+      executeCoachPrompt(`Esto llevamos al día de hoy: yo al desayuno: un diente de marraqueta con 40 gramos de pechuga de pollo con un café endulzado con alulosa, de almuerzo comí 178 gramos de arroz con 57 gramos de salmón y 61 gramos de merluza a la plancha, y 190 gramos de zapallo italiano cocido. Mi esposa al desayuno: un diente de marraqueta con 40 gramos de pechuga de pollo con un café endulzado con alulosa, de almuerzo comí 80 gramos de arroz con 55 gramos de salmón y 45 gramos de merluza a la plancha, y 150 gramos de zapallo italiano cocido.`);
     } else if (type === 'live_session_briefing') {
       executeCoachPrompt(`Actúa como nuestro coach en vivo. Genera el Briefing Estratégico para la sesión de hoy (19:00 a 20:00). Analiza nuestras últimas series registradas, recomienda qué pesos debemos calibrar hoy en las mancuernas y cómo debemos coordinar la rotación de 25 min.`);
     }
@@ -530,17 +563,30 @@ Tengo acceso en tiempo real a sus entrenamientos, su Despensa y su Diario de Cal
       })()}
 
       {/* Quick Coaching Actions & Prompts */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2.5 sm:gap-3">
+        <button
+          onClick={() => handlePresetPrompt('log_duo_day')}
+          className="p-3.5 rounded-2xl bg-gradient-to-br from-gym-800 to-indigo-950/40 border border-indigo-500/30 hover:border-indigo-400 text-left transition-all group active:scale-95 sm:col-span-2 lg:col-span-1"
+        >
+          <div className="flex items-center gap-2 text-indigo-400 font-bold text-xs mb-1">
+            <Sparkles className="w-4 h-4 group-hover:scale-110 transition-transform" />
+            <span>👥 Registrar Día Dúo</span>
+          </div>
+          <p className="text-[11px] text-slate-400">
+            Desglosa marraqueta, salmón, merluza y arroz para ambos a la vez.
+          </p>
+        </button>
+
         <button
           onClick={() => handlePresetPrompt('closure_check')}
           className="p-3.5 rounded-2xl bg-gradient-to-br from-gym-800 to-amber-950/40 border border-amber-500/30 hover:border-amber-400 text-left transition-all group active:scale-95"
         >
           <div className="flex items-center gap-2 text-amber-400 font-bold text-xs mb-1">
             <Target className="w-4 h-4 group-hover:scale-110 transition-transform" />
-            <span>🎯 ¿Qué me falta para cerrar el día?</span>
+            <span>🎯 ¿Qué falta para cerrar el día?</span>
           </div>
           <p className="text-[11px] text-slate-400">
-            Calcula el saldo calórico y qué preparar con los alimentos de tu despensa.
+            Calcula el saldo calórico y qué preparar con tu despensa.
           </p>
         </button>
 
@@ -550,10 +596,10 @@ Tengo acceso en tiempo real a sus entrenamientos, su Despensa y su Diario de Cal
         >
           <div className="flex items-center gap-2 text-emerald-400 font-bold text-xs mb-1">
             <Utensils className="w-4 h-4 group-hover:scale-110 transition-transform" />
-            <span>🥘 Cena Post-Entreno (Despensa)</span>
+            <span>🥘 Cena Post-Entreno</span>
           </div>
           <p className="text-[11px] text-slate-400">
-            Receta para las 20:00 adaptando porciones para Dionicio y Paula.
+            Receta 20:00 adaptando porciones para Dionicio y Paula.
           </p>
         </button>
 
@@ -563,10 +609,10 @@ Tengo acceso en tiempo real a sus entrenamientos, su Despensa y su Diario de Cal
         >
           <div className="flex items-center gap-2 text-sky-400 font-bold text-xs mb-1">
             <BookmarkPlus className="w-4 h-4 group-hover:scale-110 transition-transform" />
-            <span>🥗 Registrar Almuerzo Típico</span>
+            <span>🥗 Registrar Almuerzo</span>
           </div>
           <p className="text-[11px] text-slate-400">
-            Calcula y guarda autónomamente pollo, arroz y ensalada en BD.
+            Calcula y guarda autónomamente pollo, arroz y ensalada.
           </p>
         </button>
 
@@ -576,10 +622,10 @@ Tengo acceso en tiempo real a sus entrenamientos, su Despensa y su Diario de Cal
         >
           <div className="flex items-center gap-2 text-pink-400 font-bold text-xs mb-1">
             <Dumbbell className="w-4 h-4 group-hover:scale-110 transition-transform" />
-            <span>⏱️ Briefing Sesión en Vivo (19:00)</span>
+            <span>⏱️ Briefing Sesión (19:00)</span>
           </div>
           <p className="text-[11px] text-slate-400">
-            Recomienda pesos y rotación de mancuernas y trotadora para hoy.
+            Recomienda pesos y rotación de mancuernas y trotadora.
           </p>
         </button>
       </div>
@@ -614,65 +660,197 @@ Tengo acceso en tiempo real a sus entrenamientos, su Despensa y su Diario de Cal
 
               {/* Tarjeta de Acción Nutricional Detectada por el Coach */}
               {m.detectedMeal && (
-                <div className="mt-3 pt-3 border-t border-gym-700/80 bg-gym-950/60 rounded-xl p-3.5 space-y-2.5 border border-emerald-500/20">
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="font-extrabold text-xs text-white flex items-center gap-1.5">
-                      <Apple className="w-4 h-4 text-emerald-400" />
-                      <span>{m.detectedMeal.title}</span>
-                    </span>
-                    <span className="text-[10px] uppercase font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
-                      {m.detectedMeal.mealType || 'Comida'}
-                    </span>
-                  </div>
-
-                  {/* Nutri Pills */}
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 text-center">
-                    <div className="bg-gym-900 p-1.5 rounded-lg border border-gym-800">
-                      <span className="text-[10px] text-slate-400 block">Calorías</span>
-                      <strong className="text-emerald-400 text-xs font-mono">{m.detectedMeal.caloriesKcal} kcal</strong>
-                    </div>
-                    <div className="bg-gym-900 p-1.5 rounded-lg border border-gym-800">
-                      <span className="text-[10px] text-slate-400 block">Proteínas</span>
-                      <strong className="text-sky-400 text-xs font-mono">{m.detectedMeal.proteinG}g</strong>
-                    </div>
-                    <div className="bg-gym-900 p-1.5 rounded-lg border border-gym-800">
-                      <span className="text-[10px] text-slate-400 block">Carbohidratos</span>
-                      <strong className="text-amber-400 text-xs font-mono">{m.detectedMeal.carbsG}g</strong>
-                    </div>
-                    <div className="bg-gym-900 p-1.5 rounded-lg border border-gym-800">
-                      <span className="text-[10px] text-slate-400 block">Grasas</span>
-                      <strong className="text-pink-400 text-xs font-mono">{m.detectedMeal.fatsG}g</strong>
-                    </div>
-                  </div>
-
-                  {/* Desglose de Alimentos */}
-                  {Array.isArray(m.detectedMeal.items) && m.detectedMeal.items.length > 0 && (
-                    <div className="text-[11px] text-slate-400 space-y-0.5 pt-1 border-t border-gym-800">
-                      <span className="font-semibold text-slate-300 text-[10px] uppercase">Desglose estimado:</span>
-                      <ul className="list-disc list-inside space-y-0.5 text-slate-300">
-                        {m.detectedMeal.items.map((it, iIdx) => (
-                          <li key={iIdx}>{it}</li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
-
-                  {/* Bloque Destacado: Orientación de Cierre del Día con Despensa */}
-                  {m.detectedMeal.closureAdvice && (
-                    <div className="mt-2.5 p-3 rounded-xl bg-gym-900 border border-amber-500/30 space-y-1.5 text-xs">
-                      <div className="flex flex-wrap items-center justify-between gap-1">
-                        <span className="font-extrabold text-amber-300 text-[11px] uppercase tracking-wider flex items-center gap-1.5">
-                          <Target className="w-3.5 h-3.5 text-amber-400" />
-                          <span>Para Cerrar Tu Día</span>
+                <div className="mt-3 pt-3 border-t border-gym-700/80 bg-gym-950/70 rounded-xl p-3.5 space-y-3 border border-emerald-500/30">
+                  {m.detectedMeal.isDuoLog || (Array.isArray(m.detectedMeal.entries) && m.detectedMeal.entries.length > 1) ? (
+                    /* ================= VISTA DUAL (DIONICIO & PAULA) ================= */
+                    <div className="space-y-3">
+                      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-gym-800 pb-2">
+                        <span className="font-extrabold text-xs text-white flex items-center gap-1.5">
+                          <Apple className="w-4 h-4 text-emerald-400" />
+                          <span>👥 Ingesta Dual Coordinada (Dionicio & Paula)</span>
                         </span>
-                        <span className="font-mono text-[11px] text-slate-300">
-                          Faltan: <strong className="text-amber-400">{m.detectedMeal.closureAdvice.remainingCals} kcal</strong> • <strong className="text-sky-400">{m.detectedMeal.closureAdvice.remainingProtein}g prot</strong>
+                        <span className="text-[10px] uppercase font-bold px-2.5 py-0.5 rounded-full bg-gradient-to-r from-sky-500/20 to-pink-500/20 text-emerald-300 border border-emerald-500/40 font-mono">
+                          {m.detectedMeal.entries?.length || 2} Comidas Detectadas
                         </span>
                       </div>
-                      <div className="text-[11px] text-slate-300 leading-relaxed bg-gym-950/80 p-2.5 rounded-lg border border-gym-800">
-                        <strong className="text-emerald-400 block mb-0.5">🥘 Propuesta con tu Despensa:</strong>
-                        <span>{m.detectedMeal.closureAdvice.suggestedRecipe}</span>
+
+                      {/* Tarjetas de Atletas: Dionicio y Paula */}
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        {/* Dionicio */}
+                        <div className="bg-gym-900/90 border border-sky-500/30 rounded-xl p-3 space-y-2">
+                          <div className="flex items-center justify-between text-xs font-bold text-sky-400">
+                            <span>👨‍💻 Dionicio (180 cm)</span>
+                            <span className="text-[10px] text-slate-400 font-mono">Meta: 2300 kcal • 150g P</span>
+                          </div>
+                          
+                          {/* Comidas de Dionicio */}
+                          <div className="space-y-1.5">
+                            {(m.detectedMeal.entries || []).filter(e => e.userId === 'dionicio').map((entry, eIdx) => (
+                              <div key={eIdx} className="bg-gym-950/90 p-2 rounded-lg border border-gym-800 text-[11px] space-y-1">
+                                <div className="flex items-center justify-between font-bold text-white">
+                                  <span className="truncate">{entry.title}</span>
+                                  <span className="text-emerald-400 font-mono shrink-0 ml-1">{entry.caloriesKcal} kcal</span>
+                                </div>
+                                <div className="text-[10px] text-slate-400 flex items-center gap-2 font-mono">
+                                  <span>P: <strong className="text-sky-300">{entry.proteinG}g</strong></span>
+                                  <span>C: <strong className="text-amber-300">{entry.carbsG}g</strong></span>
+                                  <span>G: <strong className="text-pink-300">{entry.fatsG}g</strong></span>
+                                </div>
+                                {Array.isArray(entry.items) && entry.items.length > 0 && (
+                                  <div className="text-[10px] text-slate-400 pt-0.5">
+                                    {entry.items.join(' • ')}
+                                  </div>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+
+                          {/* Cierre de Dionicio */}
+                          {m.detectedMeal.dionicioClosure && (
+                            <div className="p-2 rounded-lg bg-sky-950/40 border border-sky-500/20 text-[10px] space-y-0.5 font-mono">
+                              <div className="flex justify-between text-slate-300">
+                                <span>Total hoy:</span>
+                                <strong className="text-white">{m.detectedMeal.dionicioClosure.todayTotalCals} / 2300 kcal</strong>
+                              </div>
+                              <div className="flex justify-between text-amber-300 font-bold">
+                                <span>Faltan para cerrar:</span>
+                                <span>{m.detectedMeal.dionicioClosure.remainingCals} kcal ({m.detectedMeal.dionicioClosure.remainingProtein}g prot)</span>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Paula */}
+                        <div className="bg-gym-900/90 border border-pink-500/30 rounded-xl p-3 space-y-2">
+                          <div className="flex items-center justify-between text-xs font-bold text-pink-400">
+                            <span>👩‍💼 Paula (160 cm)</span>
+                            <span className="text-[10px] text-slate-400 font-mono">Meta: 1600 kcal • 100g P</span>
+                          </div>
+                          
+                          {/* Comidas de Paula */}
+                          <div className="space-y-1.5">
+                            {(m.detectedMeal.entries || []).filter(e => e.userId === 'paula').map((entry, eIdx) => (
+                              <div key={eIdx} className="bg-gym-950/90 p-2 rounded-lg border border-gym-800 text-[11px] space-y-1">
+                                <div className="flex items-center justify-between font-bold text-white">
+                                  <span className="truncate">{entry.title}</span>
+                                  <span className="text-emerald-400 font-mono shrink-0 ml-1">{entry.caloriesKcal} kcal</span>
+                                </div>
+                                <div className="text-[10px] text-slate-400 flex items-center gap-2 font-mono">
+                                  <span>P: <strong className="text-sky-300">{entry.proteinG}g</strong></span>
+                                  <span>C: <strong className="text-amber-300">{entry.carbsG}g</strong></span>
+                                  <span>G: <strong className="text-pink-300">{entry.fatsG}g</strong></span>
+                                </div>
+                                {Array.isArray(entry.items) && entry.items.length > 0 && (
+                                  <div className="text-[10px] text-slate-400 pt-0.5">
+                                    {entry.items.join(' • ')}
+                                  </div>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+
+                          {/* Cierre de Paula */}
+                          {m.detectedMeal.paulaClosure && (
+                            <div className="p-2 rounded-lg bg-pink-950/40 border border-pink-500/20 text-[10px] space-y-0.5 font-mono">
+                              <div className="flex justify-between text-slate-300">
+                                <span>Total hoy:</span>
+                                <strong className="text-white">{m.detectedMeal.paulaClosure.todayTotalCals} / 1600 kcal</strong>
+                              </div>
+                              <div className="flex justify-between text-amber-300 font-bold">
+                                <span>Faltan para cerrar:</span>
+                                <span>{m.detectedMeal.paulaClosure.remainingCals} kcal ({m.detectedMeal.paulaClosure.remainingProtein}g prot)</span>
+                              </div>
+                            </div>
+                          )}
+                        </div>
                       </div>
+
+                      {/* Cena Dúo Coordinada con Despensa */}
+                      {m.detectedMeal.sharedDinnerProposal && (
+                        <div className="p-3 rounded-xl bg-gym-900 border border-amber-500/30 space-y-1.5 text-xs">
+                          <div className="font-extrabold text-amber-300 text-[11px] uppercase tracking-wider flex items-center gap-1.5">
+                            <Utensils className="w-3.5 h-3.5 text-amber-400" />
+                            <span>{m.detectedMeal.sharedDinnerProposal.title || 'Cena Post-Entreno Dúo (20:00) — Despensa'}</span>
+                          </div>
+                          <div className="text-[11px] text-slate-200 leading-relaxed bg-gym-950/80 p-2.5 rounded-lg border border-gym-800 space-y-1">
+                            <div className="text-emerald-400 font-semibold">{m.detectedMeal.sharedDinnerProposal.recipe}</div>
+                            {m.detectedMeal.sharedDinnerProposal.dionicioPortion && (
+                              <div className="text-[10px] text-slate-300">
+                                <strong className="text-sky-400">👨‍💻 Dionicio:</strong> {m.detectedMeal.sharedDinnerProposal.dionicioPortion}
+                              </div>
+                            )}
+                            {m.detectedMeal.sharedDinnerProposal.paulaPortion && (
+                              <div className="text-[10px] text-slate-300">
+                                <strong className="text-pink-400">👩‍💼 Paula:</strong> {m.detectedMeal.sharedDinnerProposal.paulaPortion}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    /* ================= VISTA INDIVIDUAL ================= */
+                    <div className="space-y-2.5">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="font-extrabold text-xs text-white flex items-center gap-1.5">
+                          <Apple className="w-4 h-4 text-emerald-400" />
+                          <span>{m.detectedMeal.title}</span>
+                        </span>
+                        <span className="text-[10px] uppercase font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                          {m.detectedMeal.mealType || 'Comida'}
+                        </span>
+                      </div>
+
+                      {/* Nutri Pills */}
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 text-center">
+                        <div className="bg-gym-900 p-1.5 rounded-lg border border-gym-800">
+                          <span className="text-[10px] text-slate-400 block">Calorías</span>
+                          <strong className="text-emerald-400 text-xs font-mono">{m.detectedMeal.caloriesKcal} kcal</strong>
+                        </div>
+                        <div className="bg-gym-900 p-1.5 rounded-lg border border-gym-800">
+                          <span className="text-[10px] text-slate-400 block">Proteínas</span>
+                          <strong className="text-sky-400 text-xs font-mono">{m.detectedMeal.proteinG}g</strong>
+                        </div>
+                        <div className="bg-gym-900 p-1.5 rounded-lg border border-gym-800">
+                          <span className="text-[10px] text-slate-400 block">Carbohidratos</span>
+                          <strong className="text-amber-400 text-xs font-mono">{m.detectedMeal.carbsG}g</strong>
+                        </div>
+                        <div className="bg-gym-900 p-1.5 rounded-lg border border-gym-800">
+                          <span className="text-[10px] text-slate-400 block">Grasas</span>
+                          <strong className="text-pink-400 text-xs font-mono">{m.detectedMeal.fatsG}g</strong>
+                        </div>
+                      </div>
+
+                      {/* Desglose de Alimentos */}
+                      {Array.isArray(m.detectedMeal.items) && m.detectedMeal.items.length > 0 && (
+                        <div className="text-[11px] text-slate-400 space-y-0.5 pt-1 border-t border-gym-800">
+                          <span className="font-semibold text-slate-300 text-[10px] uppercase">Desglose estimado:</span>
+                          <ul className="list-disc list-inside space-y-0.5 text-slate-300">
+                            {m.detectedMeal.items.map((it, iIdx) => (
+                              <li key={iIdx}>{it}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+
+                      {/* Bloque Destacado: Orientación de Cierre del Día con Despensa */}
+                      {m.detectedMeal.closureAdvice && (
+                        <div className="mt-2.5 p-3 rounded-xl bg-gym-900 border border-amber-500/30 space-y-1.5 text-xs">
+                          <div className="flex flex-wrap items-center justify-between gap-1">
+                            <span className="font-extrabold text-amber-300 text-[11px] uppercase tracking-wider flex items-center gap-1.5">
+                              <Target className="w-3.5 h-3.5 text-amber-400" />
+                              <span>Para Cerrar Tu Día</span>
+                            </span>
+                            <span className="font-mono text-[11px] text-slate-300">
+                              Faltan: <strong className="text-amber-400">{m.detectedMeal.closureAdvice.remainingCals} kcal</strong> • <strong className="text-sky-400">{m.detectedMeal.closureAdvice.remainingProtein}g prot</strong>
+                            </span>
+                          </div>
+                          <div className="text-[11px] text-slate-300 leading-relaxed bg-gym-950/80 p-2.5 rounded-lg border border-gym-800">
+                            <strong className="text-emerald-400 block mb-0.5">🥘 Propuesta con tu Despensa:</strong>
+                            <span>{m.detectedMeal.closureAdvice.suggestedRecipe}</span>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   )}
 
@@ -681,7 +859,11 @@ Tengo acceso en tiempo real a sus entrenamientos, su Despensa y su Diario de Cal
                     {m.mealSaved ? (
                       <div className="w-full py-2 px-3 rounded-xl bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 text-xs font-bold flex items-center justify-center gap-1.5">
                         <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-                        <span>✅ Guardada autónomamente en tu Base de Datos (+{m.detectedMeal.caloriesKcal} kcal)</span>
+                        <span>
+                          {m.detectedMeal.isDuoLog || (Array.isArray(m.detectedMeal.entries) && m.detectedMeal.entries.length > 1)
+                            ? `✅ Guardadas ${m.detectedMeal.entries?.length || 2} comidas en Firestore Cloud (Dionicio y Paula)`
+                            : `✅ Guardada autónomamente en tu Base de Datos (+${m.detectedMeal.caloriesKcal} kcal)`}
+                        </span>
                       </div>
                     ) : (
                       <button
@@ -693,12 +875,16 @@ Tengo acceso en tiempo real a sus entrenamientos, su Despensa y su Diario de Cal
                         {savingMealIdx === idx ? (
                           <>
                             <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                            <span>Guardando en Firestore & Local...</span>
+                            <span>Guardando en Firestore Cloud & Local...</span>
                           </>
                         ) : (
                           <>
                             <BookmarkPlus className="w-4 h-4" />
-                            <span>Guardar esta comida en mi Base de Datos (+{m.detectedMeal.caloriesKcal} kcal)</span>
+                            <span>
+                              {m.detectedMeal.isDuoLog || (Array.isArray(m.detectedMeal.entries) && m.detectedMeal.entries.length > 1)
+                                ? `Guardar las ${m.detectedMeal.entries?.length || 2} comidas en Firestore Cloud (Dionicio y Paula)`
+                                : `Guardar esta comida en mi Base de Datos (+${m.detectedMeal.caloriesKcal} kcal)`}
+                            </span>
                           </>
                         )}
                       </button>

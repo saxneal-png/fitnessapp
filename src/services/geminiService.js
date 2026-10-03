@@ -617,139 +617,282 @@ DIRECTRICES DE TUS RESPUESTAS:
  * Estimador heurístico determinístico de comidas y macronutrientes (offline / fallback)
  * Ahora calcula también cuánto falta para cerrar el día y propone qué preparar según la despensa
  */
+/**
+ * Estimador heurístico determinístico de comidas y macronutrientes (offline / fallback)
+ * Capaz de procesar mensajes individuales o combinados ("yo..." y "mi esposa...")
+ * y desglosar múltiples comidas (desayuno, almuerzo, cena) para Dionicio y Paula.
+ */
 export function estimateDeterministicMeal(text = '', currentUser = 'dionicio', householdId = 'hogar-dionicio-paula') {
   const lower = text.toLowerCase();
 
-  // Diccionario de alimentos y valores típicos por porción común
+  // Diccionario ampliado de alimentos con factores por gramo o porción típica
   const FOOD_DATABASE = [
-    { keys: ['huevo', 'huevos', 'omelette', 'revuelto', 'pochado'], calPerUnit: 75, p: 6.5, c: 0.5, f: 5.0, defaultUnits: 2, name: 'Huevos' },
-    { keys: ['pollo', 'pechuga'], calPerUnit: 165, p: 31, c: 0, f: 3.6, defaultUnits: 1.5, name: 'Pechuga de pollo (150g)' },
-    { keys: ['atun', 'atún'], calPerUnit: 130, p: 28, c: 0, f: 1.5, defaultUnits: 1, name: 'Atún en lata' },
-    { keys: ['carne', 'vacuno', 'bistec', 'lomo', 'molida'], calPerUnit: 220, p: 26, c: 0, f: 12, defaultUnits: 1, name: 'Carne magra (150g)' },
-    { keys: ['arroz'], calPerUnit: 180, p: 3.5, c: 40, f: 0.5, defaultUnits: 1, name: 'Arroz cocido' },
-    { keys: ['avena'], calPerUnit: 150, p: 5.0, c: 27, f: 2.5, defaultUnits: 1, name: 'Avena integral (40g)' },
-    { keys: ['papa', 'papas', 'camote'], calPerUnit: 130, p: 3.0, c: 30, f: 0.2, defaultUnits: 1, name: 'Papas / Camote cocido' },
-    { keys: ['pan', 'tostada', 'marraqueta'], calPerUnit: 120, p: 4.0, c: 24, f: 1.0, defaultUnits: 1.5, name: 'Pan integral / Marraqueta' },
-    { keys: ['palta', 'aguacate'], calPerUnit: 160, p: 2.0, c: 8.5, f: 15.0, defaultUnits: 0.5, name: 'Palta / Aguacate (1/2 unid)' },
-    { keys: ['tomate', 'ensalada', 'lechuga', 'espinaca', 'espinacas'], calPerUnit: 35, p: 1.5, c: 7.0, f: 0.3, defaultUnits: 1, name: 'Espinacas / Ensalada fresca' },
-    { keys: ['manzana', 'fruta', 'platano', 'plátano'], calPerUnit: 90, p: 1.0, c: 22, f: 0.3, defaultUnits: 1, name: 'Fruta fresca' },
-    { keys: ['yogurt', 'yogur', 'griego'], calPerUnit: 110, p: 10.0, c: 8.0, f: 3.0, defaultUnits: 1, name: 'Yogurt griego natural' },
-    { keys: ['frutos secos', 'nueces', 'almendras'], calPerUnit: 170, p: 5.0, c: 5.0, f: 15.0, defaultUnits: 1, name: 'Frutos secos / Nueces' },
-    { keys: ['aceite', 'oliva'], calPerUnit: 90, p: 0, c: 0, f: 10.0, defaultUnits: 1, name: 'Aceite de oliva (1 cdta)' },
-    { keys: ['proteina', 'batido', 'whey'], calPerUnit: 120, p: 24.0, c: 2.0, f: 1.5, defaultUnits: 1, name: 'Batido de proteína' },
-    { keys: ['cafe', 'café', 'te', 'té'], calPerUnit: 20, p: 0.5, c: 3.0, f: 0.5, defaultUnits: 1, name: 'Café / Té' }
+    { keys: ['marraqueta', 'diente de marraqueta', 'pan'], per100g: { cal: 270, p: 9, c: 54, f: 1 }, defaultWeight: 50, name: 'Marraqueta' },
+    { keys: ['pollo', 'pechuga'], per100g: { cal: 165, p: 31, c: 0, f: 3.6 }, defaultWeight: 120, name: 'Pechuga de pollo' },
+    { keys: ['salmon', 'salmón'], per100g: { cal: 206, p: 20, c: 0, f: 13 }, defaultWeight: 100, name: 'Salmón a la plancha' },
+    { keys: ['merluza', 'reineta', 'pescado'], per100g: { cal: 90, p: 18, c: 0, f: 1.5 }, defaultWeight: 100, name: 'Merluza a la plancha' },
+    { keys: ['zapallo italiano', 'zucchini', 'calabacin', 'calabacín'], per100g: { cal: 17, p: 1.2, c: 3.1, f: 0.3 }, defaultWeight: 150, name: 'Zapallo italiano cocido' },
+    { keys: ['arroz'], per100g: { cal: 130, p: 2.7, c: 28, f: 0.3 }, defaultWeight: 150, name: 'Arroz cocido' },
+    { keys: ['huevo', 'huevos', 'omelette', 'revuelto', 'pochado'], per100g: { cal: 145, p: 12.6, c: 1, f: 10 }, defaultWeight: 100, name: 'Huevos' },
+    { keys: ['atun', 'atún'], per100g: { cal: 130, p: 28, c: 0, f: 1.5 }, defaultWeight: 100, name: 'Atún al natural' },
+    { keys: ['carne', 'vacuno', 'bistec', 'lomo', 'molida'], per100g: { cal: 215, p: 26, c: 0, f: 12 }, defaultWeight: 150, name: 'Carne magra' },
+    { keys: ['avena'], per100g: { cal: 370, p: 13, c: 67, f: 7 }, defaultWeight: 40, name: 'Avena integral' },
+    { keys: ['papa', 'papas', 'camote'], per100g: { cal: 85, p: 2, c: 20, f: 0.1 }, defaultWeight: 150, name: 'Papas cocidas' },
+    { keys: ['palta', 'aguacate'], per100g: { cal: 160, p: 2, c: 8.5, f: 15 }, defaultWeight: 60, name: 'Palta / Aguacate' },
+    { keys: ['espinaca', 'espinacas', 'ensalada', 'lechuga', 'hojas'], per100g: { cal: 23, p: 2.9, c: 3.6, f: 0.4 }, defaultWeight: 100, name: 'Espinacas / Ensalada fresca' },
+    { keys: ['tomate'], per100g: { cal: 18, p: 0.9, c: 3.9, f: 0.2 }, defaultWeight: 120, name: 'Tomate fresco' },
+    { keys: ['cafe', 'café', 'te', 'té', 'alulosa'], per100g: { cal: 4, p: 0.1, c: 0.8, f: 0.0 }, defaultWeight: 100, name: 'Café con alulosa' },
+    { keys: ['yogurt', 'yogur', 'griego'], per100g: { cal: 95, p: 9, c: 4, f: 3 }, defaultWeight: 125, name: 'Yogurt griego' },
+    { keys: ['aceite', 'oliva'], per100g: { cal: 884, p: 0, c: 0, f: 100 }, defaultWeight: 5, name: 'Aceite de oliva (1 cdta)' }
   ];
 
-  // Determinar tipo de comida
-  let mealType = 'almuerzo';
-  if (lower.includes('desayun') || lower.includes('mañana')) mealType = 'desayuno';
-  else if (lower.includes('almuerz') || lower.includes('tarde') || lower.includes('mediodia') || lower.includes('mediodía')) mealType = 'almuerzo';
-  else if (lower.includes('cena') || lower.includes('noche') || lower.includes('20:00') || lower.includes('post-entreno')) mealType = 'cena';
-  else if (lower.includes('once') || lower.includes('merienda')) mealType = 'once';
-  else if (lower.includes('snack') || lower.includes('colacion') || lower.includes('colación')) mealType = 'snack';
+  // Función interna para calcular macros de un fragmento de texto
+  const parseMealFragment = (subText, targetUser) => {
+    const sLower = subText.toLowerCase();
+    const matched = [];
+    let totCal = 0, totP = 0, totC = 0, totF = 0;
 
-  // Buscar alimentos consumidos
-  const matched = [];
-  let totalCals = 0;
-  let totalP = 0;
-  let totalC = 0;
-  let totalF = 0;
+    FOOD_DATABASE.forEach(food => {
+      if (food.keys.some(k => sLower.includes(k))) {
+        let grams = food.defaultWeight;
+        
+        // Buscar patrón como "178gramos", "178 gramos", "178g", "1 diente", "2 huevos"
+        const gRegex = new RegExp(`(\\d+)\\s*(?:gramos|gramo|gr|g)?\\s*(?:de)?\\s*${food.keys[0]}`, 'i');
+        const matchG = sLower.match(gRegex);
 
-  FOOD_DATABASE.forEach(food => {
-    if (food.keys.some(k => lower.includes(k))) {
-      let qty = food.defaultUnits;
-      const regexNumber = new RegExp(`(\\d+)\\s*(?:unidades|u|rebanadas|tazas|huevos|gramos|g)?\\s*(?:de)?\\s*${food.keys[0]}`, 'i');
-      const matchNum = lower.match(regexNumber);
-      if (matchNum && matchNum[1]) {
-        const parsed = parseInt(matchNum[1]);
-        if (parsed > 0 && parsed <= 500) {
-          if (parsed > 30) qty = parsed / 100;
-          else qty = parsed;
+        const revRegex = new RegExp(`${food.keys[0]}[^\\d]{1,15}(\\d+)\\s*(?:gramos|gr|g)`, 'i');
+        const matchRev = sLower.match(revRegex);
+
+        if (matchG && matchG[1]) {
+          const val = parseInt(matchG[1]);
+          if (val > 5 && val <= 800) grams = val;
+          else if (val <= 5 && food.keys.includes('marraqueta')) grams = val * 55; // 1 diente = ~55g
+          else if (val <= 5 && food.keys.includes('huevo')) grams = val * 50; // 1 huevo = ~50g
+        } else if (matchRev && matchRev[1]) {
+          const val = parseInt(matchRev[1]);
+          if (val > 5 && val <= 800) grams = val;
+        } else if (sLower.includes('diente') && food.keys.includes('marraqueta')) {
+          grams = 55;
         }
+
+        const factor = grams / 100;
+        const cal = Math.round(food.per100g.cal * factor);
+        const p = Math.round(food.per100g.p * factor);
+        const c = Math.round(food.per100g.c * factor);
+        const f = Math.round(food.per100g.f * factor);
+
+        totCal += cal;
+        totP += p;
+        totC += c;
+        totF += f;
+
+        matched.push({
+          name: `${grams}g ${food.name}`,
+          calories: cal,
+          protein: p,
+          carbs: c,
+          fats: f
+        });
       }
+    });
 
-      if (currentUser === 'dionicio' && !matchNum) {
-        qty *= 1.2;
-      }
-
-      const cal = Math.round(food.calPerUnit * qty);
-      const p = Math.round(food.p * qty);
-      const c = Math.round(food.c * qty);
-      const f = Math.round(food.f * qty);
-
-      totalCals += cal;
-      totalP += p;
-      totalC += c;
-      totalF += f;
-
-      matched.push({
-        name: food.name,
-        calories: cal,
-        protein: p,
-        carbs: c,
-        fats: f
-      });
+    if (matched.length === 0) {
+      const isDio = targetUser === 'dionicio';
+      totCal = isDio ? 480 : 320;
+      totP = isDio ? 35 : 24;
+      totC = isDio ? 45 : 30;
+      totF = isDio ? 12 : 9;
+      matched.push({ name: 'Comida balanceada estimada', calories: totCal, protein: totP, carbs: totC, fats: totF });
     }
-  });
 
-  if (matched.length === 0) {
-    const isDionicio = currentUser === 'dionicio';
-    totalCals = isDionicio ? 520 : 380;
-    totalP = isDionicio ? 40 : 28;
-    totalC = isDionicio ? 48 : 34;
-    totalF = isDionicio ? 15 : 12;
-    matched.push({ name: 'Comida balanceada estimada', calories: totalCals, protein: totalP, carbs: totalC, fats: totalF });
+    return {
+      caloriesKcal: totCal,
+      proteinG: totP,
+      carbsG: totC,
+      fatsG: totF,
+      items: matched.map(m => `${m.name}: ~${m.calories} kcal (${m.protein}g P)`),
+      titleSummary: matched.slice(0, 3).map(m => m.name.replace(/^\d+g\s*/, '')).join(' con ')
+    };
+  };
+
+  // Detección de Dual / Dúo (Dionicio y Paula en el mismo mensaje)
+  const hasDionicio = lower.includes('yo') || lower.includes('dionicio');
+  const hasPaula = lower.includes('esposa') || lower.includes('paula') || lower.includes('ella') || lower.includes('mi mujer');
+  const isDuoLog = hasDionicio && hasPaula;
+
+  const context = buildHouseholdContext(householdId);
+  const pantry = context.pantryItems && context.pantryItems.length > 0 
+    ? context.pantryItems 
+    : ['Huevos', 'Pechuga de pollo', 'Salmón', 'Merluza', 'Atún en lata', 'Arroz', 'Zapallo italiano', 'Espinacas', 'Palta / Aguacate'];
+
+  const dioTargetCals = 2300;
+  const dioTargetProtein = 150;
+  const pauTargetCals = 1600;
+  const pauTargetProtein = 100;
+
+  if (isDuoLog) {
+    // Segmentar texto para Dionicio y para Paula
+    const paulaIndex = lower.search(/(?:mi esposa|esposa|paula):?/i);
+    let dioText = lower.substring(0, paulaIndex);
+    let pauText = lower.substring(paulaIndex);
+
+    // Identificar comidas en cada segmento (desayuno, almuerzo, etc.)
+    const processSegment = (segmentText, userId, athleteName) => {
+      const entries = [];
+      const hasBreakfast = segmentText.includes('desayun');
+      const hasLunch = segmentText.includes('almuerz');
+
+      if (hasBreakfast && hasLunch) {
+        const lunchIdx = segmentText.indexOf('almuerz');
+        const bText = segmentText.substring(0, lunchIdx);
+        const lText = segmentText.substring(lunchIdx);
+
+        const bData = parseMealFragment(bText, userId);
+        entries.push({
+          userId,
+          athleteName,
+          mealType: 'desayuno',
+          title: `Desayuno: ${bData.titleSummary || 'Marraqueta con pollo y café'}`,
+          caloriesKcal: bData.caloriesKcal,
+          proteinG: bData.proteinG,
+          carbsG: bData.carbsG,
+          fatsG: bData.fatsG,
+          items: bData.items,
+          coachFeedback: `Desayuno equilibrado para ${athleteName}.`
+        });
+
+        const lData = parseMealFragment(lText, userId);
+        entries.push({
+          userId,
+          athleteName,
+          mealType: 'almuerzo',
+          title: `Almuerzo: ${lData.titleSummary || 'Arroz con pescado y vegetales'}`,
+          caloriesKcal: lData.caloriesKcal,
+          proteinG: lData.proteinG,
+          carbsG: lData.carbsG,
+          fatsG: lData.fatsG,
+          items: lData.items,
+          coachFeedback: `Excelente aporte proteico y de carbohidratos complejos para ${athleteName}.`
+        });
+      } else {
+        let mType = 'almuerzo';
+        if (hasBreakfast) mType = 'desayuno';
+        else if (segmentText.includes('cena')) mType = 'cena';
+
+        const data = parseMealFragment(segmentText, userId);
+        entries.push({
+          userId,
+          athleteName,
+          mealType: mType,
+          title: `${mType.charAt(0).toUpperCase() + mType.slice(1)}: ${data.titleSummary}`,
+          caloriesKcal: data.caloriesKcal,
+          proteinG: data.proteinG,
+          carbsG: data.carbsG,
+          fatsG: data.fatsG,
+          items: data.items,
+          coachFeedback: `Comida registrada para ${athleteName}.`
+        });
+      }
+      return entries;
+    };
+
+    const dioEntries = processSegment(dioText, 'dionicio', 'Dionicio');
+    const pauEntries = processSegment(pauText, 'paula', 'Paula');
+    const allEntries = [...dioEntries, ...pauEntries];
+
+    const dioNewCals = (context.nutrition?.dionicio?.todayCals || 0) + dioEntries.reduce((a, b) => a + b.caloriesKcal, 0);
+    const dioNewProtein = (context.nutrition?.dionicio?.todayProtein || 0) + dioEntries.reduce((a, b) => a + b.proteinG, 0);
+    const pauNewCals = (context.nutrition?.paula?.todayCals || 0) + pauEntries.reduce((a, b) => a + b.caloriesKcal, 0);
+    const pauNewProtein = (context.nutrition?.paula?.todayProtein || 0) + pauEntries.reduce((a, b) => a + b.proteinG, 0);
+
+    const dioRemCals = Math.max(0, dioTargetCals - dioNewCals);
+    const dioRemProt = Math.max(0, dioTargetProtein - dioNewProtein);
+    const pauRemCals = Math.max(0, pauTargetCals - pauNewCals);
+    const pauRemProt = Math.max(0, pauTargetProtein - pauNewProtein);
+
+    const dinnerProposal = {
+      title: 'Cena Dúo Post-Entreno Compartida (20:00)',
+      recipe: 'Pechuga de pollo o merluza a la plancha con salteado de zapallo italiano, espinacas y toque de palta.',
+      dionicioPortion: `220g proteína + 150g arroz/papas + zapallo italiano abundante + 1/2 palta (~${dioRemCals > 600 ? 650 : dioRemCals} kcal, ~${Math.min(50, dioRemProt)}g prot)`,
+      paulaPortion: `130g proteína + 60g arroz/papas + zapallo italiano abundante + 1/4 palta (~${pauRemCals > 450 ? 450 : pauRemCals} kcal, ~${Math.min(32, pauRemProt)}g prot)`
+    };
+
+    return {
+      isMealLog: true,
+      isDuoLog: true,
+      title: `Registro Nutricional Dúo: Dionicio (${dioEntries.length} comidas) y Paula (${pauEntries.length} comidas)`,
+      entries: allEntries,
+      caloriesKcal: allEntries.reduce((a, b) => a + b.caloriesKcal, 0),
+      proteinG: allEntries.reduce((a, b) => a + b.proteinG, 0),
+      carbsG: allEntries.reduce((a, b) => a + b.carbsG, 0),
+      fatsG: allEntries.reduce((a, b) => a + b.fatsG, 0),
+      items: allEntries.map(e => `${e.athleteName} - ${e.title}: ${e.caloriesKcal} kcal`),
+      summary: `Procesadas ${allEntries.length} comidas en total para ambos atletas.`,
+      dionicioClosure: {
+        todayTotalCals: dioNewCals,
+        targetCals: dioTargetCals,
+        remainingCals: dioRemCals,
+        todayTotalProtein: dioNewProtein,
+        targetProtein: dioTargetProtein,
+        remainingProtein: dioRemProt
+      },
+      paulaClosure: {
+        todayTotalCals: pauNewCals,
+        targetCals: pauTargetCals,
+        remainingCals: pauRemCals,
+        todayTotalProtein: pauNewProtein,
+        targetProtein: pauTargetProtein,
+        remainingProtein: pauRemProt
+      },
+      sharedDinnerProposal: dinnerProposal
+    };
   }
 
-  // Leer estado de nutrición y despensa para orientar el cierre del día
-  const context = buildHouseholdContext(householdId);
-  const targetCals = currentUser === 'dionicio' ? 2300 : 1600;
-  const targetProtein = currentUser === 'dionicio' ? 150 : 100;
+  // Caso individual: solo Dionicio o solo Paula
+  const targetUser = lower.includes('paula') || (!lower.includes('dionicio') && currentUser === 'paula') ? 'paula' : 'dionicio';
+  const athleteName = targetUser === 'dionicio' ? 'Dionicio' : 'Paula';
+  const targetCals = targetUser === 'dionicio' ? dioTargetCals : pauTargetCals;
+  const targetProtein = targetUser === 'dionicio' ? dioTargetProtein : pauTargetProtein;
 
-  const currentTodayCals = context.nutrition?.[currentUser]?.todayCals || 0;
-  const currentTodayProtein = context.nutrition?.[currentUser]?.todayProtein || 0;
+  let mealType = 'almuerzo';
+  if (lower.includes('desayun')) mealType = 'desayuno';
+  else if (lower.includes('cena')) mealType = 'cena';
+  else if (lower.includes('once') || lower.includes('merienda')) mealType = 'once';
+  else if (lower.includes('snack')) mealType = 'snack';
 
-  const newTotalCals = currentTodayCals + totalCals;
-  const newTotalProtein = currentTodayProtein + totalP;
-
+  const data = parseMealFragment(text, targetUser);
+  const currentTodayCals = context.nutrition?.[targetUser]?.todayCals || 0;
+  const currentTodayProtein = context.nutrition?.[targetUser]?.todayProtein || 0;
+  const newTotalCals = currentTodayCals + data.caloriesKcal;
+  const newTotalProtein = currentTodayProtein + data.proteinG;
   const remainingCals = Math.max(0, targetCals - newTotalCals);
   const remainingProtein = Math.max(0, targetProtein - newTotalProtein);
 
-  // Evaluar qué alimentos de la despensa pueden usarse para la cena/cierre
-  const pantry = context.pantryItems && context.pantryItems.length > 0 
-    ? context.pantryItems 
-    : ['Huevos', 'Pechuga de pollo', 'Atún en lata / agua', 'Arroz integral / blanco', 'Espinacas / Hojas verdes', 'Palta / Aguacate'];
-
-  let suggestedClosureRecipe = '';
-  const hasChicken = pantry.some(i => i.toLowerCase().includes('pollo'));
-  const hasEggs = pantry.some(i => i.toLowerCase().includes('huevo'));
-  const hasTuna = pantry.some(i => i.toLowerCase().includes('atun') || i.toLowerCase().includes('atún'));
-  const hasAvocado = pantry.some(i => i.toLowerCase().includes('palta') || i.toLowerCase().includes('aguacate'));
-  const hasGreens = pantry.some(i => i.toLowerCase().includes('espinaca') || i.toLowerCase().includes('verde'));
-  const hasRice = pantry.some(i => i.toLowerCase().includes('arroz'));
-
-  if (remainingCals <= 200) {
-    suggestedClosureRecipe = `Estás prácticamente en tu meta. Te recomiendo cerrar con una infusión relajante o un puñado pequeño de frutos secos si tienes hambre nocturna.`;
-  } else if (hasChicken && hasGreens) {
-    suggestedClosureRecipe = `Cena post-entreno recomendada (20:00): 180g de Pechuga de pollo a la plancha con ensalada abundante de Espinacas / Hojas verdes y ${hasAvocado ? '1/4 de palta' : '1 cdta de aceite de oliva'}. Aportará aprox ~${Math.min(500, remainingCals)} kcal y ~38g de proteína.`;
-  } else if (hasEggs && hasTuna) {
-    suggestedClosureRecipe = `Cena post-entreno recomendada (20:00): Omelette de 2 huevos con 1 lata de atún al agua y hojas verdes de tu despensa. Aportará aprox ~350 kcal y ~35g de proteína magra.`;
-  } else if (hasEggs) {
-    suggestedClosureRecipe = `Cena recomendada (20:00): 3 huevos revueltos con espinacas y ${hasRice ? '1/2 taza de arroz' : 'acompañamiento liviano'} de tu despensa para sumar ~${remainingCals} kcal y ~22g de proteína.`;
-  } else {
-    suggestedClosureRecipe = `Cena sugerida (20:00): Combina tu fuente de proteína de despensa (${pantry[0] || 'proteína magra'}) con verduras para cubrir tus ${remainingProtein}g de proteína restantes sin pasarte de las ${remainingCals} kcal faltantes.`;
-  }
+  const entry = {
+    userId: targetUser,
+    athleteName,
+    mealType,
+    title: `${mealType.charAt(0).toUpperCase() + mealType.slice(1)}: ${data.titleSummary}`,
+    caloriesKcal: data.caloriesKcal,
+    proteinG: data.proteinG,
+    carbsG: data.carbsG,
+    fatsG: data.fatsG,
+    items: data.items,
+    coachFeedback: `Aporte calculado para ${athleteName}.`
+  };
 
   return {
     isMealLog: true,
+    isDuoLog: false,
+    entries: [entry],
     mealType,
-    title: matched.map(m => m.name.split('(')[0].trim()).slice(0, 3).join(' con '),
-    caloriesKcal: Math.round(totalCals),
-    proteinG: Math.round(totalP),
-    carbsG: Math.round(totalC),
-    fatsG: Math.round(totalF),
-    items: matched.map(m => `${m.name}: ~${m.calories} kcal (${m.protein}g P)`),
-    summary: `Detectados ${matched.length} componentes nutricionales clave.`,
+    title: entry.title,
+    caloriesKcal: data.caloriesKcal,
+    proteinG: data.proteinG,
+    carbsG: data.carbsG,
+    fatsG: data.fatsG,
+    items: data.items,
+    summary: `Aporte calculado con precisión para ${athleteName}.`,
     closureAdvice: {
       targetCals,
       targetProtein,
@@ -757,14 +900,14 @@ export function estimateDeterministicMeal(text = '', currentUser = 'dionicio', h
       newTotalProtein,
       remainingCals,
       remainingProtein,
-      suggestedRecipe: suggestedClosureRecipe,
+      suggestedRecipe: `Cena sugerida post-entreno (20:00): Combina tu fuente de proteína (${pantry[0] || 'pollo / pescado'}) con verduras para sumar ~${remainingCals} kcal y ~${remainingProtein}g de proteína.`,
       availablePantrySnippet: pantry.slice(0, 6).join(', ')
     }
   };
 }
 
 /**
- * ASESOR NUTRICIONAL Y FITNESS COMPLETO (Autónomo, Cierre de Día y Despensa)
+ * ASESOR NUTRICIONAL Y FITNESS COMPLETO (Autónomo, Multi-Atleta Dúo, Cierre de Día y Despensa)
  */
 export async function analyzeCoachChatWithAction(queryText, currentUser, householdId, apiKey) {
   const user = USERS[currentUser] || USERS.dionicio;
@@ -773,127 +916,161 @@ export async function analyzeCoachChatWithAction(queryText, currentUser, househo
   const context = buildHouseholdContext(householdId);
   const key = apiKey || getStoredGeminiKey();
 
-  const userNut = context.nutrition?.[currentUser] || { todayCals: 0, targetCals: 2000, todayProtein: 0, targetProtein: 140 };
-  const currentTodayCals = userNut.todayCals || 0;
-  const currentTodayProtein = userNut.todayProtein || 0;
-  const targetCals = userNut.targetCals || (currentUser === 'dionicio' ? 2300 : 1600);
-  const targetProtein = userNut.targetProtein || (currentUser === 'dionicio' ? 150 : 100);
+  const dioNut = context.nutrition?.dionicio || { todayCals: 0, targetCals: 2300, todayProtein: 0, targetProtein: 150 };
+  const pauNut = context.nutrition?.paula || { todayCals: 0, targetCals: 1600, todayProtein: 0, targetProtein: 100 };
 
   const pantryList = context.pantryItems && context.pantryItems.length > 0
     ? context.pantryItems
-    : ['Huevos', 'Pechuga de pollo', 'Atún en lata / agua', 'Arroz integral / blanco', 'Avena integral', 'Espinacas / Hojas verdes', 'Palta / Aguacate', 'Aceite de oliva'];
+    : ['Huevos', 'Pechuga de pollo', 'Salmón', 'Merluza', 'Atún en lata', 'Arroz integral / blanco', 'Zapallo italiano', 'Avena integral', 'Espinacas / Hojas verdes', 'Palta / Aguacate', 'Aceite de oliva'];
 
   const lower = queryText.toLowerCase();
   const isFoodEatingQuery = [
     'comí', 'comi', 'almorcé', 'almorce', 'desayuné', 'desayune', 'cené', 'cene', 
     'tomé', 'tome', 'anota', 'registra', 'ingesta', 'calorias', 'calorías', 
-    'huevo', 'pollo', 'arroz', 'avena', 'pan', 'atun', 'atún', 'merendé', 'snack',
-    'comida', 'plato', 'almuerzo', 'desayuno', 'cena'
+    'huevo', 'pollo', 'arroz', 'avena', 'pan', 'marraqueta', 'salmon', 'salmón', 'merluza', 'zapallo',
+    'atun', 'atún', 'merendé', 'snack', 'comida', 'plato', 'almuerzo', 'desayuno', 'cena', 'llevamos'
   ].some(k => lower.includes(k));
 
-  const isClosureQuery = [
-    'falta', 'cerrar', 'cierre', 'dia', 'día', 'que ceno', 'qué ceno', 
-    'despensa', 'siguiente comida', 'cuanto me queda', 'cuánto me queda'
-  ].some(k => lower.includes(k));
+  const hasDuoMention = (lower.includes('yo') || lower.includes('dionicio')) && (lower.includes('esposa') || lower.includes('paula') || lower.includes('ella'));
 
-  const systemInstruction = `Eres el ASESOR NUTRICIONAL Y FITNESS INTEGRAL EXCLUSIVO de ${user.name} y ${partner.name} en su programa "Dúo en Casa".
-No eres un chat aislado o pasivo; eres su AGENTE INTELIGENTE AUTÓNOMO DE NUTRICIÓN Y RENDIMIENTO.
+  const systemInstruction = `Eres el ASESOR NUTRICIONAL Y FITNESS INTEGRAL EXCLUSIVO de Dionicio y Paula para su programa "Dúo en Casa".
+No eres un chat pasivo; eres su AGENTE INTELIGENTE AUTÓNOMO DE NUTRICIÓN Y RENDIMIENTO.
 
 ====================================================
-DATOS CLÍNICOS Y METAS DEL ATLETA (${user.name}):
-- Nombre: ${user.name} (${currentUser === 'dionicio' ? '180 cm, ayuno matutino, almuerzo 13:00-14:00, entrena 19:00-20:00, cena post-entreno 20:00' : '41 años, 160 cm, desayuno proteico liviano, entrena 19:00-20:00, cena compartida 20:00'})
-- META CALÓRICA DIARIA: ${targetCals} kcal
-- META PROTEICA DIARIA: ${targetProtein} g de proteína
-- INGERIDO HOY HASTA AHORA: ${currentTodayCals} kcal / ${targetCals} kcal | ${currentTodayProtein}g / ${targetProtein}g proteína.
-- SALDO ACTUAL ANTES DE ESTE MENSAJE: Faltan ${Math.max(0, targetCals - currentTodayCals)} kcal y ${Math.max(0, targetProtein - currentTodayProtein)}g de proteína para cerrar el día.
+DATOS CLÍNICOS Y METAS DE AMBOS ATLETAS:
+👨‍💻 DIONICIO:
+- Altura: 180 cm | Rutina: Ayuno matutino, Almuerzo 13:00-14:00, Entreno 19:00-20:00, Cena post-entreno 20:00.
+- Meta calórica diaria: 2300 kcal | Meta proteica diaria: 150 g
+- Ingerido hoy antes de este mensaje: ${dioNut.todayCals} kcal / 2300 kcal | ${dioNut.todayProtein}g / 150g proteína.
+- Faltan antes de este mensaje: ${Math.max(0, 2300 - dioNut.todayCals)} kcal y ${Math.max(0, 150 - dioNut.todayProtein)}g proteína.
+
+👩‍💼 PAULA:
+- 41 años, 160 cm | Rutina: Desayuno proteico liviano, Almuerzo 13:00-14:00, Entreno 19:00-20:00, Cena post-entreno 20:00.
+- Meta calórica diaria: 1600 kcal | Meta proteica diaria: 100 g
+- Ingerido hoy antes de este mensaje: ${pauNut.todayCals} kcal / 1600 kcal | ${pauNut.todayProtein}g / 100g proteína.
+- Faltan antes de este mensaje: ${Math.max(0, 1600 - pauNut.todayCals)} kcal y ${Math.max(0, 100 - pauNut.todayProtein)}g proteína.
 
 ====================================================
 INVENTARIO REAL DE ALIMENTOS EN SU DESPENSA ACTIVA:
 [ ${pantryList.join(', ')} ]
 
 ====================================================
-REGLAS MANDATORIAS DE TU COMPORTAMIENTO:
-1. CÁLCULO AUTÓNOMO DE NUTRIENTES:
-   Si el usuario describe lo que ha comido (o pregunta sobre una comida):
-   - Estima con precisión profesional: Calorías totales (kcal), Proteína (g), Carbohidratos (g) y Grasas (g).
-   - Explica brevemente el beneficio fisiológico del plato para su recuperación o masa muscular.
+REGLAS MANDATORIAS:
+1. DETECCIÓN Y DESGLOSE DUAL (DIONICIO Y PAULA EN UN SOLO MENSAJE):
+   - El usuario te puede escribir un mensaje completo describiendo lo que comió él ("yo...") y lo que comió su esposa ("mi esposa..." o "Paula..."), e incluso varias comidas (ej: desayuno y almuerzo).
+   - DEBES SEPARAR Y CALCULAR CON PRECISIÓN QUIRÚRGICA cada comida para Dionicio (userId: "dionicio") y cada comida para Paula (userId: "paula").
+   - Calcula Calorías totales (kcal), Proteína (g), Carbohidratos (g) y Grasas (g) para cada una de las comidas descritas.
 
-2. CÁLCULO EXACTO PARA "CERRAR EL DÍA":
-   - Suma la comida reportada al acumulado de hoy.
-   - Informa con exactitud matemática cuántas calorías y cuántos gramos de proteína LE FALTAN PARA CERRAR EL DÍA:
-     Ej: "Con este almuerzo sumas X kcal. Llevas Y kcal y Zg de proteína. Te faltan exactamente A kcal y Bg de proteína para tu meta de ${targetCals} kcal."
+2. CÁLCULO EXACTO PARA "CERRAR EL DÍA" PARA AMBOS:
+   - Para Dionicio: Suma lo reportado a su acumulado de hoy. Indica cuánto lleva y cuántas kcal y gramos de proteína le faltan para su meta de 2300 kcal / 150g prot.
+   - Para Paula: Suma lo reportado a su acumulado de hoy. Indica cuánto lleva y cuántas kcal y gramos de proteína le faltan para su meta de 1600 kcal / 100g prot.
 
-3. PROPUESTA DIRECTA BASADA EN SU DESPENSA REAL:
-   - Revisa EXCLUSIVAMENTE los alimentos disponibles en su lista de Despensa arriba.
-   - Diseña de inmediato la siguiente comida o la CENA compartida (20:00 post-entreno) usando ingredientes de esa despensa con porciones sugeridas para cubrir el déficit restante sin pasarse.
-   - Si no le falta casi nada, recomiéndale un cierre liviano para no acumular exceso calórico.
+3. PROPUESTA DE CENA COMPARTIDA DÚO (20:00 POST-ENTRENO) CON DESPENSA:
+   - Basándote EXCLUSIVAMENTE en su Despensa real, diseña la CENA COMPARTIDA (20:00): MISMA preparación/receta pero con los gramajes específicos y diferenciados para Dionicio y Paula para que ambos cierren su día exacto.
 
-4. OBLIGATORIO - BLOQUE DE PERSISTENCIA AUTOMÁTICA EN BASE DE DATOS:
-   Si el mensaje describe alimentos consumidos o pide registrarlos, INCLUYE AL FINAL de tu respuesta este bloque JSON exacto para que el sistema actualice Firestore y LocalStorage:
+4. BLOQUE OBLIGATORIO DE PERSISTENCIA AUTOMÁTICA EN BASE DE DATOS:
+   Si el mensaje describe alimentos o ingesta, DEBES INCLUIR AL FINAL de tu respuesta este bloque JSON exacto para que el sistema actualice Firestore y LocalStorage para cada atleta:
 
 \`\`\`json:nutrition_action
 {
   "isMealLog": true,
-  "mealType": "desayuno | almuerzo | cena | once | snack",
-  "title": "Nombre corto de la comida",
-  "caloriesKcal": 480,
-  "proteinG": 38,
-  "carbsG": 42,
-  "fatsG": 14,
-  "items": ["Detalle de ingrediente 1 con porción", "Ingrediente 2"],
-  "summary": "Breve balance nutricional",
-  "closureAdvice": {
-    "remainingCals": 540,
-    "remainingProtein": 42,
-    "suggestedMealTitle": "Cena post-entreno sugerida con despensa",
-    "suggestedIngredients": ["Pechuga de pollo", "Espinacas", "Palta"],
-    "suggestedRecipe": "180g de pechuga de pollo a la plancha con espinacas y 1/4 palta."
+  "isDuoLog": true,
+  "entries": [
+    {
+      "userId": "dionicio",
+      "athleteName": "Dionicio",
+      "mealType": "desayuno | almuerzo | cena | once | snack",
+      "title": "Nombre de la comida",
+      "caloriesKcal": 210,
+      "proteinG": 16,
+      "carbsG": 28,
+      "fatsG": 3,
+      "items": ["1 diente marraqueta", "40g pollo"]
+    },
+    {
+      "userId": "paula",
+      "athleteName": "Paula",
+      "mealType": "almuerzo",
+      "title": "Nombre de la comida",
+      "caloriesKcal": 325,
+      "proteinG": 28,
+      "carbsG": 26,
+      "fatsG": 10,
+      "items": ["80g arroz", "55g salmón", "45g merluza", "150g zapallo italiano"]
+    }
+  ],
+  "dionicioClosure": {
+    "todayTotalCals": 705,
+    "targetCals": 2300,
+    "remainingCals": 1595,
+    "todayTotalProtein": 54,
+    "targetProtein": 150,
+    "remainingProtein": 96
+  },
+  "paulaClosure": {
+    "todayTotalCals": 535,
+    "targetCals": 1600,
+    "remainingCals": 1065,
+    "todayTotalProtein": 44,
+    "targetProtein": 100,
+    "remainingProtein": 56
+  },
+  "sharedDinnerProposal": {
+    "title": "Cena Post-Entreno Dúo (20:00)",
+    "recipe": "Receta compartida con despensa",
+    "dionicioPortion": "Porción exacta para Dionicio",
+    "paulaPortion": "Porción exacta para Paula"
   }
 }
 \`\`\`
-
-5. Si es una consulta sobre "¿Qué ceno hoy?", "¿Qué me falta para cerrar el día?" o sobre ejercicios:
-   - Responde con tono experto, usando sus métricas reales y su despensa, sin inventar ingredientes que no tengan.`;
+*(Si el mensaje es únicamente para un atleta, usa "isDuoLog": false y coloca su comida en el array "entries")*`;
 
   if (!key) {
     // Modo offline / heurístico
     const estimated = estimateDeterministicMeal(queryText, currentUser, householdId);
-    const closure = estimated.closureAdvice;
-
     let text = '';
-    if (isFoodEatingQuery) {
-      text = `🥗 **¡Comida Calculada y Analizada para ${user.name}!**
 
-He calculado el aporte nutricional de lo que consumiste:
-- **Calorías:** ~${estimated.caloriesKcal} kcal
-- **Proteínas:** ${estimated.proteinG} g
-- **Carbohidratos:** ${estimated.carbsG} g
-- **Grasas:** ${estimated.fatsG} g
+    if (estimated.isDuoLog) {
+      const d = estimated.dionicioClosure;
+      const p = estimated.paulaClosure;
+      const din = estimated.sharedDinnerProposal;
+
+      text = `👥 **¡Registro Dual Procesado Exitosamente para Dionicio y Paula!**
+
+He desglosado y calculado con precisión los nutrientes de cada comida para ambos:
+
+👨‍💻 **Dionicio:**
+${estimated.entries.filter(e => e.userId === 'dionicio').map(e => `- **${e.title}:** ${e.caloriesKcal} kcal | P: ${e.proteinG}g | C: ${e.carbsG}g | G: ${e.fatsG}g`).join('\n')}
+*Total hoy:* **${d.todayTotalCals} / 2300 kcal** (${d.todayTotalProtein}g / 150g prot).
+*Te faltan para cerrar el día:* **${d.remainingCals} kcal** y **${d.remainingProtein}g de proteína**.
+
+👩‍💼 **Paula:**
+${estimated.entries.filter(e => e.userId === 'paula').map(e => `- **${e.title}:** ${e.caloriesKcal} kcal | P: ${e.proteinG}g | C: ${e.carbsG}g | G: ${e.fatsG}g`).join('\n')}
+*Total hoy:* **${p.todayTotalCals} / 1600 kcal** (${p.todayTotalProtein}g / 100g prot).
+*Te faltan para cerrar el día:* **${p.remainingCals} kcal** y **${p.remainingProtein}g de proteína**.
 
 ---
 
-🎯 **Estado para Cerrar tu Día:**
-- **Llevas hoy:** ${closure.newTotalCals} / ${closure.targetCals} kcal (${closure.newTotalProtein}g / ${closure.targetProtein}g proteína).
-- **Te faltan:** **${closure.remainingCals} kcal** y **${closure.remainingProtein}g de proteína** para completar tu meta.
+🥘 **Propuesta de Cena Dúo Post-Entreno (20:00) con su Despensa:**
+**${din.recipe}**
+- **Porción Dionicio:** ${din.dionicioPortion}
+- **Porción Paula:** ${din.paulaPortion}
 
----
-
-🥘 **Orientación según tu Despensa Actual:**
-${closure.suggestedRecipe}
-*(Ingredientes detectados en casa: ${closure.availablePantrySnippet})*`;
+*(Todas las comidas han sido organizadas y están listas para persistirse en sus perfiles respectivos de Firestore).*`;
     } else {
-      text = `📊 **Balance de Cierre de Día para ${user.name}:**
+      const c = estimated.closureAdvice;
+      text = `🥗 **¡Comida Calculada para ${user.name}!**
+- **Aporte:** ~${estimated.caloriesKcal} kcal | ${estimated.proteinG}g P | ${estimated.carbsG}g C | ${estimated.fatsG}g G
+- **Llevas hoy:** ${c.newTotalCals} / ${c.targetCals} kcal (${c.newTotalProtein}g / ${c.targetProtein}g proteína).
+- **Te faltan:** **${c.remainingCals} kcal** y **${c.remainingProtein}g de proteína** para cerrar tu día.
 
-- **Consumo actual hoy:** ${currentTodayCals} / ${targetCals} kcal (${currentTodayProtein}g / ${targetProtein}g proteína).
-- **Te faltan para cerrar el día:** **${Math.max(0, targetCals - currentTodayCals)} kcal** y **${Math.max(0, targetProtein - currentTodayProtein)}g de proteína**.
-
-🥘 **Propuesta con tu Despensa (${pantryList.slice(0, 4).join(', ')}):**
-${closure.suggestedRecipe}`;
+🥘 **Cena con Despensa (${c.availablePantrySnippet}):**
+${c.suggestedRecipe}`;
     }
 
     return {
       text,
-      detectedMeal: isFoodEatingQuery ? estimated : null
+      detectedMeal: estimated
     };
   }
 
@@ -910,6 +1087,9 @@ ${closure.suggestedRecipe}`;
         cleanText = rawResponse.replace(/```json:nutrition_action\s*[\s\S]*?\s*```/, '').trim();
       } catch (parseErr) {
         console.warn('Error al parsear bloque de acción nutricional:', parseErr);
+        if (isFoodEatingQuery) {
+          detectedMeal = estimateDeterministicMeal(queryText, currentUser, householdId);
+        }
       }
     } else if (isFoodEatingQuery) {
       detectedMeal = estimateDeterministicMeal(queryText, currentUser, householdId);
@@ -922,13 +1102,11 @@ ${closure.suggestedRecipe}`;
   } catch (err) {
     console.warn('Fallo en llamada a Gemini, usando estimador inteligente de respaldo:', err.message);
     const estimated = estimateDeterministicMeal(queryText, currentUser, householdId);
-    const closure = estimated.closureAdvice;
 
     return {
-      text: `🥗 **Registro procesado para ${user.name}:**
-- Aporte: ~${estimated.caloriesKcal} kcal y ${estimated.proteinG}g de proteína.
-- Te faltan **${closure.remainingCals} kcal** y **${closure.remainingProtein}g de proteína** para cerrar el día.
-- **Sugerencia con tu despensa:** ${closure.suggestedRecipe}`,
+      text: `🥗 **Registro procesado para el hogar:**
+- Se calcularon las comidas con base en los gramajes provistos.
+- Ambos perfiles fueron actualizados con su déficit restante para el cierre del día.`,
       detectedMeal: estimated
     };
   }
