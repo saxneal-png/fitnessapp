@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { 
   db,
@@ -44,11 +44,13 @@ const FREQUENCIES = [
 ];
 
 export function BodyMetrics() {
-  const { currentUser, switchUser } = useAuth();
+  const { currentUser, switchUser, householdId } = useAuth();
+  const currentHousehold = householdId || 'hogar-dionicio-paula';
   const [selectedUser, setSelectedUser] = useState(currentUser || 'dionicio');
   const [logs, setLogs] = useState([]);
   const [saving, setSaving] = useState(false);
   const [feedback, setFeedback] = useState(null);
+
 
   // Form State
   const [date, setDate] = useState(() => new Date().toISOString().split('T')[0]);
@@ -75,7 +77,7 @@ export function BodyMetrics() {
 
   // Sync / Listen to Firestore weights collection
   useEffect(() => {
-    const allLocal = getLocalWeightEntries('hogar-dionicio-paula');
+    const allLocal = getLocalWeightEntries(currentHousehold);
     const userLocal = allLocal.filter(w => w.userId === selectedUser);
     if (userLocal.length > 0) {
       setLogs(userLocal);
@@ -84,7 +86,7 @@ export function BodyMetrics() {
     if (db && isInitialized) {
       try {
         const unsub = onSnapshot(
-          collection(db, 'households', 'hogar-dionicio-paula', 'members', selectedUser, 'bodyweight'),
+          collection(db, 'households', currentHousehold, 'members', selectedUser, 'bodyweight'),
           (snap) => {
             const remoteDocs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
             const sorted = remoteDocs.sort((a, b) => new Date(b.date || b.timestamp) - new Date(a.date || a.timestamp));
@@ -99,7 +101,7 @@ export function BodyMetrics() {
         console.warn('BodyMetrics listener error:', err);
       }
     }
-  }, [selectedUser]);
+  }, [selectedUser, currentHousehold]);
 
   const sortedChronological = useMemo(() => {
     return [...logs].sort((a, b) => new Date(a.date || a.timestamp) - new Date(b.date || b.timestamp));
@@ -154,9 +156,9 @@ export function BodyMetrics() {
     };
 
     try {
-      await saveWeightEntry(newEntry, 'hogar-dionicio-paula');
+      await saveWeightEntry(newEntry, currentHousehold);
       setLogs(prev => [newEntry, ...prev.filter(p => p.id !== newEntry.id)]);
-      setFeedback({ type: 'success', message: '¡Registro guardado con éxito en la nube!' });
+      setFeedback({ type: 'success', message: '¡Registro guardado con éxito! (Local y sincronizado en Nube)' });
       setWeightKg('');
       setWaistCm('');
       setHipsCm('');
@@ -176,13 +178,14 @@ export function BodyMetrics() {
   const handleDelete = async (entryId) => {
     if (!window.confirm('¿Seguro de que deseas eliminar este registro?')) return;
     try {
-      await deleteWeightEntry(entryId, selectedUser, 'hogar-dionicio-paula');
+      await deleteWeightEntry(entryId, selectedUser, currentHousehold);
       setLogs(prev => prev.filter(item => item.id !== entryId));
     } catch (err) {
       console.error('Error deleting entry:', err);
       alert('Error al eliminar el registro.');
     }
   };
+
 
   const chartData = useMemo(() => {
     return sortedChronological.map(item => ({

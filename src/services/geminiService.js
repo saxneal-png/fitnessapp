@@ -1,7 +1,7 @@
 // Servicio Centralizado de Gemini Coach para la App Dúo en Casa
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { USERS, WORKOUT_DAYS, TREADMILL_PROTOCOLS } from '../data/workoutCatalog';
-import { getLocalLogs, getLocalWeightEntries } from '../firebase/config';
+import { getLocalLogs, getLocalWeightEntries, getLocalNutritionLogs } from '../firebase/config';
 
 export const GEMINI_STORAGE_KEY = 'fitness_gemini_api_key';
 export const GEMINI_MODEL_STORAGE_KEY = 'fitness_gemini_model';
@@ -233,6 +233,18 @@ export function buildHouseholdContext(householdId = 'hogar-dionicio-paula') {
   const dionicioLogs = logs.filter(l => l.userId === 'dionicio');
   const paulaLogs = logs.filter(l => l.userId === 'paula');
 
+  const nutritionLogs = getLocalNutritionLogs(householdId);
+  const todayStr = new Date().toISOString().split('T')[0];
+  
+  const dionicioTodayNutrition = nutritionLogs.filter(n => n.userId === 'dionicio' && (n.date === todayStr || (!n.date && new Date(n.timestamp).toISOString().split('T')[0] === todayStr)));
+  const paulaTodayNutrition = nutritionLogs.filter(n => n.userId === 'paula' && (n.date === todayStr || (!n.date && new Date(n.timestamp).toISOString().split('T')[0] === todayStr)));
+
+  const dionicioTodayCals = dionicioTodayNutrition.reduce((acc, n) => acc + (Number(n.caloriesKcal) || 0), 0);
+  const paulaTodayCals = paulaTodayNutrition.reduce((acc, n) => acc + (Number(n.caloriesKcal) || 0), 0);
+
+  const dionicioTodayProtein = dionicioTodayNutrition.reduce((acc, n) => acc + (Number(n.proteinG) || 0), 0);
+  const paulaTodayProtein = paulaTodayNutrition.reduce((acc, n) => acc + (Number(n.proteinG) || 0), 0);
+
   return {
     athletes: USERS,
     totalLogsCount: logs.length,
@@ -244,9 +256,30 @@ export function buildHouseholdContext(householdId = 'hogar-dionicio-paula') {
     bodyweights: weights.slice(0, 5),
     pantryItems: pantry,
     hasActiveMenu: !activeMenu,
-    menuSnippet: activeMenu ? activeMenu.content?.substring(0, 300) : 'Sin menú generado aún'
+    menuSnippet: activeMenu ? activeMenu.content?.substring(0, 300) : 'Sin menú generado aún',
+    nutrition: {
+      allLogs: nutritionLogs,
+      todayDate: todayStr,
+      dionicio: {
+        todayCals: dionicioTodayCals,
+        targetCals: 2300,
+        todayProtein: dionicioTodayProtein,
+        targetProtein: 150,
+        todayMealsCount: dionicioTodayNutrition.length,
+        todayMeals: dionicioTodayNutrition
+      },
+      paula: {
+        todayCals: paulaTodayCals,
+        targetCals: 1600,
+        todayProtein: paulaTodayProtein,
+        targetProtein: 100,
+        todayMealsCount: paulaTodayNutrition.length,
+        todayMeals: paulaTodayNutrition
+      }
+    }
   };
 }
+
 
 /**
  * Genera una recomendación de carga previa antes de realizar un ejercicio
@@ -570,8 +603,236 @@ DIRECTRICES DE TUS RESPUESTAS:
 - Habla como un entrenador personal experto, motivador, empático y directo.
 - Cita SIEMPRE sus números o ejercicios registrados para fundamentar tus consejos.
 - Si te piden sugerencia de cargas para hoy, revisa su historial y dale los kg exactos a configurar en las mancuernas.
-- Formato Markdown impecable con emojis deportivos, viñetas y pasos claros.`;
+- Formato Markdown impecable con emojis deportivos, viñetas y pasos claros.
+
+====================================================
+🥗 CALORÍAS Y NUTRICIÓN DE HOY:
+- ${user.name}: ${context.nutrition?.[currentUser]?.todayCals || 0} / ${context.nutrition?.[currentUser]?.targetCals || 2000} kcal (${context.nutrition?.[currentUser]?.todayProtein || 0}g proteína)
+- ${partner.name}: ${context.nutrition?.[partnerId]?.todayCals || 0} / ${context.nutrition?.[partnerId]?.targetCals || 1600} kcal`;
 
   return await callGemini(systemInstruction, queryText, apiKey);
 }
+
+/**
+ * Estimador heurístico determinístico de comidas y macronutrientes (offline / fallback)
+ */
+export function estimateDeterministicMeal(text = '', currentUser = 'dionicio') {
+  const lower = text.toLowerCase();
+
+  // Diccionario de alimentos y valores típicos por porción común
+  const FOOD_DATABASE = [
+    { keys: ['huevo', 'huevos', 'omelette', 'revuelto', 'pochado'], calPerUnit: 75, p: 6.5, c: 0.5, f: 5.0, defaultUnits: 2, name: 'Huevo' },
+    { keys: ['pollo', 'pechuga'], calPerUnit: 165, p: 31, c: 0, f: 3.6, defaultUnits: 1.5, name: 'Pechuga de pollo (150g)' },
+    { keys: ['atun', 'atún'], calPerUnit: 130, p: 28, c: 0, f: 1.5, defaultUnits: 1, name: 'Lata de atún' },
+    { keys: ['carne', 'vacuno', 'bistec', 'lomo'], calPerUnit: 220, p: 26, c: 0, f: 12, defaultUnits: 1, name: 'Carne magra (150g)' },
+    { keys: ['arroz'], calPerUnit: 180, p: 3.5, c: 40, f: 0.5, defaultUnits: 1, name: 'Taza de arroz cocido' },
+    { keys: ['avena'], calPerUnit: 150, p: 5.0, c: 27, f: 2.5, defaultUnits: 1, name: 'Porción de avena (40g)' },
+    { keys: ['papa', 'papas', 'camote'], calPerUnit: 130, p: 3.0, c: 30, f: 0.2, defaultUnits: 1, name: 'Papa cocida' },
+    { keys: ['pan', 'tostada', 'marraqueta'], calPerUnit: 120, p: 4.0, c: 24, f: 1.0, defaultUnits: 1.5, name: 'Pan / Tostadas' },
+    { keys: ['palta', 'aguacate'], calPerUnit: 160, p: 2.0, c: 8.5, f: 15.0, defaultUnits: 0.5, name: 'Palta (1/2 unidad)' },
+    { keys: ['tomate', 'ensalada', 'lechuga', 'espinaca'], calPerUnit: 35, p: 1.5, c: 7.0, f: 0.3, defaultUnits: 1, name: 'Ensalada de verduras' },
+    { keys: ['manzana', 'fruta', 'platano', 'plátano'], calPerUnit: 90, p: 1.0, c: 22, f: 0.3, defaultUnits: 1, name: 'Fruta fresca' },
+    { keys: ['yogurt', 'yogur'], calPerUnit: 110, p: 10.0, c: 8.0, f: 3.0, defaultUnits: 1, name: 'Yogurt / Griego' },
+    { keys: ['frutos secos', 'nueces', 'almendras'], calPerUnit: 170, p: 5.0, c: 5.0, f: 15.0, defaultUnits: 1, name: 'Puñado frutos secos' },
+    { keys: ['proteina', 'batido', 'whey'], calPerUnit: 120, p: 24.0, c: 2.0, f: 1.5, defaultUnits: 1, name: 'Batido de proteína' },
+    { keys: ['cafe', 'café', 'te', 'té'], calPerUnit: 20, p: 0.5, c: 3.0, f: 0.5, defaultUnits: 1, name: 'Café / Té' }
+  ];
+
+  // Determinar tipo de comida
+  let mealType = 'almuerzo';
+  if (lower.includes('desayun') || lower.includes('mañana')) mealType = 'desayuno';
+  else if (lower.includes('almuerz') || lower.includes('tarde') || lower.includes('mediodia')) mealType = 'almuerzo';
+  else if (lower.includes('cena') || lower.includes('noche') || lower.includes('20:00') || lower.includes('post-entreno')) mealType = 'cena';
+  else if (lower.includes('once') || lower.includes('merienda')) mealType = 'once';
+  else if (lower.includes('snack') || lower.includes('colacion') || lower.includes('colación')) mealType = 'snack';
+
+  // Buscar alimentos
+  const matched = [];
+  let totalCals = 0;
+  let totalP = 0;
+  let totalC = 0;
+  let totalF = 0;
+
+  FOOD_DATABASE.forEach(food => {
+    if (food.keys.some(k => lower.includes(k))) {
+      // Detección simple de multiplicador numérico cerca de la palabra (ej: "3 huevos", "200g")
+      let qty = food.defaultUnits;
+      const regexNumber = new RegExp(`(\\d+)\\s*(?:unidades|u|rebanadas|tazas|huevos|gramos|g)?\\s*(?:de)?\\s*${food.keys[0]}`, 'i');
+      const matchNum = lower.match(regexNumber);
+      if (matchNum && matchNum[1]) {
+        const parsed = parseInt(matchNum[1]);
+        if (parsed > 0 && parsed <= 500) {
+          if (parsed > 30) qty = parsed / 100; // si vino en gramos
+          else qty = parsed;
+        }
+      }
+
+      // Si el usuario es Dionicio (180cm, más masa muscular), ajustar un 15% arriba por porción
+      if (currentUser === 'dionicio' && !matchNum) {
+        qty *= 1.2;
+      }
+
+      const cal = Math.round(food.calPerUnit * qty);
+      const p = Math.round(food.p * qty);
+      const c = Math.round(food.c * qty);
+      const f = Math.round(food.f * qty);
+
+      totalCals += cal;
+      totalP += p;
+      totalC += c;
+      totalF += f;
+
+      matched.push({
+        name: food.name,
+        calories: cal,
+        protein: p,
+        carbs: c,
+        fats: f
+      });
+    }
+  });
+
+  if (matched.length === 0) {
+    // Estimación genérica de comida fitness balanceada
+    const isDionicio = currentUser === 'dionicio';
+    const genericCals = isDionicio ? 550 : 380;
+    const genericP = isDionicio ? 42 : 28;
+    const genericC = isDionicio ? 50 : 35;
+    const genericF = isDionicio ? 16 : 12;
+
+    return {
+      isMealLog: true,
+      mealType,
+      title: `Registro de comida (${mealType.toUpperCase()})`,
+      caloriesKcal: genericCals,
+      proteinG: genericP,
+      carbsG: genericC,
+      fatsG: genericF,
+      items: ['Comida balanceada con proteína y acompañamiento'],
+      summary: `Estimación promedio basada en tu perfil de ${USERS[currentUser]?.name || 'atleta'}.`
+    };
+  }
+
+  return {
+    isMealLog: true,
+    mealType,
+    title: matched.map(m => m.name.split('(')[0].trim()).slice(0, 3).join(' con '),
+    caloriesKcal: Math.round(totalCals),
+    proteinG: Math.round(totalP),
+    carbsG: Math.round(totalC),
+    fatsG: Math.round(totalF),
+    items: matched.map(m => `${m.name}: ~${m.calories} kcal (${m.protein}g P)`),
+    summary: `Detectados ${matched.length} componentes nutricionales clave.`
+  };
+}
+
+/**
+ * ASESOR NUTRICIONAL Y DEPORTIVO INTERACTIVO (Con Extracción Estructurada y Persistencia)
+ */
+export async function analyzeCoachChatWithAction(queryText, currentUser, householdId, apiKey) {
+  const user = USERS[currentUser] || USERS.dionicio;
+  const context = buildHouseholdContext(householdId);
+  const key = apiKey || getStoredGeminiKey();
+
+  // Detección previa si la consulta describe ingesta de comida
+  const lower = queryText.toLowerCase();
+  const isFoodEatingQuery = [
+    'comí', 'comi', 'almorcé', 'almorce', 'desayuné', 'desayune', 'cené', 'cene', 
+    'tomé', 'tome', 'anota', 'registra', 'ingesta', 'calorias', 'calorías', 
+    'huevo', 'pollo', 'arroz', 'avena', 'pan', 'atun', 'atún', 'merendé', 'snack'
+  ].some(k => lower.includes(k));
+
+  const systemInstruction = `Eres el ASESOR NUTRICIONAL Y PERSONAL TRAINER EXCLUSIVO de ${user.name} y su pareja en su programa "Dúo en Casa".
+Tu rol no es solo dar consejos teóricos, sino ser un gestor activo de su alimentación y balance calórico.
+
+ESTADO NUTRICIONAL DE HOY (${user.name}):
+- Calorías acumuladas hoy: ${context.nutrition?.[currentUser]?.todayCals || 0} kcal (Meta: ${context.nutrition?.[currentUser]?.targetCals || 2000} kcal)
+- Proteína acumulada hoy: ${context.nutrition?.[currentUser]?.todayProtein || 0} g (Meta: ${context.nutrition?.[currentUser]?.targetProtein || 140} g)
+- Despensa disponible: ${context.pantryItems.slice(0, 8).join(', ')}
+
+INSTRUCCIÓN ESPECIAL DE ACCIÓN NUTRICIONAL:
+Si el usuario describe lo que comió, desayunó, almorzó, cenó o pide registrar una comida:
+1. Dale un feedback como nutricionista experto (evaluando saciedad, aporte proteico y sintonía con su horario: Dionicio ayuno mañanas / almuerzo 13:30 / cena 20:00; Paula desayuno proteico / cena 20:00).
+2. AL FINAL de tu respuesta, INCLUYE OBLIGATORIAMENTE un bloque de código EXACTAMENTE con esta sintaxis para que la aplicación guarde automáticamente los datos en la base de datos:
+
+\`\`\`json:nutrition_action
+{
+  "isMealLog": true,
+  "mealType": "desayuno | almuerzo | cena | once | snack",
+  "title": "Nombre corto del plato o comida",
+  "caloriesKcal": 450,
+  "proteinG": 35,
+  "carbsG": 40,
+  "fatsG": 14,
+  "items": ["200g pechuga pollo", "1 taza arroz cocido", "ensalada verde"],
+  "summary": "Excelente carga proteica para síntesis muscular."
+}
+\`\`\`
+
+Si la consulta es solo una pregunta teórica (ej: "¿Por qué es importante el magnesio?"), responde con excelencia sin incluir el bloque json:nutrition_action.`;
+
+  if (!key) {
+    // Modo offline / heurístico
+    if (isFoodEatingQuery) {
+      const estimated = estimateDeterministicMeal(queryText, currentUser);
+      const text = `🥗 **¡Registro Nutricional Analizado para ${user.name}!**
+
+He calculado los macronutrientes de tu comida:
+- **Calorías estimadas:** ~${estimated.caloriesKcal} kcal
+- **Proteínas:** ${estimated.proteinG} g
+- **Carbohidratos:** ${estimated.carbsG} g
+- **Grasas:** ${estimated.fatsG} g
+
+*Consejo del Coach:* Para tu objetivo en **Semana 0**, mantener este balance es clave. Recuerda hidratarte bien y sincronizar tu cena a las 20:00 post-entreno con Paula.`;
+
+      return {
+        text,
+        detectedMeal: estimated
+      };
+    } else {
+      const fallbackText = await askCoachWithFullContext(queryText, currentUser, householdId, key);
+      return {
+        text: fallbackText,
+        detectedMeal: null
+      };
+    }
+  }
+
+  try {
+    const rawResponse = await callGemini(systemInstruction, queryText, key);
+
+    // Intentar extraer el bloque json:nutrition_action
+    let detectedMeal = null;
+    const jsonActionMatch = rawResponse.match(/```json:nutrition_action\s*([\s\S]*?)\s*```/);
+    let cleanText = rawResponse;
+
+    if (jsonActionMatch && jsonActionMatch[1]) {
+      try {
+        detectedMeal = JSON.parse(jsonActionMatch[1]);
+        cleanText = rawResponse.replace(/```json:nutrition_action\s*[\s\S]*?\s*```/, '').trim();
+      } catch (parseErr) {
+        console.warn('Error al parsear bloque de acción nutricional:', parseErr);
+      }
+    } else if (isFoodEatingQuery) {
+      // Si el modelo no generó el bloque pero fue una comida clara, complementamos con el estimador heurístico
+      detectedMeal = estimateDeterministicMeal(queryText, currentUser);
+    }
+
+    return {
+      text: cleanText,
+      detectedMeal
+    };
+  } catch (err) {
+    console.warn('Fallo en llamada a Gemini, usando fallback de asesor:', err.message);
+    if (isFoodEatingQuery) {
+      const estimated = estimateDeterministicMeal(queryText, currentUser);
+      return {
+        text: `🥗 He estimado los valores nutricionales de tu comida (~${estimated.caloriesKcal} kcal, ${estimated.proteinG}g de proteína). Puedes confirmarla abajo para guardarla en tu base de datos.`,
+        detectedMeal: estimated
+      };
+    }
+    throw err;
+  }
+}
+
 

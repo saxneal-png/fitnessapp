@@ -29,6 +29,7 @@ const LOCAL_STORAGE_LOGS_KEY = 'fitness_duo_logs_prod';
 const LOCAL_STORAGE_WEIGHT_KEY = 'fitness_duo_weight_prod';
 const LOCAL_STORAGE_PANTRY_KEY = 'fitness_duo_pantry_items';
 const LOCAL_STORAGE_MENU_KEY = 'fitness_duo_weekly_menu';
+const LOCAL_STORAGE_NUTRITION_KEY = 'fitness_duo_nutrition_prod';
 
 export function getStoredFirebaseConfig() {
   try {
@@ -247,7 +248,128 @@ export async function deleteWeightEntry(entryId, userId, householdId = 'hogar-di
   }
 }
 
+// ==========================================
+// Nutrition Logs (Diario Nutricional & Calorías)
+// ==========================================
+
+export function getLocalNutritionLogs(householdId = 'hogar-dionicio-paula') {
+  try {
+    const raw = localStorage.getItem(`${LOCAL_STORAGE_NUTRITION_KEY}_${householdId}`);
+    if (raw) return JSON.parse(raw);
+  } catch (e) {
+    console.error('Error loading local nutrition logs', e);
+  }
+  return [];
+}
+
+export function saveLocalNutritionLogs(logs, householdId = 'hogar-dionicio-paula') {
+  localStorage.setItem(`${LOCAL_STORAGE_NUTRITION_KEY}_${householdId}`, JSON.stringify(logs));
+}
+
+export async function saveNutritionLog(nutritionData, householdId = 'hogar-dionicio-paula') {
+  const newEntry = {
+    ...nutritionData,
+    id: nutritionData.id || `nutri-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+    date: nutritionData.date || new Date().toISOString().split('T')[0],
+    timestamp: nutritionData.timestamp || Date.now(),
+    caloriesKcal: Number(nutritionData.caloriesKcal) || 0,
+    proteinG: Number(nutritionData.proteinG) || 0,
+    carbsG: Number(nutritionData.carbsG) || 0,
+    fatsG: Number(nutritionData.fatsG) || 0,
+  };
+
+  // 1. Guardar de forma inmediata en local cache (inmune a fallos de red/permisos)
+  const allEntries = getLocalNutritionLogs(householdId);
+  const existingIdx = allEntries.findIndex(e => e.id === newEntry.id);
+  if (existingIdx >= 0) {
+    allEntries[existingIdx] = newEntry;
+  } else {
+    allEntries.unshift(newEntry);
+  }
+  saveLocalNutritionLogs(allEntries, householdId);
+
+  // 2. Persistir en Firestore Cloud
+  if (db && isInitialized) {
+    try {
+      await ensureAnonymousAuth();
+      const docRef = doc(db, 'households', householdId, 'members', newEntry.userId, 'nutrition_logs', newEntry.id);
+      await setDoc(docRef, newEntry, { merge: true });
+      notifyConnectionChange(true);
+      console.log('🥗 [Firestore Cloud] Ingesta nutricional guardada:', newEntry.id);
+    } catch (e) {
+      console.warn('⚠️ Error guardando nutrición en Firestore Cloud:', e);
+      notifyConnectionChange(false);
+      // No lanzamos error para que la UX no se rompa: los datos ya están a salvo en LocalStorage
+    }
+  }
+
+  return newEntry;
+}
+
+export async function deleteNutritionLog(logId, userId, householdId = 'hogar-dionicio-paula') {
+  const allEntries = getLocalNutritionLogs(householdId).filter(e => e.id !== logId);
+  saveLocalNutritionLogs(allEntries, householdId);
+
+  if (db && isInitialized) {
+    try {
+      await ensureAnonymousAuth();
+      const docRef = doc(db, 'households', householdId, 'members', userId, 'nutrition_logs', logId);
+      await deleteDoc(docRef);
+      console.log('🗑️ [Firestore Cloud] Ingesta eliminada:', logId);
+    } catch (e) {
+      console.warn('⚠️ Error eliminando nutrición en Firestore Cloud:', e);
+    }
+  }
+}
+
+export function subscribeToNutritionLogs(householdId = 'hogar-dionicio-paula', onUpdate) {
+  // Notificar estado local inicial de inmediato
+  const initial = getLocalNutritionLogs(householdId);
+  onUpdate(initial);
+
+  if (!db || !isInitialized) {
+    return () => {};
+  }
+
+  let logsDionicio = [];
+  let logsPaula = [];
+
+  const mergeAndEmit = () => {
+    const combined = [...logsDionicio, ...logsPaula].sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+    saveLocalNutritionLogs(combined, householdId);
+    onUpdate(combined);
+  };
+
+  try {
+    const unsubD = onSnapshot(
+      collection(db, 'households', householdId, 'members', 'dionicio', 'nutrition_logs'),
+      (snap) => {
+        logsDionicio = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        mergeAndEmit();
+      },
+      (err) => console.warn('Nutrition listener Dionicio notice:', err.message)
+    );
+
+    const unsubP = onSnapshot(
+      collection(db, 'households', householdId, 'members', 'paula', 'nutrition_logs'),
+      (snap) => {
+        logsPaula = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        mergeAndEmit();
+      },
+      (err) => console.warn('Nutrition listener Paula notice:', err.message)
+    );
+
+    return () => {
+      unsubD();
+      unsubP();
+    };
+  } catch (err) {
+    return () => {};
+  }
+}
+
 // Pantry Items Cloud Sync
+
 export async function saveCloudPantryItems(items, householdId = 'hogar-dionicio-paula') {
   localStorage.setItem(LOCAL_STORAGE_PANTRY_KEY, JSON.stringify(items));
   if (db && isInitialized) {
@@ -331,50 +453,105 @@ export function subscribeToWeeklyMenu(householdId, onMenuUpdate) {
   }
 }
 
+// Test en vivo de permisos de Firestore Cloud
+export async function testFirestorePermissions(householdId = 'hogar-dionicio-paula') {
+  if (!db || !isInitialized) {
+    return { ok: false, error: 'Firebase Firestore no está inicializado o la API Key no es válida.' };
+  }
+
+  try {
+    await ensureAnonymousAuth();
+    const testDocRef = doc(db, 'households', householdId, '_diagnostics', 'test_ping');
+    await setDoc(testDocRef, { ping: Date.now(), client: 'fitness-duo-app' }, { merge: true });
+    return { ok: true, message: '¡Conexión y permisos verificados con éxito en Firestore Cloud!' };
+  } catch (err) {
+    console.error('Error al probar permisos Firestore:', err);
+    if (err.code === 'permission-denied' || err.message?.includes('Missing or insufficient permissions')) {
+      return {
+        ok: false,
+        isPermissionError: true,
+        error: 'Permiso denegado (Missing or insufficient permissions). Las reglas de seguridad en Firebase Console de Google Cloud bloquearon la escritura. Debes publicar las reglas para el household.'
+      };
+    }
+    return { ok: false, isPermissionError: false, error: err.message };
+  }
+}
+
 // Migration Helper: Upload all local data to Cloud Firestore
 export async function syncLocalDataToFirestore(householdId = 'hogar-dionicio-paula') {
   if (!db || !isInitialized) {
     throw new Error('Firebase Firestore no está inicializado.');
   }
 
-  await ensureAnonymousAuth();
+  try {
+    await ensureAnonymousAuth();
+  } catch (e) {
+    console.warn('Anonymous auth notice en sync:', e);
+  }
+
   let uploadedLogs = 0;
   let uploadedWeights = 0;
-
-  const localLogs = getLocalLogs(householdId);
-  for (const log of localLogs) {
-    if (log && log.userId) {
-      const docRef = doc(db, 'households', householdId, 'members', log.userId, 'logs', log.id || `log-${Date.now()}`);
-      await setDoc(docRef, log, { merge: true });
-      uploadedLogs++;
-    }
-  }
-
-  const localWeights = getLocalWeightEntries(householdId);
-  for (const w of localWeights) {
-    if (w && w.userId) {
-      const docRef = doc(db, 'households', householdId, 'members', w.userId, 'bodyweight', w.id || `w-${Date.now()}`);
-      await setDoc(docRef, w, { merge: true });
-      uploadedWeights++;
-    }
-  }
+  let uploadedNutrition = 0;
 
   try {
-    const savedPantry = localStorage.getItem(LOCAL_STORAGE_PANTRY_KEY);
-    if (savedPantry) {
-      await saveCloudPantryItems(JSON.parse(savedPantry), householdId);
+    // 1. Logs de fuerza y trotadora
+    const localLogs = getLocalLogs(householdId);
+    for (const log of localLogs) {
+      if (log && log.userId) {
+        const docRef = doc(db, 'households', householdId, 'members', log.userId, 'logs', log.id || `log-${Date.now()}`);
+        await setDoc(docRef, log, { merge: true });
+        uploadedLogs++;
+      }
     }
-  } catch (e) {}
 
-  try {
-    const savedMenu = localStorage.getItem(LOCAL_STORAGE_MENU_KEY);
-    if (savedMenu) {
-      await saveCloudWeeklyMenu(JSON.parse(savedMenu), householdId);
+    // 2. Pesos y medidas corporales
+    const localWeights = getLocalWeightEntries(householdId);
+    for (const w of localWeights) {
+      if (w && w.userId) {
+        const docRef = doc(db, 'households', householdId, 'members', w.userId, 'bodyweight', w.id || `w-${Date.now()}`);
+        await setDoc(docRef, w, { merge: true });
+        uploadedWeights++;
+      }
     }
-  } catch (e) {}
 
-  return { uploadedLogs, uploadedWeights };
+    // 3. Diario Nutricional y conteo de calorías
+    const localNutrition = getLocalNutritionLogs(householdId);
+    for (const n of localNutrition) {
+      if (n && n.userId) {
+        const docRef = doc(db, 'households', householdId, 'members', n.userId, 'nutrition_logs', n.id || `nutri-${Date.now()}`);
+        await setDoc(docRef, n, { merge: true });
+        uploadedNutrition++;
+      }
+    }
+
+    // 4. Despensa
+    try {
+      const savedPantry = localStorage.getItem(LOCAL_STORAGE_PANTRY_KEY);
+      if (savedPantry) {
+        await saveCloudPantryItems(JSON.parse(savedPantry), householdId);
+      }
+    } catch (e) {}
+
+    // 5. Menú
+    try {
+      const savedMenu = localStorage.getItem(LOCAL_STORAGE_MENU_KEY);
+      if (savedMenu) {
+        await saveCloudWeeklyMenu(JSON.parse(savedMenu), householdId);
+      }
+    } catch (e) {}
+
+    notifyConnectionChange(true);
+    return { uploadedLogs, uploadedWeights, uploadedNutrition };
+  } catch (err) {
+    if (err.code === 'permission-denied' || err.message?.includes('Missing or insufficient permissions')) {
+      const permError = new Error('Permisos insuficientes en Firebase: Revisa en la consola de Firebase > Firestore Database > Reglas (Rules) que esté permitida la lectura/escritura para hogar-dionicio-paula.');
+      permError.code = 'permission-denied';
+      throw permError;
+    }
+    throw err;
+  }
 }
+
 
 // Real-time Firestore Listener for Household Sync (Dionicio & Paula)
 export function subscribeToHouseholdData(householdId, onLogsUpdate, onWeightsUpdate) {
