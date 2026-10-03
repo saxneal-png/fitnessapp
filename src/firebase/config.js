@@ -60,7 +60,7 @@ let isInitialized = false;
 let isCloudOnline = false;
 const connectionListeners = new Set();
 
-function notifyConnectionChange(status) {
+export function notifyConnectionChange(status) {
   isCloudOnline = status;
   connectionListeners.forEach(cb => {
     try { cb(status); } catch (e) {}

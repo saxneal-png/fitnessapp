@@ -2,6 +2,8 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 import { USERS, WORKOUT_DAYS, TREADMILL_PROTOCOLS } from '../data/workoutCatalog';
 import { getLocalLogs, getLocalWeightEntries, getLocalNutritionLogs } from '../firebase/config';
 import { calculateAthleteNutrition, getAthleteBiometrics } from './nutritionCalculator';
+import { getLocalFoodCatalog, searchFoodInKnowledgeBase, saveFoodItemToKnowledgeBase } from './foodKnowledgeService';
+
 
 export const GEMINI_STORAGE_KEY = 'fitness_gemini_api_key';
 export const GEMINI_MODEL_STORAGE_KEY = 'fitness_gemini_model';
@@ -634,9 +636,33 @@ DIRECTRICES DE TUS RESPUESTAS:
 export function estimateDeterministicMeal(text = '', currentUser = 'dionicio', householdId = 'hogar-dionicio-paula') {
   const lower = text.toLowerCase();
 
-  // Diccionario ampliado de alimentos con factores por gramo o porción típica
-  const FOOD_DATABASE = [
-    { keys: ['marraqueta', 'diente de marraqueta', 'pan'], per100g: { cal: 270, p: 9, c: 54, f: 1 }, defaultWeight: 50, name: 'Marraqueta' },
+  // Catálogo dinámico aprendido del hogar (Firestore / LocalStorage)
+  const householdCatalog = getLocalFoodCatalog(householdId);
+  const learnedFoodsDetected = [];
+
+  // Mapear el catálogo dinámico a formato procesable
+  const dynamicCatalogItems = householdCatalog.map(item => ({
+    keys: item.keywords || [item.name.toLowerCase()],
+    per100g: item.per100 || {
+      cal: Math.round(((item.calories || 0) / (item.servingSize || 100)) * 100),
+      p: Number((((item.proteinG || 0) / (item.servingSize || 100)) * 100).toFixed(1)),
+      c: Number((((item.carbsG || 0) / (item.servingSize || 100)) * 100).toFixed(1)),
+      f: Number((((item.fatsG || 0) / (item.servingSize || 100)) * 100).toFixed(1))
+    },
+    defaultWeight: item.servingSize || 100,
+    servingDesc: item.servingDesc || `${item.servingSize || 100}g`,
+    servingCalories: item.calories,
+    servingProtein: item.proteinG,
+    servingCarbs: item.carbsG,
+    servingFats: item.fatsG,
+    name: item.name,
+    brand: item.brand,
+    isLearnedBrand: true
+  }));
+
+  // Diccionario base de alimentos con factores por gramo o porción típica
+  const BASE_FOOD_DATABASE = [
+    { keys: ['marraqueta', 'diente de marraqueta', 'pan'], per100g: { cal: 270, p: 9, c: 54, f: 1 }, defaultWeight: 55, name: 'Marraqueta (diente)' },
     { keys: ['pollo', 'pechuga'], per100g: { cal: 165, p: 31, c: 0, f: 3.6 }, defaultWeight: 120, name: 'Pechuga de pollo' },
     { keys: ['salmon', 'salmón'], per100g: { cal: 206, p: 20, c: 0, f: 13 }, defaultWeight: 100, name: 'Salmón a la plancha' },
     { keys: ['merluza', 'reineta', 'pescado'], per100g: { cal: 90, p: 18, c: 0, f: 1.5 }, defaultWeight: 100, name: 'Merluza a la plancha' },
@@ -655,40 +681,89 @@ export function estimateDeterministicMeal(text = '', currentUser = 'dionicio', h
     { keys: ['aceite', 'oliva'], per100g: { cal: 884, p: 0, c: 0, f: 100 }, defaultWeight: 5, name: 'Aceite de oliva (1 cdta)' }
   ];
 
+  // Priorizar catálogo dinámico aprendido por sobre base genérica
+  const COMBINED_DATABASE = [...dynamicCatalogItems, ...BASE_FOOD_DATABASE];
+
   // Función interna para calcular macros de un fragmento de texto
   const parseMealFragment = (subText, targetUser) => {
     const sLower = subText.toLowerCase();
     const matched = [];
     let totCal = 0, totP = 0, totC = 0, totF = 0;
+    const handledKeys = new Set();
 
-    FOOD_DATABASE.forEach(food => {
-      if (food.keys.some(k => sLower.includes(k))) {
+    COMBINED_DATABASE.forEach(food => {
+      const isMatch = food.keys.some(k => sLower.includes(k.toLowerCase()));
+      if (isMatch) {
+        // Evitar doble conteo si ya se procesó una coincidencia más específica
+        const primaryKey = food.keys[0];
+        if (handledKeys.has(primaryKey)) return;
+        handledKeys.add(primaryKey);
+
         let grams = food.defaultWeight;
-        
-        // Buscar patrón como "178gramos", "178 gramos", "178g", "1 diente", "2 huevos"
-        const gRegex = new RegExp(`(\\d+)\\s*(?:gramos|gramo|gr|g)?\\s*(?:de)?\\s*${food.keys[0]}`, 'i');
+        let isDirectServing = false;
+        let servingCount = 1;
+
+        // Detectar si se menciona porciones comunes: "1 vaso", "un vaso", "2 vasos", "1 scoop", "1 lata", "1 pote", "1 diente"
+        if (sLower.includes('un vaso') || sLower.includes('1 vaso')) {
+          servingCount = 1;
+          isDirectServing = true;
+        } else if (sLower.match(/(\d+)\s*vasos?/)) {
+          servingCount = parseInt(sLower.match(/(\d+)\s*vasos?/)[1]) || 1;
+          isDirectServing = true;
+        } else if (sLower.includes('un scoop') || sLower.includes('1 scoop')) {
+          servingCount = 1;
+          isDirectServing = true;
+        } else if (sLower.includes('una lata') || sLower.includes('1 lata')) {
+          servingCount = 1;
+          isDirectServing = true;
+        } else if (sLower.includes('un pote') || sLower.includes('1 pote')) {
+          servingCount = 1;
+          isDirectServing = true;
+        } else if (sLower.includes('un diente') || sLower.includes('1 diente')) {
+          servingCount = 1;
+          isDirectServing = true;
+        } else if (sLower.match(/(\d+)\s*dientes?/)) {
+          servingCount = parseInt(sLower.match(/(\d+)\s*dientes?/)[1]) || 1;
+          isDirectServing = true;
+        }
+
+        // Buscar patrón de gramaje explícito: "178gramos", "178 gramos", "178g", "40 gramos"
+        const gRegex = new RegExp(`(\\d+)\\s*(?:gramos|gramo|gr|g|ml)?\\s*(?:de)?\\s*${food.keys[0]}`, 'i');
         const matchG = sLower.match(gRegex);
 
-        const revRegex = new RegExp(`${food.keys[0]}[^\\d]{1,15}(\\d+)\\s*(?:gramos|gr|g)`, 'i');
+        const revRegex = new RegExp(`${food.keys[0]}[^\\d]{1,15}(\\d+)\\s*(?:gramos|gr|g|ml)`, 'i');
         const matchRev = sLower.match(revRegex);
 
         if (matchG && matchG[1]) {
           const val = parseInt(matchG[1]);
-          if (val > 5 && val <= 800) grams = val;
-          else if (val <= 5 && food.keys.includes('marraqueta')) grams = val * 55; // 1 diente = ~55g
-          else if (val <= 5 && food.keys.includes('huevo')) grams = val * 50; // 1 huevo = ~50g
+          if (val > 5 && val <= 1000) {
+            grams = val;
+            isDirectServing = false;
+          }
         } else if (matchRev && matchRev[1]) {
           const val = parseInt(matchRev[1]);
-          if (val > 5 && val <= 800) grams = val;
-        } else if (sLower.includes('diente') && food.keys.includes('marraqueta')) {
-          grams = 55;
+          if (val > 5 && val <= 1000) {
+            grams = val;
+            isDirectServing = false;
+          }
         }
 
-        const factor = grams / 100;
-        const cal = Math.round(food.per100g.cal * factor);
-        const p = Math.round(food.per100g.p * factor);
-        const c = Math.round(food.per100g.c * factor);
-        const f = Math.round(food.per100g.f * factor);
+        let cal = 0, p = 0, c = 0, f = 0;
+
+        if (food.isLearnedBrand && isDirectServing && food.servingCalories !== undefined) {
+          // Usar datos exactos por porción del producto comercial
+          cal = Math.round(food.servingCalories * servingCount);
+          p = Number(((food.servingProtein || 0) * servingCount).toFixed(1));
+          c = Number(((food.servingCarbs || 0) * servingCount).toFixed(1));
+          f = Number(((food.servingFats || 0) * servingCount).toFixed(1));
+          grams = (food.defaultWeight || 100) * servingCount;
+        } else {
+          const factor = grams / 100;
+          cal = Math.round(food.per100g.cal * factor);
+          p = Number((food.per100g.p * factor).toFixed(1));
+          c = Number((food.per100g.c * factor).toFixed(1));
+          f = Number((food.per100g.f * factor).toFixed(1));
+        }
 
         totCal += cal;
         totP += p;
@@ -696,11 +771,12 @@ export function estimateDeterministicMeal(text = '', currentUser = 'dionicio', h
         totF += f;
 
         matched.push({
-          name: `${grams}g ${food.name}`,
+          name: `${grams}${food.name.toLowerCase().includes('leche') || food.name.toLowerCase().includes('agua') ? 'ml' : 'g'} ${food.name}`,
           calories: cal,
           protein: p,
           carbs: c,
-          fats: f
+          fats: f,
+          isLearnedBrand: !!food.isLearnedBrand
         });
       }
     });
@@ -716,11 +792,11 @@ export function estimateDeterministicMeal(text = '', currentUser = 'dionicio', h
 
     return {
       caloriesKcal: totCal,
-      proteinG: totP,
-      carbsG: totC,
-      fatsG: totF,
+      proteinG: Math.round(totP),
+      carbsG: Math.round(totC),
+      fatsG: Math.round(totF),
       items: matched.map(m => `${m.name}: ~${m.calories} kcal (${m.protein}g P)`),
-      titleSummary: matched.slice(0, 3).map(m => m.name.replace(/^\d+g\s*/, '')).join(' con ')
+      titleSummary: matched.slice(0, 3).map(m => m.name.replace(/^\d+(?:g|ml)\s*/, '')).join(' con ')
     };
   };
 
@@ -949,6 +1025,9 @@ export async function analyzeCoachChatWithAction(queryText, currentUser, househo
 
   const hasDuoMention = (lower.includes('yo') || lower.includes('dionicio')) && (lower.includes('esposa') || lower.includes('paula') || lower.includes('ella'));
 
+  const householdCatalog = getLocalFoodCatalog(householdId);
+  const catalogSummary = householdCatalog.map(item => `- ${item.name} (${item.brand || 'Comercial'}): ${item.servingDesc || `${item.servingSize}g`} = ${item.calories} kcal, ${item.proteinG}g P, ${item.carbsG}g C, ${item.fatsG}g G`).join('\n');
+
   const systemInstruction = `Eres el ASESOR NUTRICIONAL Y FITNESS INTEGRAL EXCLUSIVO de Dionicio y Paula para su programa "Dúo en Casa".
 No eres un chat pasivo; eres su AGENTE INTELIGENTE AUTÓNOMO DE NUTRICIÓN Y RENDIMIENTO.
 
@@ -983,24 +1062,35 @@ INVENTARIO REAL DE ALIMENTOS EN SU DESPENSA ACTIVA:
 [ ${pantryList.join(', ')} ]
 
 ====================================================
+CATÁLOGO DE MARCAS Y PRODUCTOS CONOCIDOS EN EL HOGAR:
+${catalogSummary}
+
+====================================================
 REGLAS MANDATORIAS:
 1. DETECCIÓN Y DESGLOSE DUAL (DIONICIO Y PAULA EN UN SOLO MENSAJE):
    - El usuario te puede escribir un mensaje completo describiendo lo que comió él ("yo...") y lo que comió su esposa ("mi esposa..." o "Paula..."), e incluso varias comidas (ej: desayuno y almuerzo).
    - DEBES SEPARAR Y CALCULAR CON PRECISIÓN QUIRÚRGICA cada comida para Dionicio (userId: "dionicio") y cada comida para Paula (userId: "paula").
    - Calcula Calorías totales (kcal), Proteína (g), Carbohidratos (g) y Grasas (g) para cada una de las comidas descritas.
 
-2. CÁLCULO EXACTO PARA "CERRAR EL DÍA" PARA AMBOS:
+2. DETECCIÓN E INVESTIGACIÓN DE MARCAS COMERCIALES Y NUEVOS PRODUCTOS:
+   - Si el usuario indica una marca o característica comercial (ej: "un vaso de leche loncoleche full pro", "yogurt protein soprole", etc.):
+     a) Revisa el 'CATÁLOGO DE MARCAS' arriba.
+     b) Si no está en el catálogo, investiga y deduce con precisión la ficha nutricional oficial real de mercado chileno (por porción y por 100g).
+     c) Calcula la comida consumida basándote en la porción real ingerida (ej: 1 vaso = 200 ml de Loncoleche Full Pro = 110 kcal, 14g P, 9g C, 0.4g G).
+     d) Incluye el producto en el array "learnedFoods" en el JSON final para que la app lo guarde automáticamente en la base de datos de Firestore del hogar y aprenda para siempre.
+
+3. CÁLCULO EXACTO PARA "CERRAR EL DÍA" PARA AMBOS:
    - Para Dionicio: Suma lo reportado a su acumulado de hoy. Indica cuánto lleva y cuántas kcal y gramos de proteína le faltan para su meta científica de 1.600 kcal y 130g proteína.
    - Para Paula: Suma lo reportado a su acumulado de hoy. Indica cuánto lleva y cuántas kcal y gramos de proteína le faltan para su meta científica de 1.250 kcal y 95g proteína.
 
-3. EXPLICACIÓN FUNDAMENTADA (SI CONSULTAN):
+4. EXPLICACIÓN FUNDAMENTADA (SI CONSULTAN):
    - Si te preguntan por cómo se determinaron sus necesidades, explica detalladamente que se descartaron los multiplicadores inflados de gimnasio (PAL >= 1.55) que fijaban 2.200 kcal y habrían estancado la pérdida de grasa por el trabajo sedentario de oficina.
    - Detalla que su TMB real es de 1.790 kcal, con factor PAL 1.32 (TDEE ~2.360 kcal), y que al tener ~20 kg de grasa de reserva, su déficit real es de -750 kcal diarias (meta: ~1.600 kcal) con 130g de proteína calculados sobre masa magra (65.5 kg).
 
-4. PROPUESTA DE CENA COMPARTIDA DÚO (20:00 POST-ENTRENO) CON DESPENSA:
+5. PROPUESTA DE CENA COMPARTIDA DÚO (20:00 POST-ENTRENO) CON DESPENSA:
    - Basándote EXCLUSIVAMENTE en su Despensa real, diseña la CENA COMPARTIDA (20:00): MISMA preparación/receta pero con los gramajes específicos y diferenciados para Dionicio y Paula para que ambos cierren su día exacto.
 
-5. BLOQUE OBLIGATORIO DE PERSISTENCIA AUTOMÁTICA EN BASE DE DATOS:
+6. BLOQUE OBLIGATORIO DE PERSISTENCIA AUTOMÁTICA EN BASE DE DATOS:
    Si el mensaje describe alimentos o ingesta, DEBES INCLUIR AL FINAL de tu respuesta este bloque JSON exacto para que el sistema actualice Firestore y LocalStorage para cada atleta:
 
 \`\`\`json:nutrition_action
@@ -1029,6 +1119,20 @@ REGLAS MANDATORIAS:
       "carbsG": 26,
       "fatsG": 10,
       "items": ["80g arroz", "55g salmón", "45g merluza", "150g zapallo italiano"]
+    }
+  ],
+  "learnedFoods": [
+    {
+      "name": "Leche Loncoleche Full Pro",
+      "brand": "Loncoleche",
+      "servingDesc": "1 vaso (200 ml)",
+      "servingSize": 200,
+      "servingUnit": "ml",
+      "calories": 110,
+      "proteinG": 14,
+      "carbsG": 9,
+      "fatsG": 0.4,
+      "category": "Lácteos Proteicos"
     }
   ],
   "dionicioClosure": {
@@ -1127,6 +1231,18 @@ ${c.suggestedRecipe}`;
       detectedMeal = estimateDeterministicMeal(queryText, currentUser, householdId);
     }
 
+    // Si la IA identificó marcas comerciales o nuevos alimentos, persistirlos en Firestore Cloud
+    if (detectedMeal && Array.isArray(detectedMeal.learnedFoods) && detectedMeal.learnedFoods.length > 0) {
+      for (const food of detectedMeal.learnedFoods) {
+        try {
+          await saveFoodItemToKnowledgeBase(food, householdId);
+          console.log(`✨ [Coach IA] Nuevo alimento comercial guardado en el hogar: ${food.name}`);
+        } catch (e) {
+          console.warn('Error guardando alimento aprendido:', e);
+        }
+      }
+    }
+
     return {
       text: cleanText,
       detectedMeal
@@ -1135,9 +1251,18 @@ ${c.suggestedRecipe}`;
     console.warn('Fallo en llamada a Gemini, usando estimador inteligente de respaldo:', err.message);
     const estimated = estimateDeterministicMeal(queryText, currentUser, householdId);
 
+    // Si el estimador de respaldo detectó marcas nuevas, persistirlas
+    if (estimated && Array.isArray(estimated.learnedFoods) && estimated.learnedFoods.length > 0) {
+      for (const food of estimated.learnedFoods) {
+        try {
+          await saveFoodItemToKnowledgeBase(food, householdId);
+        } catch (e) {}
+      }
+    }
+
     return {
       text: `🥗 **Registro procesado para el hogar:**
-- Se calcularon las comidas con base en los gramajes provistos.
+- Se calcularon las comidas con base en los gramajes provistos y catálogo comercial.
 - Ambos perfiles fueron actualizados con su déficit restante para el cierre del día.`,
       detectedMeal: estimated
     };

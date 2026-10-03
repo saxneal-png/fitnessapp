@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { USERS } from '../data/workoutCatalog';
-import { generateStrictPantryMenu, getStoredGeminiKey } from '../services/geminiService';
+import { generateStrictPantryMenu, getStoredGeminiKey, analyzeCoachChatWithAction } from '../services/geminiService';
 import { 
   saveCloudPantryItems, 
   subscribeToPantryItems, 
@@ -12,6 +12,7 @@ import {
   subscribeToNutritionLogs
 } from '../firebase/config';
 import { calculateAthleteNutrition } from '../services/nutritionCalculator';
+import { subscribeToFoodCatalog, saveFoodItemToKnowledgeBase } from '../services/foodKnowledgeService';
 import { BiometricsModal } from './BiometricsModal';
 import { 
   Utensils, 
@@ -37,7 +38,12 @@ import {
   CheckCircle2,
   TrendingUp,
   PlusCircle,
-  X
+  X,
+  Database,
+  Search,
+  Bot,
+  Zap,
+  BookOpen
 } from 'lucide-react';
 
 import confetti from 'canvas-confetti';
@@ -91,7 +97,21 @@ export function PantryPlanner() {
   const [activeSection, setActiveSection] = useState('diary'); // 'diary' | 'pantry' | 'menu'
   const [selectedAthlete, setSelectedAthlete] = useState(currentUser || 'dionicio');
   const [showAddMealForm, setShowAddMealForm] = useState(false);
+  const [showManualNumberForm, setShowManualNumberForm] = useState(false);
   const [showBiometricsModal, setShowBiometricsModal] = useState(false);
+  
+  // Estados para Registro Asistido por Coach IA (Lenguaje Natural)
+  const [smartMealText, setSmartMealText] = useState('');
+  const [isAnalyzingMeal, setIsAnalyzingMeal] = useState(false);
+  const [lastAiMealResult, setLastAiMealResult] = useState(null);
+  const [smartMealError, setSmartMealError] = useState('');
+
+  // Estados para Base de Conocimiento de Marcas y Alimentos del Hogar
+  const [learnedCatalog, setLearnedCatalog] = useState([]);
+  const [catalogSearch, setCatalogSearch] = useState('');
+  const [showLearnedCatalog, setShowLearnedCatalog] = useState(false);
+  const [pantrySyncStatus, setPantrySyncStatus] = useState('syncing');
+
   const [newMeal, setNewMeal] = useState({
     title: '',
     mealType: 'almuerzo',
@@ -107,6 +127,7 @@ export function PantryPlanner() {
     const unsubPantry = subscribeToPantryItems(householdId, (items) => {
       if (items && Array.isArray(items)) {
         setPantryItems(items);
+        setPantrySyncStatus('synced');
       }
     });
 
@@ -122,10 +143,17 @@ export function PantryPlanner() {
       }
     });
 
+    const unsubCatalog = subscribeToFoodCatalog(householdId, (catalog) => {
+      if (catalog && Array.isArray(catalog)) {
+        setLearnedCatalog(catalog);
+      }
+    });
+
     return () => {
       unsubPantry();
       unsubMenu();
       unsubNutrition();
+      unsubCatalog();
     };
   }, [householdId]);
 
@@ -204,6 +232,75 @@ export function PantryPlanner() {
 
   const handlePrintMenu = () => {
     window.print();
+  };
+
+  const handleProcessSmartMeal = async (e) => {
+    if (e) e.preventDefault();
+    const query = smartMealText.trim();
+    if (!query) return;
+
+    setIsAnalyzingMeal(true);
+    setSmartMealError('');
+
+    try {
+      const apiKey = getStoredGeminiKey();
+      const response = await analyzeCoachChatWithAction(query, selectedAthlete, householdId, apiKey);
+      
+      if (response && response.detectedMeal) {
+        const detected = response.detectedMeal;
+        const entriesToSave = Array.isArray(detected.entries) && detected.entries.length > 0
+          ? detected.entries
+          : [{
+              userId: detected.userId || selectedAthlete,
+              mealType: detected.mealType || 'almuerzo',
+              title: detected.title || 'Comida analizada por Coach IA',
+              caloriesKcal: detected.caloriesKcal || 0,
+              proteinG: detected.proteinG || 0,
+              carbsG: detected.carbsG || 0,
+              fatsG: detected.fatsG || 0,
+              items: detected.items || [],
+              coachFeedback: detected.summary || '',
+              source: 'coach_ai'
+            }];
+
+        // Persistir en Firestore Cloud y LocalStorage para cada atleta
+        for (const entry of entriesToSave) {
+          await saveNutritionLog({
+            userId: entry.userId || selectedAthlete,
+            date: new Date().toISOString().split('T')[0],
+            mealType: entry.mealType || 'almuerzo',
+            title: entry.title || 'Comida analizada por Coach IA',
+            caloriesKcal: entry.caloriesKcal || 0,
+            proteinG: entry.proteinG || 0,
+            carbsG: entry.carbsG || 0,
+            fatsG: entry.fatsG || 0,
+            items: entry.items || [],
+            coachFeedback: entry.coachFeedback || detected.summary || '',
+            source: 'coach_ai'
+          }, householdId);
+        }
+
+        setLastAiMealResult({
+          text: response.text,
+          detectedMeal: detected,
+          savedEntriesCount: entriesToSave.length,
+          timestamp: Date.now()
+        });
+
+        setSmartMealText('');
+
+        try {
+          confetti({ particleCount: 60, spread: 65, origin: { y: 0.7 } });
+        } catch (e) {}
+      } else {
+        setSmartMealError('El Coach no detectó alimentos en la descripción. Prueba especificando qué comieron y porciones aproximadas.');
+      }
+    } catch (err) {
+      console.error('Error al procesar comida inteligente:', err);
+      setSmartMealError(`Error al procesar con Coach IA: ${err.message}`);
+    } finally {
+      setIsAnalyzingMeal(false);
+    }
   };
 
   const handleSaveManualMeal = async (e) => {
@@ -360,24 +457,202 @@ export function PantryPlanner() {
               </div>
             </div>
 
-            <button
-              onClick={() => setShowAddMealForm(!showAddMealForm)}
-              className="px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-emerald-500 to-sky-500 hover:opacity-95 text-gym-950 text-xs font-black flex items-center gap-1.5 transition-all shadow-md"
-            >
-              {showAddMealForm ? <X className="w-4 h-4" /> : <PlusCircle className="w-4 h-4" />}
-              <span>{showAddMealForm ? 'Cancelar' : '+ Agregar Comida Rápida'}</span>
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setShowManualNumberForm(!showManualNumberForm)}
+                className="text-[11px] text-slate-400 hover:text-slate-200 underline transition-all"
+              >
+                {showManualNumberForm ? 'Ocultar ingreso manual' : 'Modo numérico manual'}
+              </button>
+            </div>
           </div>
 
-          {/* Formulario de Comida Rápida Manual */}
-          {showAddMealForm && (
-            <form onSubmit={handleSaveManualMeal} className="bg-gym-800 border border-emerald-500/40 p-4 sm:p-5 rounded-2xl space-y-4 shadow-xl animate-fadeIn">
+          {/* Formulario Principal: Registro Asistido por Coach IA (Lenguaje Natural) */}
+          <div className="bg-gradient-to-br from-gym-800 via-gym-850 to-gym-900 border border-emerald-500/40 p-4 sm:p-5 rounded-2xl space-y-4 shadow-2xl relative overflow-hidden">
+            <div className="absolute top-0 right-0 w-48 h-48 bg-emerald-500/5 rounded-full blur-3xl pointer-events-none" />
+
+            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-gym-700/80 pb-3">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-emerald-500 to-sky-500 flex items-center justify-center text-gym-950 font-black shadow-md">
+                  <Bot className="w-4 h-4" />
+                </div>
+                <div>
+                  <h4 className="font-black text-sm text-white flex items-center gap-1.5">
+                    <span>Coach IA: Registro Nutricional en Lenguaje Natural</span>
+                    <span className="text-[10px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 px-2 py-0.5 rounded-full font-bold">
+                      Zero Digitación Manual
+                    </span>
+                  </h4>
+                  <p className="text-[11px] text-slate-400">
+                    Escribe lo que comiste (o lo de ambos). El Coach consulta la base de datos del hogar, investiga marcas comerciales y calcula cuánto falta para cerrar el día.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <form onSubmit={handleProcessSmartMeal} className="space-y-3">
+              <div>
+                <textarea
+                  rows={3}
+                  value={smartMealText}
+                  onChange={(e) => setSmartMealText(e.target.value)}
+                  placeholder="Ej: Yo al desayuno un diente de marraqueta con 40g de pechuga de pollo y café con alulosa. De almuerzo 178g de arroz con 57g de salmón y zapallo italiano. O: Tomé un vaso de leche loncoleche full pro..."
+                  className="w-full bg-gym-900/90 border border-gym-700 rounded-xl p-3 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/50 leading-relaxed font-sans"
+                />
+              </div>
+
+              {/* Botones de sugerencias rápidas */}
+              <div className="space-y-1.5">
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                  Prueba rápida (clic para cargar ejemplo):
+                </span>
+                <div className="flex flex-wrap gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => setSmartMealText('Tomé un vaso de leche loncoleche full pro')}
+                    className="text-[10px] bg-gym-900 hover:bg-gym-750 text-slate-300 hover:text-emerald-300 border border-gym-700/80 px-2.5 py-1 rounded-lg transition-all text-left"
+                  >
+                    🥛 1 vaso leche Loncoleche Full Pro
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSmartMealText('Yo al desayuno: 1 diente de marraqueta con 40g de pollo y café con alulosa. Almuerzo: 178g de arroz con 57g de salmón, 61g de merluza y 190g de zapallo italiano')}
+                    className="text-[10px] bg-gym-900 hover:bg-gym-750 text-slate-300 hover:text-sky-300 border border-gym-700/80 px-2.5 py-1 rounded-lg transition-all text-left"
+                  >
+                    👨‍💻 Día Dionicio (Desayuno + Almuerzo pesados)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSmartMealText('Paula al desayuno: 1 diente de marraqueta con 40g de pollo y café. Almuerzo: 80g de arroz con 55g de salmón, 45g de merluza y 150g de zapallo')}
+                    className="text-[10px] bg-gym-900 hover:bg-gym-750 text-slate-300 hover:text-pink-300 border border-gym-700/80 px-2.5 py-1 rounded-lg transition-all text-left"
+                  >
+                    👩‍💼 Día Paula (Gramajes adaptados)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSmartMealText('Esto llevamos al dia de hoy: yo al desayuno: un diente de marraqueta con 40 gramos de pechuga de pollo con un café endulzado con alulosa, de almuerzo comí 178gramos de arroz con 57 gramos de salmón y 61 gramos de merluza a la plancha, y 190 gramos de zapallo italiano cocido. Mi esposa al desayuno: un diente de marraqueta con 40 gramos de pechuga de pollo con un café endulzado con alulosa, de almuerzo comí 80 gramos de arroz con 55 gramos de salmón y 45 gramos de merluza a la plancha, y 150 gramos de zapallo italiano cocido')}
+                    className="text-[10px] bg-gym-900 hover:bg-gym-750 text-slate-300 hover:text-amber-300 border border-gym-700/80 px-2.5 py-1 rounded-lg transition-all text-left"
+                  >
+                    👥 Registro Dual Completo (Ambos juntos)
+                  </button>
+                </div>
+              </div>
+
+              {smartMealError && (
+                <div className="p-3 bg-red-500/20 border border-red-500/40 rounded-xl text-red-300 text-xs">
+                  {smartMealError}
+                </div>
+              )}
+
+              <button
+                type="submit"
+                disabled={isAnalyzingMeal || !smartMealText.trim()}
+                className="w-full py-3 bg-gradient-to-r from-emerald-500 via-teal-500 to-sky-500 hover:opacity-95 text-gym-950 font-black text-xs rounded-xl shadow-lg shadow-emerald-500/20 flex items-center justify-center gap-2 transition-all disabled:opacity-40"
+              >
+                {isAnalyzingMeal ? (
+                  <>
+                    <RefreshCw className="w-4 h-4 animate-spin" />
+                    <span>Investigando marcas, calculando macros y actualizando Firestore...</span>
+                  </>
+                ) : (
+                  <>
+                    <Zap className="w-4 h-4 fill-current" />
+                    <span>⚡ Interpretar Nutrientes y Registrar con Coach IA</span>
+                  </>
+                )}
+              </button>
+            </form>
+
+            {/* Resultado del Último Análisis de Comida IA */}
+            {lastAiMealResult && (
+              <div className="mt-4 pt-4 border-t border-gym-700/80 space-y-3 animate-fadeIn">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-emerald-400 flex items-center gap-1.5">
+                    <CheckCircle2 className="w-4 h-4" />
+                    <span>¡{lastAiMealResult.savedEntriesCount} comida(s) calculada(s) y guardada(s) en Firestore Cloud!</span>
+                  </span>
+                  <span className="text-[10px] text-slate-400">En sincronía para ambos celulares</span>
+                </div>
+
+                {/* Si aprendió marcas comerciales */}
+                {lastAiMealResult.detectedMeal?.learnedFoods && lastAiMealResult.detectedMeal.learnedFoods.length > 0 && (
+                  <div className="p-2.5 bg-sky-950/40 border border-sky-500/30 rounded-xl space-y-1">
+                    <span className="text-[11px] font-black text-sky-300 flex items-center gap-1.5">
+                      <Sparkles className="w-3.5 h-3.5" />
+                      <span>Nuevo producto comercial aprendido y guardado en la base del hogar:</span>
+                    </span>
+                    {lastAiMealResult.detectedMeal.learnedFoods.map((food, idx) => (
+                      <p key={idx} className="text-[11px] text-slate-200">
+                        • <strong>{food.name}</strong> ({food.brand || 'Comercial'}): {food.servingDesc || `${food.servingSize}g`} ➔ <strong className="text-emerald-400">{food.calories} kcal</strong>, <strong className="text-sky-300">{food.proteinG}g proteína</strong>.
+                      </p>
+                    ))}
+                  </div>
+                )}
+
+                {/* Tarjetas de Cierre del Día para Dionicio y Paula */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  {lastAiMealResult.detectedMeal?.dionicioClosure && (
+                    <div className="p-3 bg-gym-900/90 border border-sky-500/30 rounded-xl space-y-1">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold text-sky-400">👨‍💻 Cierre Día Dionicio</span>
+                        <span className="text-[10px] font-mono text-slate-400">Meta: 1.600 kcal</span>
+                      </div>
+                      <p className="text-xs text-white font-mono">
+                        Lleva: <strong>{lastAiMealResult.detectedMeal.dionicioClosure.todayTotalCals} kcal</strong> ({lastAiMealResult.detectedMeal.dionicioClosure.todayTotalProtein}g P)
+                      </p>
+                      <p className="text-xs text-emerald-400 font-bold font-mono">
+                        👉 Faltan: {lastAiMealResult.detectedMeal.dionicioClosure.remainingCals} kcal y {lastAiMealResult.detectedMeal.dionicioClosure.remainingProtein}g de proteína
+                      </p>
+                    </div>
+                  )}
+
+                  {lastAiMealResult.detectedMeal?.paulaClosure && (
+                    <div className="p-3 bg-gym-900/90 border border-pink-500/30 rounded-xl space-y-1">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold text-pink-400">👩‍💼 Cierre Día Paula</span>
+                        <span className="text-[10px] font-mono text-slate-400">Meta: 1.250 kcal</span>
+                      </div>
+                      <p className="text-xs text-white font-mono">
+                        Lleva: <strong>{lastAiMealResult.detectedMeal.paulaClosure.todayTotalCals} kcal</strong> ({lastAiMealResult.detectedMeal.paulaClosure.todayTotalProtein}g P)
+                      </p>
+                      <p className="text-xs text-emerald-400 font-bold font-mono">
+                        👉 Faltan: {lastAiMealResult.detectedMeal.paulaClosure.remainingCals} kcal y {lastAiMealResult.detectedMeal.paulaClosure.remainingProtein}g de proteína
+                      </p>
+                    </div>
+                  )}
+                </div>
+
+                {/* Propuesta de Cena 20:00 con despensa */}
+                {lastAiMealResult.detectedMeal?.sharedDinnerProposal && (
+                  <div className="p-3 bg-emerald-950/30 border border-emerald-500/30 rounded-xl space-y-1 text-xs">
+                    <span className="font-extrabold text-emerald-400 flex items-center gap-1.5">
+                      <Utensils className="w-3.5 h-3.5" />
+                      <span>{lastAiMealResult.detectedMeal.sharedDinnerProposal.title || 'Cena Dúo Post-Entreno (20:00) con su Despensa'}:</span>
+                    </span>
+                    <p className="text-slate-200">{lastAiMealResult.detectedMeal.sharedDinnerProposal.recipe}</p>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1 font-mono text-[11px]">
+                      <div className="text-sky-300">
+                        <strong>Dionicio:</strong> {lastAiMealResult.detectedMeal.sharedDinnerProposal.dionicioPortion}
+                      </div>
+                      <div className="text-pink-300">
+                        <strong>Paula:</strong> {lastAiMealResult.detectedMeal.sharedDinnerProposal.paulaPortion}
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Formulario Secundario / Opcional de Entrada Numérica Manual */}
+          {showManualNumberForm && (
+            <form onSubmit={handleSaveManualMeal} className="bg-gym-800 border border-gym-700 p-4 sm:p-5 rounded-2xl space-y-4 shadow-xl animate-fadeIn">
               <div className="flex items-center justify-between border-b border-gym-700 pb-2">
                 <h4 className="font-extrabold text-sm text-white flex items-center gap-2">
                   <Apple className="w-4 h-4 text-emerald-400" />
-                  <span>Registrar Comida para {USERS[selectedAthlete]?.name}</span>
+                  <span>Ingreso Manual Numérico para {USERS[selectedAthlete]?.name}</span>
                 </h4>
-                <span className="text-[11px] text-slate-400">Guarda en Firestore Cloud y LocalStorage</span>
+                <span className="text-[11px] text-slate-400">Opcional para ajustes finos</span>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -450,9 +725,9 @@ export function PantryPlanner() {
 
               <button
                 type="submit"
-                className="w-full py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-gym-950 font-black text-xs transition-all shadow-md"
+                className="w-full py-2.5 rounded-xl bg-gym-700 hover:bg-gym-600 text-white font-bold text-xs transition-all"
               >
-                Guardar Comida en la Base de Datos
+                Guardar Manualmente
               </button>
             </form>
           )}
@@ -627,14 +902,22 @@ export function PantryPlanner() {
 
           {/* Pantry Selector Box */}
           <div className="bg-gym-800/90 border border-gym-700 rounded-2xl p-5 sm:p-6 shadow-xl space-y-5 no-print">
-            <div className="flex items-center justify-between">
-              <h3 className="font-extrabold text-base text-white flex items-center gap-2">
-                <ShoppingBag className="w-5 h-5 text-amber-400" />
-                <span>¿Qué tienen en su refrigerador / despensa hoy?</span>
-              </h3>
-              <span className="text-xs font-mono text-emerald-400 font-bold bg-emerald-950/40 px-2.5 py-1 rounded-lg border border-emerald-500/30">
-                {pantryItems.length} ingredientes informados
-              </span>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h3 className="font-extrabold text-base text-white flex items-center gap-2">
+                  <ShoppingBag className="w-5 h-5 text-amber-400" />
+                  <span>¿Qué tienen en su refrigerador / despensa hoy?</span>
+                </h3>
+                <p className="text-xs text-slate-400 mt-0.5">
+                  Despensa compartida para ambos. Lo que agregues aquí se sincroniza en Firestore Cloud para los dos celulares.
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-[11px] font-mono text-emerald-400 font-bold bg-emerald-950/60 px-3 py-1 rounded-xl border border-emerald-500/40 flex items-center gap-1.5 shadow-sm">
+                  <Cloud className="w-3.5 h-3.5" />
+                  <span>Sincronizada en Cloud ({pantryItems.length})</span>
+                </span>
+              </div>
             </div>
 
             {/* Preset Category Chips */}
@@ -676,29 +959,29 @@ export function PantryPlanner() {
               <button
                 type="submit"
                 disabled={!customItemInput.trim()}
-                className="px-4 py-2.5 bg-gym-700 hover:bg-gym-600 disabled:opacity-50 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all"
+                className="px-4 py-2.5 bg-gradient-to-r from-emerald-500 to-teal-500 hover:opacity-95 disabled:opacity-50 text-gym-950 rounded-xl text-xs font-black flex items-center gap-1.5 transition-all shadow-md"
               >
                 <Plus className="w-4 h-4" />
-                <span>Añadir</span>
+                <span>Guardar en Despensa Cloud</span>
               </button>
             </form>
 
             {/* Active Pantry Tags */}
             <div className="pt-2 space-y-2">
               <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider">
-                Ingredientes activos en despensa ({pantryItems.length}):
+                Ingredientes activos en despensa compartida ({pantryItems.length}):
               </label>
               <div className="flex flex-wrap gap-2">
                 {pantryItems.map((item) => (
                   <span
                     key={item}
-                    className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-gym-900 border border-gym-700 text-slate-200 text-xs font-medium"
+                    className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-gym-900 border border-gym-700 text-slate-200 text-xs font-medium shadow-sm"
                   >
                     <span>{item}</span>
                     <button
                       type="button"
                       onClick={() => handleRemoveItem(item)}
-                      className="text-slate-500 hover:text-red-400"
+                      className="text-slate-500 hover:text-red-400 transition-colors"
                       title="Quitar ingrediente"
                     >
                       <Trash2 className="w-3.5 h-3.5" />
@@ -707,6 +990,82 @@ export function PantryPlanner() {
                 ))}
               </div>
             </div>
+          </div>
+
+          {/* BASE DE CONOCIMIENTO DE MARCAS Y ALIMENTOS APRENDIDOS (FIRESTORE) */}
+          <div className="bg-gym-800/90 border border-sky-500/30 rounded-2xl p-5 sm:p-6 shadow-xl space-y-4 no-print">
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-gym-700/80 pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-sky-500/20 text-sky-400 flex items-center justify-center shrink-0">
+                  <Database className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-extrabold text-sm sm:text-base text-white flex items-center gap-2">
+                    <span>Base de Conocimiento de Alimentos & Marcas</span>
+                    <span className="text-[10px] bg-sky-500/20 text-sky-300 border border-sky-500/30 px-2 py-0.5 rounded-full font-mono font-bold">
+                      {learnedCatalog.length} productos
+                    </span>
+                  </h3>
+                  <p className="text-xs text-slate-400">
+                    Productos que el Coach IA ha aprendido e investigado para el hogar (Loncoleche, Soprole, San José, etc.).
+                  </p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setShowLearnedCatalog(!showLearnedCatalog)}
+                className="px-3.5 py-1.5 rounded-xl bg-gym-900 border border-gym-700 text-slate-300 hover:text-white text-xs font-bold transition-all"
+              >
+                {showLearnedCatalog ? 'Ocultar Catálogo' : 'Explorar Catálogo de Marcas'}
+              </button>
+            </div>
+
+            {showLearnedCatalog && (
+              <div className="space-y-4 animate-fadeIn">
+                <div className="relative">
+                  <Search className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
+                  <input
+                    type="text"
+                    value={catalogSearch}
+                    onChange={(e) => setCatalogSearch(e.target.value)}
+                    placeholder="Buscar marca o producto (ej: Loncoleche, Atún, Marraqueta, Soprole)..."
+                    className="w-full bg-gym-900 border border-gym-700 rounded-xl pl-9 pr-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-sky-500"
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5 max-h-80 overflow-y-auto pr-1">
+                  {learnedCatalog
+                    .filter(item => {
+                      if (!catalogSearch) return true;
+                      const q = catalogSearch.toLowerCase();
+                      return item.name.toLowerCase().includes(q) || (item.brand && item.brand.toLowerCase().includes(q));
+                    })
+                    .map((item) => (
+                      <div key={item.id} className="p-3 bg-gym-900/90 border border-gym-700/80 rounded-xl space-y-1.5 hover:border-sky-500/50 transition-all">
+                        <div className="flex items-start justify-between gap-2">
+                          <span className="font-bold text-xs text-white leading-tight">{item.name}</span>
+                          <span className="text-[9px] bg-gym-800 text-slate-300 px-1.5 py-0.5 rounded border border-gym-700 shrink-0 font-mono">
+                            {item.brand || 'Marca'}
+                          </span>
+                        </div>
+                        <div className="text-[11px] text-slate-400 font-mono">
+                          Porción: <span className="text-slate-200 font-semibold">{item.servingDesc || `${item.servingSize}g`}</span>
+                        </div>
+                        <div className="flex items-center gap-2 text-[10px] font-mono border-t border-gym-800 pt-1">
+                          <span className="text-emerald-400 font-bold">{item.calories} kcal</span>
+                          <span>•</span>
+                          <span className="text-sky-300 font-bold">P: {item.proteinG}g</span>
+                          <span>•</span>
+                          <span className="text-amber-300">C: {item.carbsG}g</span>
+                          <span>•</span>
+                          <span className="text-pink-300">G: {item.fatsG}g</span>
+                        </div>
+                      </div>
+                    ))}
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}
