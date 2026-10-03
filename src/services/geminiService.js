@@ -1,7 +1,7 @@
-// Servicio Centralizado de Gemini Coach para la App Dúo en Casa
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { USERS, WORKOUT_DAYS, TREADMILL_PROTOCOLS } from '../data/workoutCatalog';
 import { getLocalLogs, getLocalWeightEntries, getLocalNutritionLogs } from '../firebase/config';
+import { calculateAthleteNutrition, getAthleteBiometrics } from './nutritionCalculator';
 
 export const GEMINI_STORAGE_KEY = 'fitness_gemini_api_key';
 export const GEMINI_MODEL_STORAGE_KEY = 'fitness_gemini_model';
@@ -245,6 +245,9 @@ export function buildHouseholdContext(householdId = 'hogar-dionicio-paula') {
   const dionicioTodayProtein = dionicioTodayNutrition.reduce((acc, n) => acc + (Number(n.proteinG) || 0), 0);
   const paulaTodayProtein = paulaTodayNutrition.reduce((acc, n) => acc + (Number(n.proteinG) || 0), 0);
 
+  const dionicioPlan = calculateAthleteNutrition('dionicio', householdId);
+  const paulaPlan = calculateAthleteNutrition('paula', householdId);
+
   return {
     athletes: USERS,
     totalLogsCount: logs.length,
@@ -262,17 +265,23 @@ export function buildHouseholdContext(householdId = 'hogar-dionicio-paula') {
       todayDate: todayStr,
       dionicio: {
         todayCals: dionicioTodayCals,
-        targetCals: 2300,
+        targetCals: dionicioPlan.targetCals,
         todayProtein: dionicioTodayProtein,
-        targetProtein: 150,
+        targetProtein: dionicioPlan.targetProtein,
+        targetCarbs: dionicioPlan.targetCarbs,
+        targetFats: dionicioPlan.targetFats,
+        plan: dionicioPlan,
         todayMealsCount: dionicioTodayNutrition.length,
         todayMeals: dionicioTodayNutrition
       },
       paula: {
         todayCals: paulaTodayCals,
-        targetCals: 1600,
+        targetCals: paulaPlan.targetCals,
         todayProtein: paulaTodayProtein,
-        targetProtein: 100,
+        targetProtein: paulaPlan.targetProtein,
+        targetCarbs: paulaPlan.targetCarbs,
+        targetFats: paulaPlan.targetFats,
+        plan: paulaPlan,
         todayMealsCount: paulaTodayNutrition.length,
         todayMeals: paulaTodayNutrition
       }
@@ -725,10 +734,13 @@ export function estimateDeterministicMeal(text = '', currentUser = 'dionicio', h
     ? context.pantryItems 
     : ['Huevos', 'Pechuga de pollo', 'Salmón', 'Merluza', 'Atún en lata', 'Arroz', 'Zapallo italiano', 'Espinacas', 'Palta / Aguacate'];
 
-  const dioTargetCals = 2300;
-  const dioTargetProtein = 150;
-  const pauTargetCals = 1600;
-  const pauTargetProtein = 100;
+  const dioPlan = context.nutrition?.dionicio?.plan || calculateAthleteNutrition('dionicio', householdId);
+  const pauPlan = context.nutrition?.paula?.plan || calculateAthleteNutrition('paula', householdId);
+
+  const dioTargetCals = dioPlan.targetCals;
+  const dioTargetProtein = dioPlan.targetProtein;
+  const pauTargetCals = pauPlan.targetCals;
+  const pauTargetProtein = pauPlan.targetProtein;
 
   if (isDuoLog) {
     // Segmentar texto para Dionicio y para Paula
@@ -851,8 +863,9 @@ export function estimateDeterministicMeal(text = '', currentUser = 'dionicio', h
   // Caso individual: solo Dionicio o solo Paula
   const targetUser = lower.includes('paula') || (!lower.includes('dionicio') && currentUser === 'paula') ? 'paula' : 'dionicio';
   const athleteName = targetUser === 'dionicio' ? 'Dionicio' : 'Paula';
-  const targetCals = targetUser === 'dionicio' ? dioTargetCals : pauTargetCals;
-  const targetProtein = targetUser === 'dionicio' ? dioTargetProtein : pauTargetProtein;
+  const targetPlan = targetUser === 'dionicio' ? dioPlan : pauPlan;
+  const targetCals = targetPlan.targetCals;
+  const targetProtein = targetPlan.targetProtein;
 
   let mealType = 'almuerzo';
   if (lower.includes('desayun')) mealType = 'desayuno';
@@ -916,8 +929,11 @@ export async function analyzeCoachChatWithAction(queryText, currentUser, househo
   const context = buildHouseholdContext(householdId);
   const key = apiKey || getStoredGeminiKey();
 
-  const dioNut = context.nutrition?.dionicio || { todayCals: 0, targetCals: 2300, todayProtein: 0, targetProtein: 150 };
-  const pauNut = context.nutrition?.paula || { todayCals: 0, targetCals: 1600, todayProtein: 0, targetProtein: 100 };
+  const dioPlan = context.nutrition?.dionicio?.plan || calculateAthleteNutrition('dionicio', householdId);
+  const pauPlan = context.nutrition?.paula?.plan || calculateAthleteNutrition('paula', householdId);
+
+  const dioNut = context.nutrition?.dionicio || { todayCals: 0, targetCals: dioPlan.targetCals, todayProtein: 0, targetProtein: dioPlan.targetProtein };
+  const pauNut = context.nutrition?.paula || { todayCals: 0, targetCals: pauPlan.targetCals, todayProtein: 0, targetProtein: pauPlan.targetProtein };
 
   const pantryList = context.pantryItems && context.pantryItems.length > 0
     ? context.pantryItems
@@ -937,18 +953,32 @@ export async function analyzeCoachChatWithAction(queryText, currentUser, househo
 No eres un chat pasivo; eres su AGENTE INTELIGENTE AUTÓNOMO DE NUTRICIÓN Y RENDIMIENTO.
 
 ====================================================
-DATOS CLÍNICOS Y METAS DE AMBOS ATLETAS:
+METAS NUTRICIONALES CIENTÍFICAS BASADAS EN BIOMETRÍA REAL (Mifflin-St Jeor + TDEE + Evidencia Deportiva):
+No uses números al azar. Las metas derivan de sus mediciones corporales reales y registradas:
+
 👨‍💻 DIONICIO:
-- Altura: 180 cm | Rutina: Ayuno matutino, Almuerzo 13:00-14:00, Entreno 19:00-20:00, Cena post-entreno 20:00.
-- Meta calórica diaria: 2300 kcal | Meta proteica diaria: 150 g
-- Ingerido hoy antes de este mensaje: ${dioNut.todayCals} kcal / 2300 kcal | ${dioNut.todayProtein}g / 150g proteína.
-- Faltan antes de este mensaje: ${Math.max(0, 2300 - dioNut.todayCals)} kcal y ${Math.max(0, 150 - dioNut.todayProtein)}g proteína.
+- Biometría: Peso actual: ${dioPlan.weightKg} kg (${dioPlan.isWeightFromLog ? `Registrado en historial el ${dioPlan.lastWeightDate}` : 'Línea base'}) | Altura: ${dioPlan.heightCm} cm | Edad: ${dioPlan.age} años | IMC: ${dioPlan.bmi} (${dioPlan.bmiCategory})
+- Tasa Metabólica Basal (BMR Mifflin-St Jeor): ${dioPlan.bmr} kcal/día (energía vital en reposo)
+- Gasto Energético Total Diario (TDEE con PAL ${dioPlan.palMultiplier}): ${dioPlan.tdee} kcal/día (incluye sesión de mancuernas + trotadora)
+- Objetivo Clínico: ${dioPlan.goalLabel} -> META CALÓRICA DIARIA: ${dioPlan.targetCals} kcal/día
+- METAS DE MACRONUTRIENTES:
+  * Proteína: ${dioPlan.targetProtein} g/día (${dioPlan.formulaDetails.proteinTargetInfo})
+  * Grasas: ${dioPlan.targetFats} g/día (${dioPlan.formulaDetails.fatsTargetInfo})
+  * Carbohidratos: ${dioPlan.targetCarbs} g/día (${dioPlan.formulaDetails.carbsTargetInfo})
+- Ingerido hoy antes de este mensaje: ${dioNut.todayCals} kcal / ${dioPlan.targetCals} kcal | ${dioNut.todayProtein}g / ${dioPlan.targetProtein}g proteína.
+- Faltan antes de este mensaje: ${Math.max(0, dioPlan.targetCals - dioNut.todayCals)} kcal y ${Math.max(0, dioPlan.targetProtein - dioNut.todayProtein)}g proteína.
 
 👩‍💼 PAULA:
-- 41 años, 160 cm | Rutina: Desayuno proteico liviano, Almuerzo 13:00-14:00, Entreno 19:00-20:00, Cena post-entreno 20:00.
-- Meta calórica diaria: 1600 kcal | Meta proteica diaria: 100 g
-- Ingerido hoy antes de este mensaje: ${pauNut.todayCals} kcal / 1600 kcal | ${pauNut.todayProtein}g / 100g proteína.
-- Faltan antes de este mensaje: ${Math.max(0, 1600 - pauNut.todayCals)} kcal y ${Math.max(0, 100 - pauNut.todayProtein)}g proteína.
+- Biometría: Peso actual: ${pauPlan.weightKg} kg (${pauPlan.isWeightFromLog ? `Registrado en historial el ${pauPlan.lastWeightDate}` : 'Línea base'}) | Altura: ${pauPlan.heightCm} cm | Edad: ${pauPlan.age} años | IMC: ${pauPlan.bmi} (${pauPlan.bmiCategory})
+- Tasa Metabólica Basal (BMR Mifflin-St Jeor): ${pauPlan.bmr} kcal/día (energía vital en reposo)
+- Gasto Energético Total Diario (TDEE con PAL ${pauPlan.palMultiplier}): ${pauPlan.tdee} kcal/día (incluye sesión de trotadora + fuerza)
+- Objetivo Clínico: ${pauPlan.goalLabel} -> META CALÓRICA DIARIA: ${pauPlan.targetCals} kcal/día
+- METAS DE MACRONUTRIENTES:
+  * Proteína: ${pauPlan.targetProtein} g/día (${pauPlan.formulaDetails.proteinTargetInfo})
+  * Grasas: ${pauPlan.targetFats} g/día (${pauPlan.formulaDetails.fatsTargetInfo})
+  * Carbohidratos: ${pauPlan.targetCarbs} g/día (${pauPlan.formulaDetails.carbsTargetInfo})
+- Ingerido hoy antes de este mensaje: ${pauNut.todayCals} kcal / ${pauPlan.targetCals} kcal | ${pauNut.todayProtein}g / ${pauPlan.targetProtein}g proteína.
+- Faltan antes de este mensaje: ${Math.max(0, pauPlan.targetCals - pauNut.todayCals)} kcal y ${Math.max(0, pauPlan.targetProtein - pauNut.todayProtein)}g proteína.
 
 ====================================================
 INVENTARIO REAL DE ALIMENTOS EN SU DESPENSA ACTIVA:
@@ -962,13 +992,16 @@ REGLAS MANDATORIAS:
    - Calcula Calorías totales (kcal), Proteína (g), Carbohidratos (g) y Grasas (g) para cada una de las comidas descritas.
 
 2. CÁLCULO EXACTO PARA "CERRAR EL DÍA" PARA AMBOS:
-   - Para Dionicio: Suma lo reportado a su acumulado de hoy. Indica cuánto lleva y cuántas kcal y gramos de proteína le faltan para su meta de 2300 kcal / 150g prot.
-   - Para Paula: Suma lo reportado a su acumulado de hoy. Indica cuánto lleva y cuántas kcal y gramos de proteína le faltan para su meta de 1600 kcal / 100g prot.
+   - Para Dionicio: Suma lo reportado a su acumulado de hoy. Indica cuánto lleva y cuántas kcal y gramos de proteína le faltan para su meta científica de ${dioPlan.targetCals} kcal / ${dioPlan.targetProtein}g prot.
+   - Para Paula: Suma lo reportado a su acumulado de hoy. Indica cuánto lleva y cuántas kcal y gramos de proteína le faltan para su meta científica de ${pauPlan.targetCals} kcal / ${pauPlan.targetProtein}g prot.
 
-3. PROPUESTA DE CENA COMPARTIDA DÚO (20:00 POST-ENTRENO) CON DESPENSA:
+3. EXPLICACIÓN FUNDAMENTADA:
+   - Si te preguntan por cómo se determinaron sus necesidades, cita siempre la fórmula de Mifflin-St Jeor, su peso actual (${dioPlan.weightKg}kg Dionicio / ${pauPlan.weightKg}kg Paula), altura, edad y el gasto energético de su entrenamiento de 19:00 a 20:00.
+
+4. PROPUESTA DE CENA COMPARTIDA DÚO (20:00 POST-ENTRENO) CON DESPENSA:
    - Basándote EXCLUSIVAMENTE en su Despensa real, diseña la CENA COMPARTIDA (20:00): MISMA preparación/receta pero con los gramajes específicos y diferenciados para Dionicio y Paula para que ambos cierren su día exacto.
 
-4. BLOQUE OBLIGATORIO DE PERSISTENCIA AUTOMÁTICA EN BASE DE DATOS:
+5. BLOQUE OBLIGATORIO DE PERSISTENCIA AUTOMÁTICA EN BASE DE DATOS:
    Si el mensaje describe alimentos o ingesta, DEBES INCLUIR AL FINAL de tu respuesta este bloque JSON exacto para que el sistema actualice Firestore y LocalStorage para cada atleta:
 
 \`\`\`json:nutrition_action
@@ -1000,20 +1033,20 @@ REGLAS MANDATORIAS:
     }
   ],
   "dionicioClosure": {
-    "todayTotalCals": 705,
-    "targetCals": 2300,
-    "remainingCals": 1595,
-    "todayTotalProtein": 54,
-    "targetProtein": 150,
-    "remainingProtein": 96
+    "todayTotalCals": ${dioNut.todayCals},
+    "targetCals": ${dioPlan.targetCals},
+    "remainingCals": ${Math.max(0, dioPlan.targetCals - dioNut.todayCals)},
+    "todayTotalProtein": ${dioNut.todayProtein},
+    "targetProtein": ${dioPlan.targetProtein},
+    "remainingProtein": ${Math.max(0, dioPlan.targetProtein - dioNut.todayProtein)}
   },
   "paulaClosure": {
-    "todayTotalCals": 535,
-    "targetCals": 1600,
-    "remainingCals": 1065,
-    "todayTotalProtein": 44,
-    "targetProtein": 100,
-    "remainingProtein": 56
+    "todayTotalCals": ${pauNut.todayCals},
+    "targetCals": ${pauPlan.targetCals},
+    "remainingCals": ${Math.max(0, pauPlan.targetCals - pauNut.todayCals)},
+    "todayTotalProtein": ${pauNut.todayProtein},
+    "targetProtein": ${pauPlan.targetProtein},
+    "remainingProtein": ${Math.max(0, pauPlan.targetProtein - pauNut.todayProtein)}
   },
   "sharedDinnerProposal": {
     "title": "Cena Post-Entreno Dúo (20:00)",

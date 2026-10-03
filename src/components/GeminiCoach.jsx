@@ -12,6 +12,8 @@ import {
   GEMINI_AVAILABLE_MODELS
 } from '../services/geminiService';
 import { saveNutritionLog } from '../firebase/config';
+import { calculateAthleteNutrition } from '../services/nutritionCalculator';
+import { BiometricsModal } from './BiometricsModal';
 import confetti from 'canvas-confetti';
 import { 
   Sparkles, 
@@ -34,7 +36,8 @@ import {
   Apple,
   CheckCircle2,
   BookmarkPlus,
-  Target
+  Target,
+  Dna
 } from 'lucide-react';
 
 export function GeminiCoach() {
@@ -42,6 +45,7 @@ export function GeminiCoach() {
   const [apiKey, setApiKey] = useState(() => getStoredGeminiKey());
   const [selectedModel, setSelectedModel] = useState(() => getStoredGeminiModel());
   const [showKeyInput, setShowKeyInput] = useState(!getStoredGeminiKey());
+  const [showBiometricsModal, setShowBiometricsModal] = useState(false);
   const [tempKey, setTempKey] = useState(apiKey);
   const [householdStats, setHouseholdStats] = useState(() => buildHouseholdContext(householdId));
   const [savingMealIdx, setSavingMealIdx] = useState(null);
@@ -506,7 +510,17 @@ Tengo acceso en tiempo real a sus entrenamientos, su Despensa y su Diario de Cal
                 </div>
               </div>
 
-              <div className="flex flex-wrap items-center gap-3">
+              <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+                <button
+                  type="button"
+                  onClick={() => setShowBiometricsModal(true)}
+                  className="px-3 py-1.5 rounded-xl text-xs font-bold border border-sky-500/40 bg-sky-500/10 text-sky-300 hover:bg-sky-500/20 transition-all flex items-center gap-1.5 active:scale-95 shadow-sm"
+                  title="Ajusta tu edad, peso, altura, objetivo y revisa la fórmula clínica de Mifflin-St Jeor"
+                >
+                  <Dna className="w-3.5 h-3.5 text-sky-400" />
+                  <span>🧬 Biometría ({nutData.plan?.weightKg || 80}kg • {nutData.plan?.goalLabel || 'Recomposición'})</span>
+                </button>
+
                 <button
                   type="button"
                   onClick={toggleAutoSave}
@@ -929,6 +943,15 @@ Tengo acceso en tiempo real a sus entrenamientos, su Despensa y su Diario de Cal
           <span className="hidden sm:inline">Preguntar</span>
         </button>
       </form>
+
+      {/* Modal de Configuración y Diagnóstico Biométrico */}
+      <BiometricsModal
+        isOpen={showBiometricsModal}
+        onClose={() => setShowBiometricsModal(false)}
+        householdId={householdId}
+        initialAthlete={currentUser}
+        onSaved={() => setHouseholdStats(buildHouseholdContext(householdId))}
+      />
     </div>
   );
 }

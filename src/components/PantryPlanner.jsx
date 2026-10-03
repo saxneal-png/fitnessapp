@@ -11,6 +11,8 @@ import {
   deleteNutritionLog,
   subscribeToNutritionLogs
 } from '../firebase/config';
+import { calculateAthleteNutrition } from '../services/nutritionCalculator';
+import { BiometricsModal } from './BiometricsModal';
 import { 
   Utensils, 
   Sparkles, 
@@ -31,6 +33,7 @@ import {
   Cloud,
   Apple,
   Flame,
+  Dna,
   CheckCircle2,
   TrendingUp,
   PlusCircle,
@@ -88,6 +91,7 @@ export function PantryPlanner() {
   const [activeSection, setActiveSection] = useState('diary'); // 'diary' | 'pantry' | 'menu'
   const [selectedAthlete, setSelectedAthlete] = useState(currentUser || 'dionicio');
   const [showAddMealForm, setShowAddMealForm] = useState(false);
+  const [showBiometricsModal, setShowBiometricsModal] = useState(false);
   const [newMeal, setNewMeal] = useState({
     title: '',
     mealType: 'almuerzo',
@@ -259,8 +263,12 @@ export function PantryPlanner() {
   const totalCarbsToday = athleteMealsToday.reduce((acc, m) => acc + (Number(m.carbsG) || 0), 0);
   const totalFatsToday = athleteMealsToday.reduce((acc, m) => acc + (Number(m.fatsG) || 0), 0);
 
-  const targetCals = selectedAthlete === 'dionicio' ? 2300 : 1600;
-  const targetProtein = selectedAthlete === 'dionicio' ? 150 : 100;
+  // Plan Nutricional Científico (Mifflin-St Jeor + Factor PAL + Historial de Peso)
+  const athletePlan = calculateAthleteNutrition(selectedAthlete, householdId);
+  const targetCals = athletePlan.targetCals;
+  const targetProtein = athletePlan.targetProtein;
+  const targetCarbs = athletePlan.targetCarbs;
+  const targetFats = athletePlan.targetFats;
   const calsPct = Math.min(100, Math.round((totalCalsToday / targetCals) * 100));
 
   return (
@@ -453,7 +461,18 @@ export function PantryPlanner() {
           <div className="bg-gym-800/90 border border-gym-700 rounded-2xl p-5 shadow-xl space-y-4">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
-                <span className="text-[11px] text-slate-400 uppercase tracking-wider font-bold">Consumo Acumulado Hoy</span>
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="text-[11px] text-slate-400 uppercase tracking-wider font-bold">Consumo Acumulado Hoy</span>
+                  <button
+                    type="button"
+                    onClick={() => setShowBiometricsModal(true)}
+                    className="text-[10px] text-sky-400 hover:text-sky-300 bg-sky-500/10 border border-sky-500/30 px-2 py-0.5 rounded-full font-bold flex items-center gap-1 transition-all"
+                    title="Ver y calibrar fórmula clínica de Mifflin-St Jeor"
+                  >
+                    <Dna className="w-3 h-3" />
+                    <span>Mifflin: {athletePlan.bmr} kcal • {athletePlan.weightKg}kg</span>
+                  </button>
+                </div>
                 <div className="flex items-baseline gap-2 mt-0.5">
                   <span className="text-3xl font-black text-white font-mono">{totalCalsToday}</span>
                   <span className="text-xs text-slate-400 font-mono">/ {targetCals} kcal objetivo</span>
@@ -487,18 +506,21 @@ export function PantryPlanner() {
                 <div className="text-base sm:text-lg font-black text-sky-400 font-mono mt-0.5">
                   {totalProteinToday}g <span className="text-[10px] text-slate-400 font-normal">/ {targetProtein}g</span>
                 </div>
+                <span className="text-[9px] text-sky-300/80 block mt-0.5 font-mono">{athletePlan.formulaDetails.proteinTargetInfo}</span>
               </div>
               <div className="bg-gym-900/80 border border-amber-500/30 rounded-xl p-3 text-center">
                 <span className="text-[10px] text-slate-400 uppercase block font-bold">Carbohidratos</span>
                 <div className="text-base sm:text-lg font-black text-amber-400 font-mono mt-0.5">
-                  {totalCarbsToday}g
+                  {totalCarbsToday}g <span className="text-[10px] text-slate-400 font-normal">/ {targetCarbs}g</span>
                 </div>
+                <span className="text-[9px] text-amber-300/80 block mt-0.5 font-mono">Energía 19:00</span>
               </div>
               <div className="bg-gym-900/80 border border-pink-500/30 rounded-xl p-3 text-center">
                 <span className="text-[10px] text-slate-400 uppercase block font-bold">Grasas</span>
                 <div className="text-base sm:text-lg font-black text-pink-400 font-mono mt-0.5">
-                  {totalFatsToday}g
+                  {totalFatsToday}g <span className="text-[10px] text-slate-400 font-normal">/ {targetFats}g</span>
                 </div>
+                <span className="text-[9px] text-pink-300/80 block mt-0.5 font-mono">{athletePlan.formulaDetails.fatsTargetInfo}</span>
               </div>
             </div>
           </div>
@@ -795,6 +817,15 @@ export function PantryPlanner() {
           )}
         </div>
       )}
+
+      {/* Modal de Diagnóstico y Calibración Biométrico */}
+      <BiometricsModal
+        isOpen={showBiometricsModal}
+        onClose={() => setShowBiometricsModal(false)}
+        householdId={householdId}
+        initialAthlete={selectedAthlete}
+        onSaved={() => {}}
+      />
     </div>
   );
 }

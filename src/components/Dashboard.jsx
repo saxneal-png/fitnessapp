@@ -29,9 +29,11 @@ import {
   CheckCircle2,
   Inbox,
   Apple,
-  Utensils
+  Utensils,
+  Dna
 } from 'lucide-react';
-
+import { calculateAthleteNutrition } from '../services/nutritionCalculator';
+import { BiometricsModal } from './BiometricsModal';
 
 export function Dashboard() {
   const { householdId, currentUser } = useAuth();
@@ -40,6 +42,7 @@ export function Dashboard() {
   const [nutritionLogs, setNutritionLogs] = useState([]);
   const [selectedExerciseForTrend, setSelectedExerciseForTrend] = useState('floor_press');
   const [showWeightModal, setShowWeightModal] = useState(false);
+  const [showBiometricsModal, setShowBiometricsModal] = useState(false);
   const [newWeight, setNewWeight] = useState({ userId: currentUser || 'dionicio', date: new Date().toISOString().split('T')[0], weightKg: 80.0 });
 
   useEffect(() => {
@@ -152,13 +155,24 @@ export function Dashboard() {
           </p>
         </div>
 
-        <button
-          onClick={() => setShowWeightModal(true)}
-          className="flex items-center gap-1.5 px-4 py-2 bg-gym-800 hover:bg-gym-700 text-slate-200 border border-gym-700 rounded-xl text-xs font-bold transition-all shadow-sm"
-        >
-          <Scale className="w-4 h-4 text-emerald-400" />
-          <span>Registrar Peso Inicial / Actual</span>
-        </button>
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            onClick={() => setShowBiometricsModal(true)}
+            className="flex items-center gap-1.5 px-3.5 py-2 bg-gym-800 hover:bg-gym-700 text-sky-400 border border-sky-500/30 rounded-xl text-xs font-bold transition-all shadow-sm"
+            title="Diagnóstico metabólico clínico: Mifflin-St Jeor, TDEE y ajuste calórico"
+          >
+            <Dna className="w-4 h-4 text-sky-400" />
+            <span>🧬 Perfil Biométrico & Metas</span>
+          </button>
+
+          <button
+            onClick={() => setShowWeightModal(true)}
+            className="flex items-center gap-1.5 px-3.5 py-2 bg-gym-800 hover:bg-gym-700 text-slate-200 border border-gym-700 rounded-xl text-xs font-bold transition-all shadow-sm"
+          >
+            <Scale className="w-4 h-4 text-emerald-400" />
+            <span>Registrar Peso</span>
+          </button>
+        </div>
       </div>
 
       {/* KPI Cards (Clean State in Real Production) */}
@@ -498,6 +512,15 @@ export function Dashboard() {
           </div>
         </div>
       )}
+
+      {/* Modal de Configuración y Diagnóstico Biométrico */}
+      <BiometricsModal
+        isOpen={showBiometricsModal}
+        onClose={() => setShowBiometricsModal(false)}
+        householdId={householdId}
+        initialAthlete={currentUser || 'dionicio'}
+        onSaved={() => {}}
+      />
     </div>
   );
 }
