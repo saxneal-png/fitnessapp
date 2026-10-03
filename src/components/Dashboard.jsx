@@ -428,8 +428,8 @@ export function Dashboard() {
 
       {/* Modal for Bodyweight Entry */}
       {showWeightModal && (
-        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-gym-800 border border-gym-700 rounded-2xl p-6 max-w-sm w-full shadow-2xl space-y-4">
+        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4">
+          <div className="bg-gym-800 border border-gym-700 rounded-2xl p-4 sm:p-6 max-w-sm w-full shadow-2xl space-y-4 max-h-[90dvh] overflow-y-auto">
             <div className="flex items-center justify-between">
               <h4 className="font-bold text-white text-base flex items-center gap-2">
                 <Scale className="w-4 h-4 text-emerald-400" />

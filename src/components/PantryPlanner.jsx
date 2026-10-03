@@ -279,41 +279,44 @@ export function PantryPlanner() {
         </div>
 
         {/* Sub-tabs Navigation */}
-        <div className="flex items-center bg-gym-800 p-1 rounded-2xl border border-gym-700">
+        <div className="w-full sm:w-auto grid grid-cols-3 sm:flex items-center bg-gym-800 p-1 rounded-2xl border border-gym-700 gap-1">
           <button
             onClick={() => setActiveSection('diary')}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
+            className={`flex items-center justify-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
               activeSection === 'diary'
                 ? 'bg-emerald-500 text-gym-950 shadow-md shadow-emerald-500/20'
                 : 'text-slate-400 hover:text-white'
             }`}
           >
-            <Apple className="w-4 h-4" />
-            <span>Diario & Calorías ({athleteMealsToday.length})</span>
+            <Apple className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
+            <span className="truncate">Diario</span>
+            <span className="hidden sm:inline">& Calorías ({athleteMealsToday.length})</span>
           </button>
 
           <button
             onClick={() => setActiveSection('pantry')}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
+            className={`flex items-center justify-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
               activeSection === 'pantry'
                 ? 'bg-emerald-500 text-gym-950 shadow-md shadow-emerald-500/20'
                 : 'text-slate-400 hover:text-white'
             }`}
           >
-            <ShoppingBag className="w-4 h-4" />
-            <span>Despensa ({pantryItems.length})</span>
+            <ShoppingBag className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
+            <span className="truncate">Despensa</span>
+            <span className="hidden sm:inline">({pantryItems.length})</span>
           </button>
 
           <button
             onClick={() => setActiveSection('menu')}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
+            className={`flex items-center justify-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
               activeSection === 'menu'
                 ? 'bg-emerald-500 text-gym-950 shadow-md shadow-emerald-500/20'
                 : 'text-slate-400 hover:text-white'
             }`}
           >
-            <Calendar className="w-4 h-4" />
-            <span>Menú Semanal</span>
+            <Calendar className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
+            <span className="truncate">Menú</span>
+            <span className="hidden sm:inline">Semanal</span>
           </button>
         </div>
       </div>

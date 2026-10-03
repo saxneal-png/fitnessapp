@@ -346,40 +346,40 @@ export function WorkoutLogger() {
 
                 <div className="space-y-2">
                   {sets.map((set, idx) => (
-                    <div key={idx} className="flex items-center gap-2 sm:gap-4 bg-gym-900/80 p-3 rounded-xl border border-gym-700/60">
-                      <span className="w-7 h-7 rounded-lg bg-gym-800 text-slate-300 font-mono text-xs font-bold flex items-center justify-center shrink-0">
+                    <div key={idx} className="flex items-center gap-1.5 sm:gap-4 bg-gym-900/80 p-2 sm:p-3 rounded-xl border border-gym-700/60">
+                      <span className="w-6 h-6 sm:w-7 sm:h-7 rounded-lg bg-gym-800 text-slate-300 font-mono text-[11px] sm:text-xs font-bold flex items-center justify-center shrink-0">
                         S{set.setNumber}
                       </span>
 
                       {/* Weight */}
-                      <div className="flex-1">
-                        <label className="block text-[10px] uppercase font-bold text-slate-500 mb-0.5">Peso (kg)</label>
+                      <div className="flex-1 min-w-0">
+                        <label className="block text-[9px] sm:text-[10px] uppercase font-bold text-slate-500 mb-0.5 truncate">Peso (kg)</label>
                         <input
                           type="number"
                           step="0.5"
                           min="0"
                           value={set.weightKg}
                           onChange={(e) => handleSetChange(idx, 'weightKg', e.target.value)}
-                          className="w-full bg-gym-800 border border-gym-700 rounded-lg px-2 py-1.5 text-sm font-mono font-bold text-sky-300 focus:outline-none focus:border-sky-500"
+                          className="w-full bg-gym-800 border border-gym-700 rounded-lg px-1.5 sm:px-2 py-1.5 text-xs sm:text-sm font-mono font-bold text-sky-300 text-center sm:text-left focus:outline-none focus:border-sky-500"
                         />
                       </div>
 
                       {/* Reps */}
-                      <div className="flex-1">
-                        <label className="block text-[10px] uppercase font-bold text-slate-500 mb-0.5">Reps</label>
+                      <div className="flex-1 min-w-0">
+                        <label className="block text-[9px] sm:text-[10px] uppercase font-bold text-slate-500 mb-0.5 truncate">Reps</label>
                         <input
                           type="number"
                           min="1"
                           value={set.reps}
                           onChange={(e) => handleSetChange(idx, 'reps', e.target.value)}
-                          className="w-full bg-gym-800 border border-gym-700 rounded-lg px-2 py-1.5 text-sm font-mono font-bold text-white focus:outline-none focus:border-sky-500"
+                          className="w-full bg-gym-800 border border-gym-700 rounded-lg px-1.5 sm:px-2 py-1.5 text-xs sm:text-sm font-mono font-bold text-white text-center sm:text-left focus:outline-none focus:border-sky-500"
                         />
                       </div>
 
                       {/* RPE */}
-                      <div className="w-20 sm:w-24">
-                        <label className="block text-[10px] uppercase font-bold text-slate-500 mb-0.5" title="Esfuerzo percibido del 1 al 10">
-                          RPE (1-10)
+                      <div className="w-14 sm:w-24 shrink-0">
+                        <label className="block text-[9px] sm:text-[10px] uppercase font-bold text-slate-500 mb-0.5 truncate" title="Esfuerzo percibido del 1 al 10">
+                          RPE
                         </label>
                         <input
                           type="number"
@@ -388,7 +388,7 @@ export function WorkoutLogger() {
                           max="10"
                           value={set.rpe}
                           onChange={(e) => handleSetChange(idx, 'rpe', e.target.value)}
-                          className="w-full bg-gym-800 border border-gym-700 rounded-lg px-2 py-1.5 text-sm font-mono font-bold text-amber-300 focus:outline-none focus:border-sky-500"
+                          className="w-full bg-gym-800 border border-gym-700 rounded-lg px-1.5 sm:px-2 py-1.5 text-xs sm:text-sm font-mono font-bold text-amber-300 text-center sm:text-left focus:outline-none focus:border-sky-500"
                         />
                       </div>
 
@@ -397,10 +397,10 @@ export function WorkoutLogger() {
                         type="button"
                         onClick={() => handleRemoveSet(idx)}
                         disabled={sets.length === 1}
-                        className="p-2 text-slate-500 hover:text-red-400 disabled:opacity-20 transition-colors"
+                        className="p-1.5 sm:p-2 text-slate-500 hover:text-red-400 disabled:opacity-20 transition-colors shrink-0"
                         title="Eliminar serie"
                       >
-                        <Trash2 className="w-4 h-4" />
+                        <Trash2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                       </button>
                     </div>
                   ))}

@@ -199,33 +199,33 @@ export function Timer({ onQuickLog }) {
             <div className="bg-gym-900 border border-gym-700 rounded-xl p-1 flex">
               <button
                 onClick={() => setSelectedDayRoutine('torso')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                className={`px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
                   selectedDayRoutine === 'torso'
                     ? 'bg-sky-500 text-white shadow-sm'
                     : 'text-slate-400 hover:text-white'
                 }`}
               >
-                Torso (Lun/Jue)
+                <span>Torso</span> <span className="hidden sm:inline">(Lun/Jue)</span>
               </button>
               <button
                 onClick={() => setSelectedDayRoutine('pierna_core')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                className={`px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
                   selectedDayRoutine === 'pierna_core'
                     ? 'bg-pink-500 text-white shadow-sm'
                     : 'text-slate-400 hover:text-white'
                 }`}
               >
-                Pierna & Core (Mar/Vie)
+                <span>Pierna</span> <span className="hidden sm:inline">& Core (Mar/Vie)</span>
               </button>
             </div>
 
             <button
               onClick={() => setUserAIsDionicio(!userAIsDionicio)}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-gym-700/70 hover:bg-gym-600 text-slate-200 border border-gym-600 rounded-xl text-xs font-semibold transition-all shadow-sm"
+              className="flex items-center gap-1 px-2.5 sm:px-3 py-1.5 bg-gym-700/70 hover:bg-gym-600 text-slate-200 border border-gym-600 rounded-xl text-xs font-semibold transition-all shadow-sm active:scale-95"
               title="Intercambiar quién inicia en Fuerza y quién en Trotadora"
             >
               <ArrowRightLeft className="w-3.5 h-3.5 text-amber-400" />
-              <span className="hidden sm:inline">Rotar Inicio</span>
+              <span className="hidden sm:inline">Rotar</span>
             </button>
 
             <button
@@ -280,12 +280,12 @@ export function Timer({ onQuickLog }) {
             </div>
 
             {/* Giant Countdown */}
-            <div className="font-mono text-6xl sm:text-8xl md:text-9xl font-extrabold tracking-tight text-white select-none">
+            <div className="font-mono text-5xl sm:text-8xl md:text-9xl font-extrabold tracking-tight text-white select-none py-1">
               {formatTime(secondsRemaining)}
             </div>
 
             {/* Progress bar inside interval */}
-            <div className="w-full max-w-xl mt-4 bg-gym-950/80 rounded-full h-3 p-0.5 border border-gym-700/60 overflow-hidden">
+            <div className="w-full max-w-xl mt-3 sm:mt-4 bg-gym-950/80 rounded-full h-2.5 sm:h-3 p-0.5 border border-gym-700/60 overflow-hidden">
               <div
                 className={`h-full rounded-full transition-all duration-300 ${
                   currentInterval.isTransition
@@ -303,25 +303,25 @@ export function Timer({ onQuickLog }) {
             </div>
 
             {/* Total 60 min session progress */}
-            <div className="flex items-center justify-between w-full max-w-xl text-[11px] text-slate-400 font-mono mt-2">
-              <span>Progreso Total: {Math.round(totalProgressPercent)}%</span>
+            <div className="flex items-center justify-between w-full max-w-xl text-[10px] sm:text-[11px] text-slate-400 font-mono mt-1.5 sm:mt-2">
+              <span>Progreso: {Math.round(totalProgressPercent)}%</span>
               <span>{formatTime(totalElapsed)} / 60:00</span>
             </div>
 
-            {/* Action Buttons */}
-            <div className="flex items-center justify-center gap-3 sm:gap-4 mt-6">
+            {/* Action Buttons: Thumb-friendly and within screen boundary */}
+            <div className="w-full max-w-md mx-auto flex items-center justify-between sm:justify-center gap-1.5 sm:gap-4 mt-5 sm:mt-6">
               <button
                 onClick={() => jumpToInterval(Math.max(0, activeIntervalIndex - 1))}
                 disabled={activeIntervalIndex === 0}
-                className="p-3 rounded-2xl bg-gym-800 hover:bg-gym-700 text-slate-300 disabled:opacity-30 border border-gym-700 transition-all"
+                className="p-2.5 sm:p-3 rounded-xl sm:rounded-2xl bg-gym-800 hover:bg-gym-700 text-slate-300 disabled:opacity-30 border border-gym-700 transition-all shrink-0 active:scale-95"
                 title="Bloque anterior"
               >
-                <SkipBack className="w-5 h-5" />
+                <SkipBack className="w-4 h-4 sm:w-5 sm:h-5" />
               </button>
 
               <button
                 onClick={togglePlay}
-                className={`flex items-center justify-center gap-2 px-8 sm:px-10 py-4 rounded-2xl font-black text-lg sm:text-xl shadow-xl transition-all transform active:scale-95 ${
+                className={`flex-1 sm:flex-initial flex items-center justify-center gap-1.5 sm:gap-2 px-4 sm:px-10 py-3.5 sm:py-4 rounded-xl sm:rounded-2xl font-black text-sm sm:text-xl shadow-xl transition-all transform active:scale-95 ${
                   isRunning
                     ? 'bg-amber-500 hover:bg-amber-400 text-gym-900 shadow-amber-500/30'
                     : 'bg-gradient-to-r from-sky-500 via-indigo-500 to-pink-500 hover:opacity-95 text-white shadow-sky-500/30'
@@ -329,13 +329,13 @@ export function Timer({ onQuickLog }) {
               >
                 {isRunning ? (
                   <>
-                    <Pause className="w-6 h-6 fill-current" />
+                    <Pause className="w-5 h-5 sm:w-6 sm:h-6 fill-current" />
                     <span>Pausar</span>
                   </>
                 ) : (
                   <>
-                    <Play className="w-6 h-6 fill-current" />
-                    <span>{totalElapsed > 0 ? 'Reanudar' : 'Iniciar Sesión (19:00)'}</span>
+                    <Play className="w-5 h-5 sm:w-6 sm:h-6 fill-current" />
+                    <span>{totalElapsed > 0 ? 'Reanudar' : (<span>Iniciar <span className="hidden sm:inline">Sesión (19:00)</span></span>)}</span>
                   </>
                 )}
               </button>
@@ -343,18 +343,18 @@ export function Timer({ onQuickLog }) {
               <button
                 onClick={() => jumpToInterval(Math.min(SESSION_SCHEDULE.intervals.length - 1, activeIntervalIndex + 1))}
                 disabled={activeIntervalIndex === SESSION_SCHEDULE.intervals.length - 1}
-                className="p-3 rounded-2xl bg-gym-800 hover:bg-gym-700 text-slate-300 disabled:opacity-30 border border-gym-700 transition-all"
+                className="p-2.5 sm:p-3 rounded-xl sm:rounded-2xl bg-gym-800 hover:bg-gym-700 text-slate-300 disabled:opacity-30 border border-gym-700 transition-all shrink-0 active:scale-95"
                 title="Siguiente bloque"
               >
-                <SkipForward className="w-5 h-5" />
+                <SkipForward className="w-4 h-4 sm:w-5 sm:h-5" />
               </button>
 
               <button
                 onClick={handleReset}
-                className="p-3 rounded-2xl bg-gym-800 hover:bg-gym-700 text-slate-400 hover:text-white border border-gym-700 transition-all"
+                className="p-2.5 sm:p-3 rounded-xl sm:rounded-2xl bg-gym-800 hover:bg-gym-700 text-slate-400 hover:text-white border border-gym-700 transition-all shrink-0 active:scale-95"
                 title="Reiniciar sesión"
               >
-                <RotateCcw className="w-5 h-5" />
+                <RotateCcw className="w-4 h-4 sm:w-5 sm:h-5" />
               </button>
             </div>
           </div>

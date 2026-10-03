@@ -643,19 +643,19 @@ Ahora puedo llevar el registro de todo lo que comen y calcular sus calorías aut
       </div>
 
       {/* Chat Input */}
-      <form onSubmit={handleSend} className="flex gap-2">
+      <form onSubmit={handleSend} className="flex gap-2 items-center">
         <input
           type="text"
-          placeholder="Escribe tu consulta al Coach Gemini con acceso a todos tus datos..."
+          placeholder="Pregúntale al Coach Gemini sobre comidas, técnica o cargas..."
           value={inputQuery}
           onChange={(e) => setInputQuery(e.target.value)}
           disabled={isLoading}
-          className="flex-1 bg-gym-800 border border-gym-700 rounded-2xl px-4 py-3 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-pink-500"
+          className="flex-1 bg-gym-800 border border-gym-700 rounded-xl sm:rounded-2xl px-3 sm:px-4 py-2.5 sm:py-3 text-xs sm:text-sm text-white placeholder-slate-500 focus:outline-none focus:border-pink-500"
         />
         <button
           type="submit"
           disabled={isLoading || !inputQuery.trim()}
-          className="px-6 py-3 bg-gradient-to-r from-pink-500 to-indigo-600 hover:from-pink-400 hover:to-indigo-500 disabled:opacity-30 text-white font-bold rounded-2xl shadow-lg shadow-pink-500/20 flex items-center gap-2 transition-all"
+          className="p-2.5 sm:px-6 sm:py-3 bg-gradient-to-r from-pink-500 to-indigo-600 hover:from-pink-400 hover:to-indigo-500 disabled:opacity-30 text-white font-bold rounded-xl sm:rounded-2xl shadow-lg shadow-pink-500/20 flex items-center justify-center gap-1.5 transition-all active:scale-95 shrink-0"
         >
           <Send className="w-4 h-4" />
           <span className="hidden sm:inline">Preguntar</span>

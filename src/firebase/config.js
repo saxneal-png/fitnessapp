@@ -45,6 +45,7 @@ export function getStoredFirebaseConfig() {
     storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || 'fitness-app-e7a59.firebasestorage.app',
     messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || '265722878411',
     appId: import.meta.env.VITE_FIREBASE_APP_ID || '1:265722878411:web:31aa1ba0945ec9d3bf3e4e',
+    measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID || 'G-PNX5P04F3Q',
   };
 }
 

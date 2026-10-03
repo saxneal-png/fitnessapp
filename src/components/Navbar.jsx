@@ -22,64 +22,79 @@ export function Navbar({ currentTab, setCurrentTab, onOpenConfig, onLogout }) {
 
   return (
     <header className="sticky top-0 z-40 bg-gym-900/90 backdrop-blur-md border-b border-gym-700/60 no-print">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between h-16 gap-2">
+      <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8">
+        <div className="flex items-center justify-between h-14 sm:h-16 gap-1.5 sm:gap-3">
           {/* Logo & Title */}
-          <div className="flex items-center gap-3 cursor-pointer" onClick={() => setCurrentTab('timer')}>
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-sky-500 via-indigo-500 to-pink-500 p-0.5 shadow-lg shadow-sky-500/20">
-              <div className="w-full h-full bg-gym-900 rounded-[10px] flex items-center justify-center">
-                <Dumbbell className="w-5 h-5 text-sky-400" />
+          <div className="flex items-center gap-2 sm:gap-3 cursor-pointer shrink-0" onClick={() => setCurrentTab('timer')}>
+            <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-gradient-to-br from-sky-500 via-indigo-500 to-pink-500 p-0.5 shadow-md shadow-sky-500/20">
+              <div className="w-full h-full bg-gym-900 rounded-[9px] sm:rounded-[10px] flex items-center justify-center">
+                <Dumbbell className="w-4 h-4 sm:w-5 sm:h-5 text-sky-400" />
               </div>
             </div>
             <div>
-              <div className="flex items-center gap-2">
-                <span className="font-extrabold text-base sm:text-lg tracking-tight bg-gradient-to-r from-sky-400 via-indigo-300 to-pink-400 bg-clip-text text-transparent">
-                  Dúo en Casa
+              <div className="flex items-center gap-1.5">
+                <span className="font-extrabold text-sm sm:text-lg tracking-tight bg-gradient-to-r from-sky-400 via-indigo-300 to-pink-400 bg-clip-text text-transparent">
+                  Dúo <span className="hidden sm:inline">en Casa</span>
                 </span>
-                <span className="hidden sm:inline-flex text-[10px] font-semibold uppercase px-2 py-0.5 rounded-full bg-sky-500/10 text-sky-400 border border-sky-500/20">
+                <span className="hidden md:inline-flex text-[9px] font-semibold uppercase px-1.5 py-0.5 rounded-full bg-sky-500/10 text-sky-400 border border-sky-500/20">
                   19:00 - 20:00
                 </span>
               </div>
-              <p className="text-[11px] text-slate-400 font-medium">Dionicio & Paula • Overload Tracker</p>
+              <p className="hidden sm:block text-[11px] text-slate-400 font-medium">Dionicio & Paula • Overload Tracker</p>
             </div>
           </div>
 
-          {/* User Switcher & Mode Selector */}
-          <div className="flex items-center gap-2">
-            {/* Mode switch: Duo vs Single */}
-            <div className="hidden md:flex items-center bg-gym-800 rounded-lg p-1 border border-gym-700">
+          {/* User Switcher & Controls */}
+          <div className="flex items-center gap-1 sm:gap-2">
+            {/* Desktop Mode switch: Duo vs Single */}
+            <div className="hidden lg:flex items-center bg-gym-800 rounded-lg p-0.5 border border-gym-700">
               <button
                 onClick={() => changeSessionMode('duo')}
-                className={`flex items-center gap-1.5 px-2.5 py-1 rounded text-xs font-semibold transition-all ${
+                className={`flex items-center gap-1 px-2 py-1 rounded text-xs font-semibold transition-all ${
                   sessionMode === 'duo'
                     ? 'bg-gradient-to-r from-sky-500/20 to-pink-500/20 text-white border border-sky-400/40 shadow-sm'
                     : 'text-slate-400 hover:text-slate-200'
                 }`}
-                title="Modo Dúo: Pantalla compartida en TV/Tablet para ambos"
+                title="Modo Dúo: Pantalla compartida"
               >
-                <Users className="w-3.5 h-3.5 text-sky-400" />
-                <span>Modo Dúo</span>
+                <Users className="w-3 h-3 text-sky-400" />
+                <span>Dúo</span>
               </button>
               <button
                 onClick={() => changeSessionMode('single')}
-                className={`flex items-center gap-1.5 px-2.5 py-1 rounded text-xs font-semibold transition-all ${
+                className={`flex items-center gap-1 px-2 py-1 rounded text-xs font-semibold transition-all ${
                   sessionMode === 'single'
                     ? 'bg-gym-700 text-white shadow-sm'
                     : 'text-slate-400 hover:text-slate-200'
                 }`}
-                title="Modo Individual: Vista optimizada para móvil"
+                title="Modo Individual: Vista móvil"
               >
-                <User className="w-3.5 h-3.5" />
-                <span>Individual</span>
+                <User className="w-3 h-3" />
+                <span>Single</span>
               </button>
             </div>
 
-            {/* Active User Display / Switcher */}
-            {sessionMode === 'duo' ? (
-              <div className="flex items-center bg-gym-800 rounded-xl p-1 border border-gym-700">
+            {/* Active User Switcher: Mobile Compact Toggle / Desktop Dual Buttons */}
+            <div className="flex items-center">
+              {/* Mobile compact switcher button (1 tap toggles athlete) */}
+              <button
+                onClick={() => switchUser(currentUser === 'dionicio' ? 'paula' : 'dionicio')}
+                className={`sm:hidden flex items-center gap-1 px-2 py-1 rounded-xl text-xs font-bold border transition-all active:scale-95 ${
+                  currentUser === 'dionicio'
+                    ? 'bg-sky-500/20 text-sky-300 border-sky-400/50'
+                    : 'bg-pink-500/20 text-pink-300 border-pink-400/50'
+                }`}
+                title="Toca para cambiar de atleta"
+              >
+                <span>{currentUser === 'dionicio' ? '👨‍💻 Dionicio' : '👩‍💼 Paula'}</span>
+                <span className="text-[10px] text-slate-400 opacity-70">⇄</span>
+              </button>
+
+              {/* Desktop Dual Switcher */}
+              <div className="hidden sm:flex items-center bg-gym-800 rounded-xl p-1 border border-gym-700">
                 <button
                   onClick={() => switchUser('dionicio')}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                  className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold transition-all ${
                     currentUser === 'dionicio'
                       ? 'bg-sky-500 text-white shadow-md shadow-sky-500/30'
                       : 'text-slate-400 hover:text-sky-300'
@@ -89,7 +104,7 @@ export function Navbar({ currentTab, setCurrentTab, onOpenConfig, onLogout }) {
                 </button>
                 <button
                   onClick={() => switchUser('paula')}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                  className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold transition-all ${
                     currentUser === 'paula'
                       ? 'bg-pink-500 text-white shadow-md shadow-pink-500/30'
                       : 'text-slate-400 hover:text-pink-300'
@@ -98,53 +113,41 @@ export function Navbar({ currentTab, setCurrentTab, onOpenConfig, onLogout }) {
                   <span>👩‍💼 Paula</span>
                 </button>
               </div>
-            ) : (
-              <div className="flex items-center gap-1.5 bg-gym-800 rounded-xl p-1 border border-gym-700">
-                <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold ${
-                  currentUser === 'dionicio' ? 'bg-sky-500/20 text-sky-400 border border-sky-500/30' : 'bg-pink-500/20 text-pink-400 border border-pink-500/30'
-                }`}>
-                  <span>{currentUser === 'dionicio' ? '👨‍💻 Dionicio' : '👩‍💼 Paula'}</span>
-                </div>
-              </div>
-            )}
+            </div>
 
             {/* Cloud Status Badge & Config */}
             <button
               onClick={onOpenConfig}
-              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border text-xs font-bold transition-all ${
+              className={`flex items-center gap-1 px-2 py-1 sm:px-2.5 sm:py-1.5 rounded-xl border text-xs font-bold transition-all ${
                 isFirebaseConnected
                   ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/20'
                   : 'bg-amber-500/10 border-amber-500/30 text-amber-400 hover:bg-amber-500/20'
               }`}
-              title="Estado de sincronización en la Nube con Firebase"
+              title="Configuración de Firebase Nube"
             >
               <span className={`w-2 h-2 rounded-full ${isFirebaseConnected ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400'}`}></span>
-              <span className="hidden sm:inline font-mono text-[11px]">
-                {isFirebaseConnected ? 'Nube Firebase' : 'Modo Local'}
-              </span>
-              <Settings className="w-3.5 h-3.5 text-slate-400 ml-0.5" />
+              <Settings className="w-3.5 h-3.5 text-slate-300" />
             </button>
 
-            {/* Always-visible Logout Button */}
+            {/* Logout Button */}
             <button
               onClick={async () => {
                 await logoutFirebase();
                 if (onLogout) onLogout();
               }}
-              className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl border border-red-500/30 bg-red-500/10 hover:bg-red-500/20 text-red-400 text-xs font-bold transition-all shadow-sm"
+              className="p-1.5 sm:px-2.5 sm:py-1.5 rounded-xl border border-red-500/30 bg-red-500/10 hover:bg-red-500/20 text-red-400 text-xs font-bold transition-all shadow-sm"
               title="Cerrar Sesión"
             >
               <LogOut className="w-3.5 h-3.5 text-red-400" />
-              <span className="hidden sm:inline">Cerrar Sesión</span>
             </button>
           </div>
         </div>
 
-        {/* Navigation Tabs */}
-        <nav className="flex space-x-1 sm:space-x-2 overflow-x-auto py-2 border-t border-gym-800/80 scrollbar-none">
+        {/* Desktop Navigation Tabs (Hidden on mobile) */}
+        <nav className="hidden md:flex space-x-1 lg:space-x-2 overflow-x-auto py-2 border-t border-gym-800/80 scrollbar-none">
           <button
             onClick={() => setCurrentTab('timer')}
-            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs sm:text-sm font-semibold whitespace-nowrap transition-all ${
+            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all ${
               currentTab === 'timer'
                 ? 'bg-sky-500/20 text-sky-400 border border-sky-500/40 shadow-sm'
                 : 'text-slate-400 hover:text-slate-200 hover:bg-gym-800/60'
@@ -156,7 +159,7 @@ export function Navbar({ currentTab, setCurrentTab, onOpenConfig, onLogout }) {
 
           <button
             onClick={() => setCurrentTab('logger')}
-            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs sm:text-sm font-semibold whitespace-nowrap transition-all ${
+            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all ${
               currentTab === 'logger'
                 ? 'bg-amber-500/20 text-amber-400 border border-amber-500/40 shadow-sm'
                 : 'text-slate-400 hover:text-slate-200 hover:bg-gym-800/60'
@@ -168,7 +171,7 @@ export function Navbar({ currentTab, setCurrentTab, onOpenConfig, onLogout }) {
 
           <button
             onClick={() => setCurrentTab('metrics')}
-            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs sm:text-sm font-semibold whitespace-nowrap transition-all ${
+            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all ${
               currentTab === 'metrics'
                 ? 'bg-indigo-500/20 text-indigo-400 border border-indigo-500/40 shadow-sm'
                 : 'text-slate-400 hover:text-slate-200 hover:bg-gym-800/60'
@@ -180,7 +183,7 @@ export function Navbar({ currentTab, setCurrentTab, onOpenConfig, onLogout }) {
 
           <button
             onClick={() => setCurrentTab('dashboard')}
-            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs sm:text-sm font-semibold whitespace-nowrap transition-all ${
+            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all ${
               currentTab === 'dashboard'
                 ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 shadow-sm'
                 : 'text-slate-400 hover:text-slate-200 hover:bg-gym-800/60'
@@ -191,32 +194,20 @@ export function Navbar({ currentTab, setCurrentTab, onOpenConfig, onLogout }) {
           </button>
 
           <button
-            onClick={() => setCurrentTab('planner')}
-            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs sm:text-sm font-semibold whitespace-nowrap transition-all ${
-              currentTab === 'planner'
-                ? 'bg-sky-500/20 text-sky-400 border border-sky-500/40 shadow-sm'
-                : 'text-slate-400 hover:text-slate-200 hover:bg-gym-800/60'
-            }`}
-          >
-            <Calendar className="w-4 h-4" />
-            <span>Plan & Impresión A4</span>
-          </button>
-
-          <button
             onClick={() => setCurrentTab('pantry')}
-            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs sm:text-sm font-semibold whitespace-nowrap transition-all ${
+            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all ${
               currentTab === 'pantry'
                 ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 shadow-sm'
                 : 'text-slate-400 hover:text-slate-200 hover:bg-gym-800/60'
             }`}
           >
             <Utensils className="w-4 h-4" />
-            <span>Despensa & Menú</span>
+            <span>Nutrición & Despensa</span>
           </button>
 
           <button
             onClick={() => setCurrentTab('coach')}
-            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs sm:text-sm font-semibold whitespace-nowrap transition-all ${
+            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all ${
               currentTab === 'coach'
                 ? 'bg-pink-500/20 text-pink-400 border border-pink-500/40 shadow-sm'
                 : 'text-slate-400 hover:text-slate-200 hover:bg-gym-800/60'
@@ -227,17 +218,94 @@ export function Navbar({ currentTab, setCurrentTab, onOpenConfig, onLogout }) {
           </button>
 
           <button
-            onClick={async () => {
-              await logoutFirebase();
-              if (onLogout) onLogout();
-            }}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs sm:text-sm font-semibold whitespace-nowrap text-red-400/90 hover:text-red-300 hover:bg-red-500/10 border border-red-500/20 transition-all ml-auto"
-            title="Cerrar Sesión y Salir"
+            onClick={() => setCurrentTab('planner')}
+            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all ${
+              currentTab === 'planner'
+                ? 'bg-sky-500/20 text-sky-400 border border-sky-500/40 shadow-sm'
+                : 'text-slate-400 hover:text-slate-200 hover:bg-gym-800/60'
+            }`}
           >
-            <LogOut className="w-4 h-4 text-red-400" />
-            <span>Cerrar Sesión</span>
+            <Calendar className="w-4 h-4" />
+            <span>Plan Imprimible</span>
           </button>
         </nav>
+      </div>
+
+      {/* Fixed Mobile Bottom Navigation Bar (Thumb-friendly & always in reach) */}
+      <div className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-[#0B0F19]/95 backdrop-blur-xl border-t border-gym-700/80 px-1 py-1.5 shadow-[0_-10px_25px_rgba(0,0,0,0.5)]">
+        <div className="grid grid-cols-6 gap-1 max-w-md mx-auto">
+          <button
+            onClick={() => setCurrentTab('timer')}
+            className={`flex flex-col items-center justify-center py-1 rounded-xl transition-all active:scale-95 ${
+              currentTab === 'timer'
+                ? 'text-sky-400 bg-sky-500/10 font-bold'
+                : 'text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            <Timer className="w-4 h-4 mb-0.5" />
+            <span className="text-[10px] leading-tight">Sesión</span>
+          </button>
+
+          <button
+            onClick={() => setCurrentTab('logger')}
+            className={`flex flex-col items-center justify-center py-1 rounded-xl transition-all active:scale-95 ${
+              currentTab === 'logger'
+                ? 'text-amber-400 bg-amber-500/10 font-bold'
+                : 'text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            <Flame className="w-4 h-4 mb-0.5" />
+            <span className="text-[10px] leading-tight">Cargas</span>
+          </button>
+
+          <button
+            onClick={() => setCurrentTab('metrics')}
+            className={`flex flex-col items-center justify-center py-1 rounded-xl transition-all active:scale-95 ${
+              currentTab === 'metrics'
+                ? 'text-indigo-400 bg-indigo-500/10 font-bold'
+                : 'text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            <Scale className="w-4 h-4 mb-0.5" />
+            <span className="text-[10px] leading-tight">Medidas</span>
+          </button>
+
+          <button
+            onClick={() => setCurrentTab('dashboard')}
+            className={`flex flex-col items-center justify-center py-1 rounded-xl transition-all active:scale-95 ${
+              currentTab === 'dashboard'
+                ? 'text-emerald-400 bg-emerald-500/10 font-bold'
+                : 'text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            <TrendingUp className="w-4 h-4 mb-0.5" />
+            <span className="text-[10px] leading-tight">Stats</span>
+          </button>
+
+          <button
+            onClick={() => setCurrentTab('pantry')}
+            className={`flex flex-col items-center justify-center py-1 rounded-xl transition-all active:scale-95 ${
+              currentTab === 'pantry'
+                ? 'text-teal-400 bg-teal-500/10 font-bold'
+                : 'text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            <Utensils className="w-4 h-4 mb-0.5" />
+            <span className="text-[10px] leading-tight">Nutrición</span>
+          </button>
+
+          <button
+            onClick={() => setCurrentTab('coach')}
+            className={`flex flex-col items-center justify-center py-1 rounded-xl transition-all active:scale-95 ${
+              currentTab === 'coach'
+                ? 'text-pink-400 bg-pink-500/10 font-bold'
+                : 'text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            <Sparkles className="w-4 h-4 mb-0.5" />
+            <span className="text-[10px] leading-tight">Coach</span>
+          </button>
+        </div>
       </div>
     </header>
   );
