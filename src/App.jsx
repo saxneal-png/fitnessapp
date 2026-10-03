@@ -10,6 +10,7 @@ import { BodyMetrics } from './components/BodyMetrics';
 import { PantryPlanner } from './components/PantryPlanner';
 import { GeminiCoach } from './components/GeminiCoach';
 import { FirebaseConfigModal } from './components/FirebaseConfigModal';
+import { ErrorBoundary } from './components/ErrorBoundary';
 
 function MainApp() {
   const [currentTab, setCurrentTab] = useState('timer');
@@ -98,11 +99,12 @@ function MainApp() {
     </div>
   );
 }
-
 export default function App() {
   return (
-    <AuthProvider>
-      <MainApp />
-    </AuthProvider>
+    <ErrorBoundary>
+      <AuthProvider>
+        <MainApp />
+      </AuthProvider>
+    </ErrorBoundary>
   );
 }

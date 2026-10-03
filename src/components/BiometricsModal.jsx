@@ -21,7 +21,8 @@ import {
   Award,
   CheckCircle2,
   ChevronRight,
-  ArrowRight
+  ArrowRight,
+  AlertTriangle
 } from 'lucide-react';
 import { USERS } from '../data/workoutCatalog';
 import { 
