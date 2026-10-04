@@ -364,6 +364,19 @@ export function PantryPlanner() {
     }
   };
 
+  // Cálculos Nutricionales y Selección de Fecha (Historial Diario)
+  const todayStr = new Date().toISOString().split('T')[0];
+  const [selectedDate, setSelectedDate] = useState(todayStr);
+
+  const availableDates = Array.from(new Set([
+    todayStr,
+    ...nutritionLogs.map(n => n.date || (n.timestamp ? new Date(n.timestamp).toISOString().split('T')[0] : '')).filter(Boolean)
+  ])).sort().reverse();
+
+  const athleteMealsToday = nutritionLogs.filter(
+    n => n.userId === selectedAthlete && (n.date === selectedDate || (!n.date && new Date(n.timestamp).toISOString().split('T')[0] === selectedDate))
+  );
+
   // Detección de comidas duplicadas en la fecha activa
   const duplicateIdsOnDate = (() => {
     const seen = new Map();
@@ -386,19 +399,6 @@ export function PantryPlanner() {
       await deleteNutritionLog(dupId, selectedAthlete, householdId);
     }
   };
-
-  // Cálculos Nutricionales y Selección de Fecha (Historial Diario)
-  const todayStr = new Date().toISOString().split('T')[0];
-  const [selectedDate, setSelectedDate] = useState(todayStr);
-
-  const availableDates = Array.from(new Set([
-    todayStr,
-    ...nutritionLogs.map(n => n.date || (n.timestamp ? new Date(n.timestamp).toISOString().split('T')[0] : '')).filter(Boolean)
-  ])).sort().reverse();
-
-  const athleteMealsToday = nutritionLogs.filter(
-    n => n.userId === selectedAthlete && (n.date === selectedDate || (!n.date && new Date(n.timestamp).toISOString().split('T')[0] === selectedDate))
-  );
 
   const selectedDateClinicalNote = athleteMealsToday.find(m => m.notes)?.notes || null;
 
