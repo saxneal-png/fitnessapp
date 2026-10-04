@@ -253,6 +253,34 @@ export async function deleteWeightEntry(entryId, userId, householdId = 'hogar-di
 // ==========================================
 // Nutrition Logs (Diario Nutricional & Calorías)
 // ==========================================
+// Nutrition Logs (Diario Nutricional & Calorías)
+// ==========================================
+
+const LOCAL_STORAGE_DELETED_NUTRITION_KEY = 'fitness_duo_deleted_nutrition_ids';
+const nutritionSubscribers = new Set();
+
+export function getDeletedNutritionLogIds(householdId = 'hogar-dionicio-paula') {
+  try {
+    const raw = localStorage.getItem(`${LOCAL_STORAGE_DELETED_NUTRITION_KEY}_${householdId}`);
+    if (raw) return new Set(JSON.parse(raw));
+  } catch (e) {}
+  return new Set();
+}
+
+export function markNutritionLogAsDeleted(logId, householdId = 'hogar-dionicio-paula') {
+  try {
+    const deleted = getDeletedNutritionLogIds(householdId);
+    deleted.add(logId);
+    localStorage.setItem(`${LOCAL_STORAGE_DELETED_NUTRITION_KEY}_${householdId}`, JSON.stringify(Array.from(deleted)));
+  } catch (e) {}
+}
+
+export function notifyNutritionSubscribers(householdId = 'hogar-dionicio-paula') {
+  const currentLogs = getLocalNutritionLogs(householdId);
+  nutritionSubscribers.forEach(cb => {
+    try { cb(currentLogs); } catch (e) {}
+  });
+}
 
 export function getLocalNutritionLogs(householdId = 'hogar-dionicio-paula') {
   let stored = [];
@@ -263,24 +291,49 @@ export function getLocalNutritionLogs(householdId = 'hogar-dionicio-paula') {
     console.error('Error loading local nutrition logs', e);
   }
 
-  // Fusionar registros históricos verificados con logs personalizados
+  const deletedIds = getDeletedNutritionLogIds(householdId);
+
+  // Fusionar registros históricos verificados con logs personalizados excluyendo eliminados
   const mergedMap = new Map();
   if (Array.isArray(INITIAL_HISTORICAL_NUTRITION_LOGS)) {
     INITIAL_HISTORICAL_NUTRITION_LOGS.forEach(log => {
-      mergedMap.set(log.id, log);
+      if (!deletedIds.has(log.id)) {
+        mergedMap.set(log.id, log);
+      }
     });
   }
   if (Array.isArray(stored)) {
     stored.forEach(log => {
-      mergedMap.set(log.id, log);
+      if (!deletedIds.has(log.id)) {
+        mergedMap.set(log.id, log);
+      }
     });
   }
 
-  return Array.from(mergedMap.values()).sort((a, b) => {
+  // Deduplicación inteligente: evitar comidas idénticas en el mismo atleta, fecha y tipo con calorías similares
+  const seenFingerprints = new Map();
+  const sorted = Array.from(mergedMap.values()).sort((a, b) => {
     const timeA = a.timestamp || (a.date ? new Date(a.date).getTime() : 0);
     const timeB = b.timestamp || (b.date ? new Date(b.date).getTime() : 0);
     return timeB - timeA;
   });
+
+  const deduplicated = [];
+  for (const item of sorted) {
+    const dateStr = item.date || (item.timestamp ? new Date(item.timestamp).toISOString().split('T')[0] : '');
+    const userStr = item.userId || 'dionicio';
+    const mType = (item.mealType || item.mealName || '').toLowerCase().replace(/[^a-z]/g, '');
+    const calBucket = Math.round((Number(item.caloriesKcal) || 0) / 25);
+    const fingerprint = `${userStr}_${dateStr}_${mType}_${calBucket}`;
+
+    if (seenFingerprints.has(fingerprint)) {
+      continue;
+    }
+    seenFingerprints.set(fingerprint, item.id);
+    deduplicated.push(item);
+  }
+
+  return deduplicated;
 }
 
 export function saveLocalNutritionLogs(logs, householdId = 'hogar-dionicio-paula') {
@@ -308,6 +361,7 @@ export async function saveNutritionLog(nutritionData, householdId = 'hogar-dioni
     allEntries.unshift(newEntry);
   }
   saveLocalNutritionLogs(allEntries, householdId);
+  notifyNutritionSubscribers(householdId);
 
   // 2. Persistir en Firestore Cloud
   if (db && isInitialized) {
@@ -320,7 +374,6 @@ export async function saveNutritionLog(nutritionData, householdId = 'hogar-dioni
     } catch (e) {
       console.warn('⚠️ Error guardando nutrición en Firestore Cloud:', e);
       notifyConnectionChange(false);
-      // No lanzamos error para que la UX no se rompa: los datos ya están a salvo en LocalStorage
     }
   }
 
@@ -328,9 +381,22 @@ export async function saveNutritionLog(nutritionData, householdId = 'hogar-dioni
 }
 
 export async function deleteNutritionLog(logId, userId, householdId = 'hogar-dionicio-paula') {
-  const allEntries = getLocalNutritionLogs(householdId).filter(e => e.id !== logId);
-  saveLocalNutritionLogs(allEntries, householdId);
+  // 1. Marcar persistentemente como eliminado para que nunca resucite
+  markNutritionLogAsDeleted(logId, householdId);
 
+  // 2. Filtrar de localStorage
+  let stored = [];
+  try {
+    const raw = localStorage.getItem(`${LOCAL_STORAGE_NUTRITION_KEY}_${householdId}`);
+    if (raw) stored = JSON.parse(raw);
+  } catch (e) {}
+  const filteredStored = stored.filter(e => e.id !== logId);
+  saveLocalNutritionLogs(filteredStored, householdId);
+
+  // 3. Notificar inmediatamente a observadores de la interfaz
+  notifyNutritionSubscribers(householdId);
+
+  // 4. Eliminar de Firestore Cloud si hay conexión
   if (db && isInitialized) {
     try {
       await ensureAnonymousAuth();
@@ -341,33 +407,45 @@ export async function deleteNutritionLog(logId, userId, householdId = 'hogar-dio
       console.warn('⚠️ Error eliminando nutrición en Firestore Cloud:', e);
     }
   }
+
+  return getLocalNutritionLogs(householdId);
 }
 
 export function subscribeToNutritionLogs(householdId = 'hogar-dionicio-paula', onUpdate) {
+  // Suscribir callback local para cambios inmediatos (guardar, borrar, deduplicar)
+  nutritionSubscribers.add(onUpdate);
+
   // Notificar estado local inicial de inmediato
   const initial = getLocalNutritionLogs(householdId);
   onUpdate(initial);
 
   if (!db || !isInitialized) {
-    return () => {};
+    return () => {
+      nutritionSubscribers.delete(onUpdate);
+    };
   }
 
   let logsDionicio = [];
   let logsPaula = [];
 
   const mergeAndEmit = () => {
+    const deletedIds = getDeletedNutritionLogIds(householdId);
     const mergedMap = new Map();
     if (Array.isArray(INITIAL_HISTORICAL_NUTRITION_LOGS)) {
-      INITIAL_HISTORICAL_NUTRITION_LOGS.forEach(log => mergedMap.set(log.id, log));
+      INITIAL_HISTORICAL_NUTRITION_LOGS.forEach(log => {
+        if (!deletedIds.has(log.id)) mergedMap.set(log.id, log);
+      });
     }
-    [...logsDionicio, ...logsPaula].forEach(log => mergedMap.set(log.id, log));
+    [...logsDionicio, ...logsPaula].forEach(log => {
+      if (!deletedIds.has(log.id)) mergedMap.set(log.id, log);
+    });
     const combined = Array.from(mergedMap.values()).sort((a, b) => {
       const timeA = a.timestamp || (a.date ? new Date(a.date).getTime() : 0);
       const timeB = b.timestamp || (b.date ? new Date(b.date).getTime() : 0);
       return timeB - timeA;
     });
     saveLocalNutritionLogs(combined, householdId);
-    onUpdate(combined);
+    notifyNutritionSubscribers(householdId);
   };
 
   try {
@@ -390,11 +468,14 @@ export function subscribeToNutritionLogs(householdId = 'hogar-dionicio-paula', o
     );
 
     return () => {
+      nutritionSubscribers.delete(onUpdate);
       unsubD();
       unsubP();
     };
   } catch (err) {
-    return () => {};
+    return () => {
+      nutritionSubscribers.delete(onUpdate);
+    };
   }
 }
 

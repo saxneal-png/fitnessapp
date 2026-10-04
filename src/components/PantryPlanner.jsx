@@ -352,11 +352,38 @@ export function PantryPlanner() {
   };
 
   const handleDeleteMeal = async (logId) => {
-    if (!window.confirm('¿Seguro de que deseas eliminar este registro de comida?')) return;
+    // 1. Actualización optimista inmediata en la UI (desaparece al instante)
+    setNutritionLogs(prev => prev.filter(m => m.id !== logId));
     try {
-      await deleteNutritionLog(logId, selectedAthlete, householdId);
+      const updated = await deleteNutritionLog(logId, selectedAthlete, householdId);
+      if (Array.isArray(updated)) {
+        setNutritionLogs(updated);
+      }
     } catch (err) {
       console.error('Error eliminando comida:', err);
+    }
+  };
+
+  // Detección de comidas duplicadas en la fecha activa
+  const duplicateIdsOnDate = (() => {
+    const seen = new Map();
+    const dups = [];
+    athleteMealsToday.forEach(m => {
+      const key = `${(m.mealType || m.mealName || '').toLowerCase()}_${Math.round((Number(m.caloriesKcal) || 0) / 20)}`;
+      if (seen.has(key)) {
+        dups.push(m.id);
+      } else {
+        seen.set(key, m.id);
+      }
+    });
+    return dups;
+  })();
+
+  const handleClearDuplicatesOnDate = async () => {
+    if (duplicateIdsOnDate.length === 0) return;
+    setNutritionLogs(prev => prev.filter(m => !duplicateIdsOnDate.includes(m.id)));
+    for (const dupId of duplicateIdsOnDate) {
+      await deleteNutritionLog(dupId, selectedAthlete, householdId);
     }
   };
 
@@ -896,16 +923,29 @@ export function PantryPlanner() {
             </div>
           </div>
 
-          {/* Listado de Comidas Registradas Hoy */}
+          {/* Listado de Comidas Registradas */}
           <div className="bg-gym-800/90 border border-gym-700 rounded-2xl p-5 shadow-xl space-y-3">
-            <div className="flex items-center justify-between border-b border-gym-700 pb-3">
+            <div className="flex flex-wrap items-center justify-between border-b border-gym-700 pb-3 gap-2">
               <h3 className="font-extrabold text-sm sm:text-base text-white flex items-center gap-2">
                 <Clock className="w-4 h-4 text-emerald-400" />
                 <span>Comidas Registradas {selectedDate === todayStr ? 'Hoy' : `(${selectedDate})`} ({athleteMealsToday.length})</span>
               </h3>
-              <span className="text-[11px] text-slate-400">
-                {athleteMealsToday.length === 0 ? 'Sin registros' : 'Sincronizadas'}
-              </span>
+              
+              <div className="flex items-center gap-2">
+                {duplicateIdsOnDate.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={handleClearDuplicatesOnDate}
+                    className="px-2.5 py-1 rounded-xl bg-amber-500/20 text-amber-300 border border-amber-500/40 hover:bg-amber-500/30 font-bold text-xs flex items-center gap-1.5 transition-all shadow-sm active:scale-95"
+                    title="Eliminar automáticamente las comidas duplicadas de esta fecha"
+                  >
+                    <span>🧹 Limpiar {duplicateIdsOnDate.length} Duplicados</span>
+                  </button>
+                )}
+                <span className="text-[11px] text-slate-400 font-mono">
+                  {athleteMealsToday.length === 0 ? 'Sin registros' : 'Sincronizadas'}
+                </span>
+              </div>
             </div>
 
             {athleteMealsToday.length === 0 ? (
@@ -924,13 +964,18 @@ export function PantryPlanner() {
                   <div key={meal.id} className="p-3.5 bg-gym-900/90 border border-gym-700/80 rounded-xl flex items-center justify-between gap-3 hover:border-gym-600 transition-all">
                     <div className="space-y-1 min-w-0">
                       <div className="flex items-center gap-2">
-                        <span className="font-black text-xs text-white truncate">{meal.title}</span>
+                        <span className="font-black text-xs text-white truncate">{meal.title || meal.mealName}</span>
                         <span className="text-[10px] uppercase font-bold px-2 py-0.5 rounded bg-gym-800 text-slate-300 border border-gym-700">
-                          {meal.mealType === 'once' ? '🥪 Once' : meal.mealType}
+                          {meal.mealType === 'once' ? '🥪 Once' : (meal.mealType || 'Comida')}
                         </span>
                         {meal.source === 'coach_ai' && (
                           <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-pink-500/20 text-pink-300 border border-pink-500/30">
                             Coach AI
+                          </span>
+                        )}
+                        {meal.isVerifiedHistorical && (
+                          <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-sky-500/20 text-sky-300 border border-sky-500/30">
+                            Verificado
                           </span>
                         )}
                       </div>
@@ -946,9 +991,13 @@ export function PantryPlanner() {
                     </div>
 
                     <button
-                      onClick={() => handleDeleteMeal(meal.id)}
-                      className="p-2 text-slate-500 hover:text-red-400 rounded-lg hover:bg-gym-800 transition-all shrink-0"
-                      title="Eliminar registro de comida"
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDeleteMeal(meal.id);
+                      }}
+                      className="p-2.5 text-slate-400 hover:text-red-400 active:scale-90 hover:bg-rose-500/10 rounded-xl transition-all shrink-0 cursor-pointer"
+                      title="Eliminar este plato"
                     >
                       <Trash2 className="w-4 h-4" />
                     </button>
