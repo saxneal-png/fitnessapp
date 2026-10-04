@@ -17,6 +17,10 @@ import { subscribeToMealSettings } from '../services/mealSettingsService';
 import { getLocalDateString, formatShortDate } from '../utils/dateUtils';
 import { BiometricsModal } from './BiometricsModal';
 import { MealSettingsModal } from './MealSettingsModal';
+import { PantryList } from './pantry/PantryList';
+import { PantryNLPInput } from './pantry/PantryNLPInput';
+import { NutritionHistoryPills } from './pantry/NutritionHistoryPills';
+import { AIRecipeCard } from './pantry/AIRecipeCard';
 import { 
   Utensils, 
   Sparkles, 
@@ -791,34 +795,13 @@ export function PantryPlanner() {
 
           {/* Selector de Fechas del Diario Nutricional */}
           {availableDates.length > 0 && (
-            <div className="bg-gym-800/80 border border-gym-700/80 rounded-2xl p-3 shadow-md flex flex-wrap sm:flex-nowrap items-center justify-between gap-2 overflow-x-auto">
-              <div className="flex items-center gap-1.5 text-xs text-slate-400 font-bold shrink-0">
-                <Calendar className="w-4 h-4 text-emerald-400" />
-                <span>Fecha del Diario:</span>
-              </div>
-              <div className="flex items-center gap-1.5 overflow-x-auto py-0.5 max-w-full">
-                {availableDates.map(d => {
-                  const isToday = d === todayStr;
-                  const isSelected = d === selectedDate;
-                  const shortLabel = formatShortDate(d);
-                  const displayTitle = isToday ? `Hoy (${shortLabel})` : shortLabel;
-                  return (
-                    <button
-                      key={d}
-                      type="button"
-                      onClick={() => setSelectedDate(d)}
-                      className={`px-3 py-1 rounded-xl text-xs font-mono font-bold transition-all shrink-0 flex items-center gap-1.5 ${
-                        isSelected
-                          ? 'bg-gradient-to-r from-emerald-500 to-sky-500 text-gym-950 shadow-md shadow-emerald-500/20 scale-102'
-                          : 'bg-gym-900/80 hover:bg-gym-750 text-slate-300 border border-gym-700/80 hover:text-white'
-                      }`}
-                    >
-                      <span>{displayTitle}</span>
-                      {isToday && <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>}
-                    </button>
-                  );
-                })}
-              </div>
+            <div className="bg-gym-800/80 border border-gym-700/80 rounded-2xl p-3 shadow-md flex items-center justify-between gap-2">
+              <NutritionHistoryPills
+                availableDates={availableDates}
+                selectedDate={selectedDate}
+                onSelectDate={setSelectedDate}
+                todayStr={todayStr}
+              />
             </div>
           )}
 
@@ -919,7 +902,9 @@ export function PantryPlanner() {
                   {totalFatsToday}g <span className="text-[10px] text-slate-400 font-normal">/ {targetFats}g</span>
                 </div>
                 <span className="text-[9px] text-pink-300/80 block mt-0.5 font-mono">
-                  {selectedAthlete === 'paula' ? '🛡️ Techo digestivo máx 42g' : athletePlan.formulaDetails.fatsTargetInfo}
+                  {athletePlan.digestiveProtection 
+                    ? `🛡️ Techo digestivo máx ${athletePlan.maxFatsCap || 42}g` 
+                    : athletePlan.formulaDetails.fatsTargetInfo}
                 </span>
               </div>
             </div>
@@ -1048,96 +1033,15 @@ export function PantryPlanner() {
           </div>
 
           {/* Pantry Selector Box */}
-          <div className="bg-gym-800/90 border border-gym-700 rounded-2xl p-5 sm:p-6 shadow-xl space-y-5 no-print">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <h3 className="font-extrabold text-base text-white flex items-center gap-2">
-                  <ShoppingBag className="w-5 h-5 text-amber-400" />
-                  <span>¿Qué tienen en su refrigerador / despensa hoy?</span>
-                </h3>
-                <p className="text-xs text-slate-400 mt-0.5">
-                  Despensa compartida para ambos. Lo que agregues aquí se sincroniza en Firestore Cloud para los dos celulares.
-                </p>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="text-[11px] font-mono text-emerald-400 font-bold bg-emerald-950/60 px-3 py-1 rounded-xl border border-emerald-500/40 flex items-center gap-1.5 shadow-sm">
-                  <Cloud className="w-3.5 h-3.5" />
-                  <span>Sincronizada en Cloud ({pantryItems.length})</span>
-                </span>
-              </div>
-            </div>
-
-            {/* Preset Category Chips */}
-            <div className="space-y-3">
-              <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider">
-                Selección rápida de ingredientes comunes (haz clic para activar/desactivar):
-              </label>
-              <div className="flex flex-wrap gap-2">
-                {DEFAULT_COMMON_INGREDIENTS.map((item) => {
-                  const isSelected = pantryItems.includes(item.name);
-                  return (
-                    <button
-                      key={item.id}
-                      type="button"
-                      onClick={() => togglePresetIngredient(item.name)}
-                      className={`px-3 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all ${
-                        isSelected
-                          ? 'bg-emerald-500 text-gym-950 font-bold shadow-md shadow-emerald-500/20 border border-emerald-400'
-                          : 'bg-gym-900/90 text-slate-300 border border-gym-700 hover:border-slate-500'
-                      }`}
-                    >
-                      {isSelected && <Check className="w-3.5 h-3.5 stroke-[3]" />}
-                      <span>{item.name}</span>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* Add Custom Ingredient Form */}
-            <form onSubmit={handleAddCustomItem} className="pt-2 border-t border-gym-700 flex gap-2">
-              <input
-                type="text"
-                value={customItemInput}
-                onChange={(e) => setCustomItemInput(e.target.value)}
-                placeholder="Otro ingrediente (ej: Quesillo, Ajo, Zapallito italiano)..."
-                className="flex-1 bg-gym-900 border border-gym-700 rounded-xl px-4 py-2.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500"
-              />
-              <button
-                type="submit"
-                disabled={!customItemInput.trim()}
-                className="px-4 py-2.5 bg-gradient-to-r from-emerald-500 to-teal-500 hover:opacity-95 disabled:opacity-50 text-gym-950 rounded-xl text-xs font-black flex items-center gap-1.5 transition-all shadow-md"
-              >
-                <Plus className="w-4 h-4" />
-                <span>Guardar en Despensa Cloud</span>
-              </button>
-            </form>
-
-            {/* Active Pantry Tags */}
-            <div className="pt-2 space-y-2">
-              <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider">
-                Ingredientes activos en despensa compartida ({pantryItems.length}):
-              </label>
-              <div className="flex flex-wrap gap-2">
-                {pantryItems.map((item) => (
-                  <span
-                    key={item}
-                    className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-gym-900 border border-gym-700 text-slate-200 text-xs font-medium shadow-sm"
-                  >
-                    <span>{item}</span>
-                    <button
-                      type="button"
-                      onClick={() => handleRemoveItem(item)}
-                      className="text-slate-500 hover:text-red-400 transition-colors"
-                      title="Quitar ingrediente"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
-                  </span>
-                ))}
-              </div>
-            </div>
-          </div>
+          <PantryList
+            pantryItems={pantryItems}
+            onTogglePreset={togglePresetIngredient}
+            onRemoveItem={handleRemoveItem}
+            onAddCustom={handleAddCustomItem}
+            customInput={customItemInput}
+            onCustomInputChange={setCustomItemInput}
+            presetIngredients={DEFAULT_COMMON_INGREDIENTS}
+          />
 
           {/* BASE DE CONOCIMIENTO DE MARCAS Y ALIMENTOS APRENDIDOS (FIRESTORE) */}
           <div className="bg-gym-800/90 border border-sky-500/30 rounded-2xl p-5 sm:p-6 shadow-xl space-y-4 no-print">
@@ -1226,101 +1130,15 @@ export function PantryPlanner() {
             </div>
           )}
 
-          <div className="bg-gym-800/90 border border-gym-700 rounded-2xl p-5 sm:p-6 shadow-xl space-y-4">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <h3 className="font-extrabold text-base text-white flex items-center gap-2">
-                  <ChefHat className="w-5 h-5 text-emerald-400" />
-                  <span>Diseñador Estricto de Menú Semanal</span>
-                </h3>
-                <p className="text-xs text-slate-400 mt-0.5">
-                  Genera una planificación de Lunes a Viernes usando estrictamente los {pantryItems.length} ingredientes de la despensa.
-                </p>
-              </div>
-
-              {generatedMenu && (
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={handleCopyMenu}
-                    className="flex items-center gap-1.5 px-3 py-1.5 bg-gym-900 hover:bg-gym-700 text-slate-200 border border-gym-700 rounded-xl text-xs font-bold transition-all"
-                  >
-                    {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5 text-sky-400" />}
-                    <span>{copied ? '¡Copiado!' : 'Copiar'}</span>
-                  </button>
-                  <button
-                    onClick={handlePrintMenu}
-                    className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold transition-all shadow-md"
-                  >
-                    <Printer className="w-3.5 h-3.5" />
-                    <span>Imprimir</span>
-                  </button>
-                </div>
-              )}
-            </div>
-
-            <button
-              onClick={handleGenerateMenu}
-              disabled={isLoading || pantryItems.length === 0}
-              className="w-full py-4 bg-gradient-to-r from-emerald-500 via-teal-500 to-sky-500 hover:opacity-95 text-gym-900 font-black text-base rounded-2xl shadow-xl shadow-emerald-500/20 flex items-center justify-center gap-2 transition-all transform active:scale-98 disabled:opacity-40"
-            >
-              {isLoading ? (
-                <>
-                  <RefreshCw className="w-5 h-5 animate-spin" />
-                  <span>Diseñando menú con recetas compartidas y porciones exactas...</span>
-                </>
-              ) : (
-                <>
-                  <Sparkles className="w-5 h-5 fill-current" />
-                  <span>Diseñar / Actualizar Menú Semanal (Lunes a Viernes)</span>
-                </>
-              )}
-            </button>
-          </div>
-
-          {/* Generated Menu Display Sheet */}
-          {generatedMenu && (
-            <div className="printable-page bg-gym-800/90 border border-gym-700 rounded-3xl p-6 sm:p-8 shadow-2xl space-y-6">
-              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-gym-700 pb-4">
-                <div>
-                  <div className="flex items-center gap-2">
-                    <ChefHat className="w-6 h-6 text-emerald-400" />
-                    <h3 className="text-xl font-black text-white">Menú Dúo: Receta Compartida & Porciones Diferenciadas</h3>
-                  </div>
-                  <p className="text-xs text-slate-400 mt-0.5">
-                    Generado el {generatedMenu.generatedAt} para <strong>Dionicio</strong> y <strong>Paula</strong>.
-                  </p>
-                </div>
-                <span className="text-xs font-mono bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 px-3 py-1 rounded-full font-bold">
-                  {generatedMenu.isAI ? '⚡ Diseñado con Gemini AI' : '📋 Plantilla de Despensa Estricta'}
-                </span>
-              </div>
-
-              {/* Guidelines Banner */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs bg-gym-900/80 p-4 rounded-2xl border border-gym-700/60">
-                <div className="space-y-1">
-                  <span className="font-black text-sky-400 flex items-center gap-1.5">
-                    <span>👨‍💻 Dionicio (180 cm):</span>
-                  </span>
-                  <p className="text-slate-300 leading-relaxed">
-                    Ayuno matutino o desayuno • Almuerzo 13:30 (Porción grande) • <strong>Once / Once-Comida post-entreno a las 20:00</strong>.
-                  </p>
-                </div>
-                <div className="space-y-1">
-                  <span className="font-black text-pink-400 flex items-center gap-1.5">
-                    <span>👩‍💼 Paula (41 años, 160 cm):</span>
-                  </span>
-                  <p className="text-slate-300 leading-relaxed">
-                    Desayuno liviano proteico • Almuerzo balanceado • <strong>Once post-entreno a las 20:00 (Porción ajustada)</strong>.
-                  </p>
-                </div>
-              </div>
-
-              {/* Menu Markdown / Text Rendering */}
-              <div className="prose prose-invert max-w-none text-slate-200 text-xs sm:text-sm leading-relaxed whitespace-pre-line bg-gym-900/60 p-5 rounded-2xl border border-gym-700/50">
-                {generatedMenu.content}
-              </div>
-            </div>
-          )}
+          <AIRecipeCard
+            generatedMenu={generatedMenu}
+            isLoading={isLoading}
+            onGenerate={handleGenerateMenu}
+            onCopy={handleCopyMenu}
+            onPrint={handlePrintMenu}
+            copied={copied}
+            pantryItemsCount={pantryItems.length}
+          />
         </div>
       )}
 

@@ -11,6 +11,7 @@ export const GEMINI_STORAGE_KEY = 'fitness_gemini_api_key';
 export const GEMINI_MODEL_STORAGE_KEY = 'fitness_gemini_model';
 
 export const GEMINI_AVAILABLE_MODELS = [
+  { id: 'gemini-flash-latest', label: 'Gemini Flash Latest (Prioritario)' },
   { id: 'gemini-2.0-flash-lite', label: 'Gemini 2.0 Flash Lite (Recomendado • Ultra Rápido)' },
   { id: 'gemini-flash-lite-latest', label: 'Gemini Flash Lite Latest' },
   { id: 'gemini-2.0-flash-lite-preview-02-05', label: 'Gemini 2.0 Flash Lite Preview (02-05)' },
@@ -48,6 +49,7 @@ async function callGemini(systemInstruction, userPrompt, apiKey, preferredModel)
 
   const modelCandidates = [
     selectedModel,
+    'gemini-flash-latest',
     'gemini-2.0-flash-lite',
     'gemini-flash-lite-latest',
     'gemini-2.0-flash-lite-preview-02-05',
@@ -644,12 +646,12 @@ DIRECTRICES DE TUS RESPUESTAS:
 
 2. PAULA (160 cm, 63 kg, 41 años, PAL 1.28, ~45.0 kg masa magra):
    - Meta Calórica Techo: 1.220 a 1.250 kcal/día (TDEE real ~1.618 kcal con déficit seguro).
-   - 🛡️ ALERTA DIGESTIVA & HARD CAP DE GRASAS: MÁXIMO 42g/día (gatillo de intolerancia en 45g). Su vesícula y colon sensible colapsan con grasas altas o frituras, especialmente de noche.
+   - PROTECCIÓN DIGESTIVA: ${context.nutrition?.paula?.plan?.digestiveProtection ? `🛡️ ACTIVADA: HARD CAP DE GRASAS MÁXIMO ${context.nutrition?.paula?.plan?.maxFatsCap || 42}g/día (gatillo de intolerancia en 45g). Cuidar vesícula y colon sensible.` : 'DESACTIVADA: Ratio de grasas flexible según el modo activo.'}
    - Proteína calibrada liviana: 80 a 85g (máximo 88g en hipertrofia). NUNCA sobrecargarla con 95-105g de proteína ni forzar batidos innecesarios.
    - Carbohidratos limpios: 130-135g (arroz blanco, avena, papas, marraqueta, frutas) para financiar cualquier requerimiento extra de energía.
    - Suplementación: 5g creatina diaria. Cáscara Foods solo como rescate eventual (máx 1 scoop).
    - Preferencias alimentarias: Adora el quesillo Colun, tomate fresco c/cilantro/ajo, yogurt griego Quillayes proteico, pechuga de pollo, pescados magros (merluza a la plancha, salmón) y marraqueta.
-   - 🚫 REGLA DE REFLUJO NOCTURNO: CERO embutidos densos, cuero de pollo asado o quesos grasos en la once. La longaniza casera solo al almuerzo para facilitar el vaciamiento gástrico antes de dormir.
+   - 🚫 REGLA DE REFLUJO NOCTURNO: ${context.nutrition?.paula?.plan?.digestiveProtection ? 'CERO embutidos densos, cuero de pollo asado o quesos grasos en la once. La longaniza casera solo al almuerzo para vaciamiento gástrico.' : 'Preferir grasas saludables y ligeras en la noche.'}
 
 ====================================================
 🥗 CALORÍAS Y NUTRICIÓN DE HOY:
@@ -1089,7 +1091,7 @@ No caigas en la trampa de inflar el gasto diario por entrenar 1 hora si la jorna
 2. Factor de Actividad Real: 1.28 sobre TMB (TDEE real = ~1.618 kcal/día).
 3. Meta Calórica Diaria: 1.200 a 1.250 kcal (TARGET EXACTO: 1.220 a 1.250 kcal/día).
 4. Proteína Diaria Liviana: 80 a 85 g/día (TARGET: 82g, máx 88g). Anti-distensión gástrica y de colon. NUNCA forzar 95-105g ni batidos innecesarios.
-5. 🛡️ HARD CAP ESTRICTO DE GRASAS: MÁXIMO 42 g/día (gatillo clínico de intolerancia en 45g). Cuidar vesícula y colon sensible.
+5. PROTECCIÓN DIGESTIVA: ${pauPlan.digestiveProtection ? `🛡️ ACTIVADA: HARD CAP ESTRICTO DE GRASAS MÁXIMO ${pauPlan.maxFatsCap || 42} g/día (gatillo clínico de intolerancia en 45g). Cuidar vesícula y colon sensible.` : 'DESACTIVADA: Grasas flexibles según requerimiento calórico del modo activo.'}
 6. Carbohidratos Limpios: 130 a 135 g/día (arroz blanco, papas, marraqueta, avena, frutas).
 7. Gustos & Restricciones: Le gusta el quesillo Colun, tomate fresco c/cilantro/ajo, yogurt griego Quillayes, pechuga de pollo, merluza a la plancha, salmón y marraqueta. 🚫 REGLA DE REFLUJO NOCTURNO: Cero embutidos densos, cuero de pollo asado o quesos grasos en la once. La longaniza casera solo al almuerzo.
 - Ingerido hoy antes de este mensaje: ${pauNut.todayCals} / 1250 kcal | ${pauNut.todayProtein}g / 82g proteína.

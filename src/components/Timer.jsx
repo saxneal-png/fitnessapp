@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { SESSION_SCHEDULE, WORKOUT_DAYS, TREADMILL_PROTOCOLS, USERS } from '../data/workoutCatalog';
 import { soundEffects } from '../services/soundEffects';
+import { useWorkoutTimer } from '../hooks/useWorkoutTimer';
 import { getLiveTimerAdvice, getStoredGeminiKey, askCoachWithFullContext } from '../services/geminiService';
 import confetti from 'canvas-confetti';
 import { 
@@ -33,115 +34,28 @@ export function Timer({ onQuickLog }) {
   
   // Who starts where? Default: Dionicio on Strength, Paula on Treadmill (or customizable)
   const [userAIsDionicio, setUserAIsDionicio] = useState(true);
-  const [activeIntervalIndex, setActiveIntervalIndex] = useState(0);
-  const [secondsRemaining, setSecondsRemaining] = useState(SESSION_SCHEDULE.intervals[0].durationSeconds);
-  const [isRunning, setIsRunning] = useState(false);
-  const [soundEnabled, setSoundEnabled] = useState(true);
-  const [isTurbo, setIsTurbo] = useState(false); // 10x simulation speed
-  const [selectedDayRoutine, setSelectedDayRoutine] = useState('torso'); // 'torso' or 'pierna_core'
-
-  // Live In-Routine Coach Quick Assistant State
-  const [showQuickCoach, setShowQuickCoach] = useState(false);
+  const [selectedDayRoutine, setSelectedDayRoutine] = useState('torso'); // 'torso' | 'pierna_core'
   const [quickQuery, setQuickQuery] = useState('');
-  const [coachResponse, setCoachResponse] = useState(null);
   const [isAskingCoach, setIsAskingCoach] = useState(false);
-
-  const timerRef = useRef(null);
-  const currentInterval = SESSION_SCHEDULE.intervals[activeIntervalIndex];
-  const totalSessionSeconds = SESSION_SCHEDULE.intervals.reduce((acc, i) => acc + i.durationSeconds, 0);
-
-  // Compute total elapsed time
-  const elapsedSecondsInPastIntervals = SESSION_SCHEDULE.intervals
-    .slice(0, activeIntervalIndex)
-    .reduce((acc, i) => acc + i.durationSeconds, 0);
-  const currentIntervalElapsed = currentInterval.durationSeconds - secondsRemaining;
-  const totalElapsed = elapsedSecondsInPastIntervals + currentIntervalElapsed;
-  const totalProgressPercent = Math.min(100, (totalElapsed / totalSessionSeconds) * 100);
-
-  // Interval progress
-  const intervalProgressPercent = ((currentInterval.durationSeconds - secondsRemaining) / currentInterval.durationSeconds) * 100;
-
-  // Format seconds mm:ss
-  const formatTime = (secs) => {
-    const m = Math.floor(secs / 60);
-    const s = secs % 60;
-    return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
-  };
-
-  // Timer Tick Engine
-  useEffect(() => {
-    if (isRunning) {
-      const stepMs = isTurbo ? 100 : 1000;
-      timerRef.current = setInterval(() => {
-        setSecondsRemaining((prev) => {
-          if (prev <= 1) {
-            handleIntervalComplete();
-            return 0;
-          }
-
-          // Countdown sound effects at 3, 2, 1
-          if (soundEnabled && prev <= 4 && prev > 1) {
-            soundEffects.playCountdownBeep();
-          }
-
-          return prev - 1;
-        });
-      }, stepMs);
-    } else {
-      if (timerRef.current) clearInterval(timerRef.current);
-    }
-    return () => {
-      if (timerRef.current) clearInterval(timerRef.current);
-    };
-  }, [isRunning, activeIntervalIndex, isTurbo, soundEnabled]);
-
-  const handleIntervalComplete = () => {
-    const nextIdx = activeIntervalIndex + 1;
-    if (nextIdx < SESSION_SCHEDULE.intervals.length) {
-      setActiveIntervalIndex(nextIdx);
-      const nextInterval = SESSION_SCHEDULE.intervals[nextIdx];
-      setSecondsRemaining(nextInterval.durationSeconds);
-
-      if (soundEnabled) {
-        if (nextInterval.isTransition) {
-          soundEffects.playRotationBuzzer();
-        } else {
-          soundEffects.playStartChime();
-        }
-      }
-    } else {
-      // Workout Finished!
-      setIsRunning(false);
-      if (soundEnabled) {
-        soundEffects.playVictoryFanfare();
-      }
-      try {
-        confetti({
-          particleCount: 150,
-          spread: 80,
-          origin: { y: 0.6 }
-        });
-      } catch (e) {}
-    }
-  };
-
-  const togglePlay = () => {
-    if (!isRunning && soundEnabled) {
-      soundEffects.playStartChime();
-    }
-    setIsRunning(!isRunning);
-  };
-
-  const handleReset = () => {
-    setIsRunning(false);
-    setActiveIntervalIndex(0);
-    setSecondsRemaining(SESSION_SCHEDULE.intervals[0].durationSeconds);
-  };
-
-  const jumpToInterval = (index) => {
-    setActiveIntervalIndex(index);
-    setSecondsRemaining(SESSION_SCHEDULE.intervals[index].durationSeconds);
-  };
+  const [coachResponse, setCoachResponse] = useState(null);
+  const [showQuickCoach, setShowQuickCoach] = useState(false);
+  const {
+    activeIntervalIndex,
+    currentInterval,
+    secondsRemaining,
+    isRunning,
+    soundEnabled,
+    setSoundEnabled,
+    isTurbo,
+    setIsTurbo,
+    totalElapsed,
+    totalProgressPercent,
+    intervalProgressPercent,
+    formatTime,
+    togglePlay,
+    handleReset,
+    jumpToInterval,
+  } = useWorkoutTimer();
 
   // Quick In-Timer Coach Query
   const handleQuickCoachSubmit = async (e) => {

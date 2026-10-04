@@ -29,6 +29,7 @@ import {
   getAthleteBiometrics, 
   saveAthleteBiometrics, 
   saveAthleteMode,
+  toggleAthleteDigestiveProtection,
   calculateAthleteNutrition,
   evaluateAthleteModeRecommendation,
   ACTIVITY_MULTIPLIERS,
@@ -93,6 +94,13 @@ export function BiometricsModal({ isOpen, onClose, householdId, initialAthlete =
     }
   };
 
+  const handleToggleDigestive = (enabled) => {
+    const updated = { ...formData, digestiveProtection: enabled };
+    setFormData(updated);
+    toggleAthleteDigestiveProtection(selectedAthlete, enabled, householdId);
+    setActivePlan(calculateAthleteNutrition(selectedAthlete, householdId, updated.currentWeightKg));
+  };
+
   const handleSubmit = (e) => {
     e.preventDefault();
     saveAthleteBiometrics(selectedAthlete, {
@@ -104,6 +112,8 @@ export function BiometricsModal({ isOpen, onClose, householdId, initialAthlete =
       activityLevel: formData.activityLevel,
       activeMode: formData.activeMode,
       goal: formData.activeMode === 'visceral_fat_loss' ? 'aggressive_fat_loss' : formData.activeMode,
+      digestiveProtection: Boolean(formData.digestiveProtection),
+      maxFatsCap: Number(formData.maxFatsCap) || (selectedAthlete === 'paula' ? 42 : 45),
       proteinPerKg: Number(formData.proteinPerKg),
       fatPerKg: Number(formData.fatPerKg)
     }, householdId);
@@ -223,15 +233,61 @@ export function BiometricsModal({ isOpen, onClose, householdId, initialAthlete =
               </div>
             )}
 
-            {/* Aviso de Protección Digestiva para Paula */}
-            {!isDionicio && (
-              <div className="mb-3 p-2.5 rounded-xl bg-sky-950/40 border border-sky-500/40 text-xs text-sky-300 flex items-center gap-2">
-                <ShieldCheck className="w-4 h-4 text-sky-400 shrink-0" />
-                <span>
-                  <strong>Protección Digestiva Activa:</strong> Techo estricto de grasa fijado en máx 42g/día y proteína en 80-85g para cuidar la vesícula y colon sensible. Cualquier superávit se financia con carbohidratos limpios.
-                </span>
+            {/* Control Interactivo de Protección Digestiva según Atleta */}
+            <div className={`mb-3 p-3 rounded-2xl border transition-all ${
+              formData.digestiveProtection 
+                ? 'bg-sky-950/40 border-sky-500/40' 
+                : 'bg-gym-900/60 border-gym-750'
+            }`}>
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex items-start gap-2.5">
+                  <div className={`p-2 rounded-xl mt-0.5 shrink-0 ${
+                    formData.digestiveProtection 
+                      ? 'bg-sky-500/20 text-sky-400' 
+                      : 'bg-gym-800 text-slate-500'
+                  }`}>
+                    <ShieldCheck className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <strong className="text-xs text-white">
+                        Protección Digestiva Clínico-Intestinal
+                      </strong>
+                      <span className={`text-[10px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider ${
+                        formData.digestiveProtection 
+                          ? 'bg-sky-500/20 text-sky-300 border border-sky-500/30' 
+                          : 'bg-gym-800 text-slate-400 border border-gym-700'
+                      }`}>
+                        {formData.digestiveProtection ? 'Activada' : 'Desactivada'}
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-slate-300 mt-1 leading-relaxed">
+                      {formData.digestiveProtection ? (
+                        <>
+                          <strong>Techo estricto de grasa ({formData.maxFatsCap || (selectedAthlete === 'paula' ? 42 : 45)}g/día)</strong> para cuidar la vesícula biliar y prevenir reflujo o colon irritable. La energía adicional se financia con carbohidratos limpios.
+                        </>
+                      ) : (
+                        <>
+                          Límites liberados. Las grasas se calculan por ratio estándar del modo metabólico sin hard cap estricto.
+                        </>
+                      )}
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => handleToggleDigestive(!formData.digestiveProtection)}
+                  className={`px-3 py-1.5 rounded-xl font-bold text-xs transition-all shrink-0 flex items-center gap-1.5 shadow-sm active:scale-95 ${
+                    formData.digestiveProtection
+                      ? 'bg-sky-500 hover:bg-sky-400 text-gym-950'
+                      : 'bg-gym-800 hover:bg-gym-700 text-slate-300 border border-gym-700'
+                  }`}
+                >
+                  <span>{formData.digestiveProtection ? 'Desactivar' : 'Activar'}</span>
+                </button>
               </div>
-            )}
+            </div>
 
             <div className="flex flex-wrap items-center justify-between gap-3 pt-2.5 border-t border-gym-800/80">
               <div className="text-[11px] text-slate-400 flex items-center gap-1.5">
