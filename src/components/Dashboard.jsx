@@ -3,6 +3,7 @@ import { useAuth } from '../context/AuthContext';
 import { getLocalLogs, getLocalWeightEntries, saveWeightEntry, subscribeToHouseholdData, subscribeToNutritionLogs } from '../firebase/config';
 
 import { WORKOUT_DAYS, USERS } from '../data/workoutCatalog';
+import { getLocalDateString } from '../utils/dateUtils';
 import {
   ResponsiveContainer,
   BarChart,
@@ -43,7 +44,7 @@ export function Dashboard() {
   const [selectedExerciseForTrend, setSelectedExerciseForTrend] = useState('floor_press');
   const [showWeightModal, setShowWeightModal] = useState(false);
   const [showBiometricsModal, setShowBiometricsModal] = useState(false);
-  const [newWeight, setNewWeight] = useState({ userId: currentUser || 'dionicio', date: new Date().toISOString().split('T')[0], weightKg: 80.0 });
+  const [newWeight, setNewWeight] = useState({ userId: currentUser || 'dionicio', date: getLocalDateString(), weightKg: 80.0 });
 
   useEffect(() => {
     // Real-time Firestore subscription with local fallback
@@ -100,7 +101,7 @@ export function Dashboard() {
   // Aggregate Nutrition / Calories by Date
   const caloriesByDateMap = {};
   nutritionLogs.forEach(n => {
-    const d = n.date || (n.timestamp ? new Date(n.timestamp).toISOString().split('T')[0] : '');
+    const d = n.date || (n.timestamp ? getLocalDateString(n.timestamp) : '');
     if (!d) return;
     if (!caloriesByDateMap[d]) {
       caloriesByDateMap[d] = { date: d, dionicioCals: 0, paulaCals: 0, totalCals: 0 };

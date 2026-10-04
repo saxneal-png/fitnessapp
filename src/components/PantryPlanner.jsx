@@ -14,6 +14,7 @@ import {
 import { calculateAthleteNutrition } from '../services/nutritionCalculator';
 import { subscribeToFoodCatalog, saveFoodItemToKnowledgeBase } from '../services/foodKnowledgeService';
 import { subscribeToMealSettings } from '../services/mealSettingsService';
+import { getLocalDateString, formatShortDate } from '../utils/dateUtils';
 import { BiometricsModal } from './BiometricsModal';
 import { MealSettingsModal } from './MealSettingsModal';
 import { 
@@ -123,7 +124,7 @@ export function PantryPlanner() {
     proteinG: 35,
     carbsG: 40,
     fatsG: 12,
-    date: new Date().toISOString().split('T')[0]
+    date: getLocalDateString()
   });
 
   // Real-time Cloud Subscriptions
@@ -275,10 +276,11 @@ export function PantryPlanner() {
             }];
 
         // Persistir en Firestore Cloud y LocalStorage para cada atleta
+        const mealSaveDate = selectedDate || getLocalDateString();
         for (const entry of entriesToSave) {
           await saveNutritionLog({
             userId: entry.userId || selectedAthlete,
-            date: new Date().toISOString().split('T')[0],
+            date: entry.date || mealSaveDate,
             mealType: entry.mealType || 'almuerzo',
             title: entry.title || 'Comida analizada por Coach IA',
             caloriesKcal: entry.caloriesKcal || 0,
@@ -321,7 +323,7 @@ export function PantryPlanner() {
     try {
       await saveNutritionLog({
         userId: selectedAthlete,
-        date: newMeal.date,
+        date: newMeal.date || selectedDate || getLocalDateString(),
         mealType: newMeal.mealType,
         title: newMeal.title.trim(),
         caloriesKcal: Number(newMeal.caloriesKcal) || 0,
@@ -339,7 +341,7 @@ export function PantryPlanner() {
         proteinG: 35,
         carbsG: 40,
         fatsG: 12,
-        date: new Date().toISOString().split('T')[0]
+        date: getLocalDateString()
       });
 
       try {
@@ -365,16 +367,16 @@ export function PantryPlanner() {
   };
 
   // Cálculos Nutricionales y Selección de Fecha (Historial Diario)
-  const todayStr = new Date().toISOString().split('T')[0];
+  const todayStr = getLocalDateString();
   const [selectedDate, setSelectedDate] = useState(todayStr);
 
   const availableDates = Array.from(new Set([
     todayStr,
-    ...nutritionLogs.map(n => n.date || (n.timestamp ? new Date(n.timestamp).toISOString().split('T')[0] : '')).filter(Boolean)
+    ...nutritionLogs.map(n => n.date || (n.timestamp ? getLocalDateString(n.timestamp) : '')).filter(Boolean)
   ])).sort().reverse();
 
   const athleteMealsToday = nutritionLogs.filter(
-    n => n.userId === selectedAthlete && (n.date === selectedDate || (!n.date && new Date(n.timestamp).toISOString().split('T')[0] === selectedDate))
+    n => n.userId === selectedAthlete && (n.date === selectedDate || (!n.date && getLocalDateString(n.timestamp) === selectedDate))
   );
 
   // Detección de comidas duplicadas en la fecha activa
@@ -798,8 +800,8 @@ export function PantryPlanner() {
                 {availableDates.map(d => {
                   const isToday = d === todayStr;
                   const isSelected = d === selectedDate;
-                  const parts = d.split('-');
-                  const shortLabel = parts.length === 3 ? `${parts[2]}/${parts[1]}` : d;
+                  const shortLabel = formatShortDate(d);
+                  const displayTitle = isToday ? `Hoy (${shortLabel})` : shortLabel;
                   return (
                     <button
                       key={d}
@@ -811,8 +813,8 @@ export function PantryPlanner() {
                           : 'bg-gym-900/80 hover:bg-gym-750 text-slate-300 border border-gym-700/80 hover:text-white'
                       }`}
                     >
-                      <span>{isToday ? 'Hoy' : shortLabel}</span>
-                      {isToday && <span className="w-1.5 h-1.5 rounded-full bg-gym-950"></span>}
+                      <span>{displayTitle}</span>
+                      {isToday && <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>}
                     </button>
                   );
                 })}

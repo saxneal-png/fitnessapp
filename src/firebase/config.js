@@ -24,6 +24,7 @@ import {
   enableIndexedDbPersistence
 } from 'firebase/firestore';
 import { INITIAL_HISTORICAL_NUTRITION_LOGS } from '../data/nutritionHistoryData.js';
+import { getLocalDateString } from '../utils/dateUtils.js';
 
 const LOCAL_STORAGE_KEY = 'fitness_duo_firebase_config';
 const LOCAL_STORAGE_LOGS_KEY = 'fitness_duo_logs_prod';
@@ -302,9 +303,17 @@ export function getLocalNutritionLogs(householdId = 'hogar-dionicio-paula') {
       }
     });
   }
+  const localToday = getLocalDateString();
   if (Array.isArray(stored)) {
     stored.forEach(log => {
       if (!deletedIds.has(log.id)) {
+        // Corrección de registros guardados durante el desfase UTC de medianoche
+        if (log.timestamp && log.date && log.date > localToday) {
+          const actualLocalDate = getLocalDateString(log.timestamp);
+          if (actualLocalDate <= localToday) {
+            log.date = actualLocalDate;
+          }
+        }
         mergedMap.set(log.id, log);
       }
     });
@@ -320,7 +329,7 @@ export function getLocalNutritionLogs(householdId = 'hogar-dionicio-paula') {
 
   const deduplicated = [];
   for (const item of sorted) {
-    const dateStr = item.date || (item.timestamp ? new Date(item.timestamp).toISOString().split('T')[0] : '');
+    const dateStr = item.date || getLocalDateString(item.timestamp || Date.now());
     const userStr = item.userId || 'dionicio';
     const mType = (item.mealType || item.mealName || '').toLowerCase().replace(/[^a-z]/g, '');
     const calBucket = Math.round((Number(item.caloriesKcal) || 0) / 25);
@@ -344,7 +353,7 @@ export async function saveNutritionLog(nutritionData, householdId = 'hogar-dioni
   const newEntry = {
     ...nutritionData,
     id: nutritionData.id || `nutri-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
-    date: nutritionData.date || new Date().toISOString().split('T')[0],
+    date: nutritionData.date || getLocalDateString(nutritionData.timestamp || Date.now()),
     timestamp: nutritionData.timestamp || Date.now(),
     caloriesKcal: Number(nutritionData.caloriesKcal) || 0,
     proteinG: Number(nutritionData.proteinG) || 0,

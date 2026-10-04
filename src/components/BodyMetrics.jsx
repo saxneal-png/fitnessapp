@@ -9,6 +9,7 @@ import {
   saveLocalWeightEntries 
 } from '../firebase/config';
 import { collection, onSnapshot } from 'firebase/firestore';
+import { getLocalDateString } from '../utils/dateUtils';
 import { 
   Scale, 
   Ruler, 
@@ -64,7 +65,7 @@ export function BodyMetrics() {
 
 
   // Form State
-  const [date, setDate] = useState(() => new Date().toISOString().split('T')[0]);
+  const [date, setDate] = useState(() => getLocalDateString());
   const [frequency, setFrequency] = useState(() => {
     return localStorage.getItem('fitness_duo_freq_' + (currentUser || 'dionicio')) || 'weekly_sun';
   });
@@ -143,7 +144,7 @@ export function BodyMetrics() {
     const freqConfig = FREQUENCIES.find(f => f.id === frequency) || FREQUENCIES[0];
     const nextDate = new Date(lastDate);
     nextDate.setDate(nextDate.getDate() + freqConfig.intervalDays);
-    return nextDate.toISOString().split('T')[0];
+    return getLocalDateString(nextDate);
   }, [latestEntry, frequency]);
 
   const handleSubmit = async (e) => {
@@ -205,7 +206,7 @@ export function BodyMetrics() {
 
   const chartData = useMemo(() => {
     return sortedChronological.map(item => ({
-      date: item.date || (item.timestamp ? new Date(item.timestamp).toISOString().split('T')[0] : ''),
+      date: item.date || (item.timestamp ? getLocalDateString(item.timestamp) : ''),
       peso: item.weightKg ? Number(item.weightKg) : null,
       cintura: item.waistCm ? Number(item.waistCm) : null,
       cadera: item.hipsCm ? Number(item.hipsCm) : null,
@@ -709,7 +710,7 @@ export function BodyMetrics() {
                 {logs.map((item) => (
                   <tr key={item.id} className="hover:bg-gym-800/40 transition-colors">
                     <td className="py-3 px-3 font-semibold text-white whitespace-nowrap">
-                      {item.date || (item.timestamp ? new Date(item.timestamp).toISOString().split('T')[0] : '')}
+                      {item.date || (item.timestamp ? getLocalDateString(item.timestamp) : '')}
                     </td>
                     <td className="py-3 px-3 text-slate-400 whitespace-nowrap">
                       {FREQUENCIES.find(f => f.id === item.frequencySelected)?.label.split(' ')[0] || 'Semanal'}

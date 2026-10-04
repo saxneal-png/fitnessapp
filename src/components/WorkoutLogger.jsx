@@ -22,6 +22,7 @@ import {
   RefreshCw
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
+import { getLocalDateString } from '../utils/dateUtils';
 
 export function WorkoutLogger() {
   const { currentUser, householdId } = useAuth();
@@ -29,7 +30,7 @@ export function WorkoutLogger() {
   const [logType, setLogType] = useState('strength'); // 'strength' or 'treadmill'
   const [selectedDay, setSelectedDay] = useState('torso'); // 'torso' or 'pierna_core'
   const [selectedExerciseId, setSelectedExerciseId] = useState('floor_press');
-  const [workoutDate, setWorkoutDate] = useState(() => new Date().toISOString().split('T')[0]);
+  const [workoutDate, setWorkoutDate] = useState(() => getLocalDateString());
   
   const currentWorkoutDay = WORKOUT_DAYS.find(d => d.id === selectedDay) || WORKOUT_DAYS[0];
   const currentExercise = currentWorkoutDay.exercises.find(e => e.id === selectedExerciseId) || currentWorkoutDay.exercises[0];

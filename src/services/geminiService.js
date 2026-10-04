@@ -4,6 +4,7 @@ import { getLocalLogs, getLocalWeightEntries, getLocalNutritionLogs } from '../f
 import { calculateAthleteNutrition, getAthleteBiometrics } from './nutritionCalculator';
 import { getLocalFoodCatalog, searchFoodInKnowledgeBase, saveFoodItemToKnowledgeBase } from './foodKnowledgeService';
 import { getLocalMealSettings } from './mealSettingsService';
+import { getLocalDateString } from '../utils/dateUtils';
 
 
 export const GEMINI_STORAGE_KEY = 'fitness_gemini_api_key';
@@ -237,10 +238,10 @@ export function buildHouseholdContext(householdId = 'hogar-dionicio-paula') {
   const paulaLogs = logs.filter(l => l.userId === 'paula');
 
   const nutritionLogs = getLocalNutritionLogs(householdId);
-  const todayStr = new Date().toISOString().split('T')[0];
+  const todayStr = getLocalDateString();
   
-  const dionicioTodayNutrition = nutritionLogs.filter(n => n.userId === 'dionicio' && (n.date === todayStr || (!n.date && new Date(n.timestamp).toISOString().split('T')[0] === todayStr)));
-  const paulaTodayNutrition = nutritionLogs.filter(n => n.userId === 'paula' && (n.date === todayStr || (!n.date && new Date(n.timestamp).toISOString().split('T')[0] === todayStr)));
+  const dionicioTodayNutrition = nutritionLogs.filter(n => n.userId === 'dionicio' && (n.date === todayStr || (!n.date && getLocalDateString(n.timestamp) === todayStr)));
+  const paulaTodayNutrition = nutritionLogs.filter(n => n.userId === 'paula' && (n.date === todayStr || (!n.date && getLocalDateString(n.timestamp) === todayStr)));
 
   const dionicioTodayCals = dionicioTodayNutrition.reduce((acc, n) => acc + (Number(n.caloriesKcal) || 0), 0);
   const paulaTodayCals = paulaTodayNutrition.reduce((acc, n) => acc + (Number(n.caloriesKcal) || 0), 0);
