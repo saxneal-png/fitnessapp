@@ -409,14 +409,17 @@ Estoy conectado en tiempo real a tus entrenamientos, series de pesas, cardio y t
 
       {/* Personal Trainer Telemetry Card */}
       {(() => {
-        const metrics = currentUser === 'dionicio' ? householdStats.dionicioMetrics : householdStats.paulaMetrics;
+        const metrics = isDuoHousehold 
+          ? (currentUser === 'dionicio' ? householdStats.dionicioMetrics : householdStats.paulaMetrics)
+          : (householdStats.userMetrics || householdStats[`${currentUser}Metrics`] || {});
         const prList = Object.entries(metrics?.exercisePRs || {});
+        const athleteName = userProfile?.name || allUsers[currentUser]?.name || 'Atleta';
         return (
           <div className="bg-gym-800/60 border border-gym-700/80 rounded-2xl p-4 space-y-3">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2 text-xs font-bold text-slate-300 uppercase tracking-wider">
                 <Flame className="w-4 h-4 text-amber-400" />
-                <span>Métricas de Personal Trainer ({USERS[currentUser]?.name})</span>
+                <span>Métricas de Personal Trainer ({athleteName})</span>
               </div>
               <span className="text-[11px] text-slate-400">
                 Volumen Semanal: <strong className="text-white font-mono">{metrics?.weeklyVolumeKg || 0} kg</strong> • RPE Promedio: <strong className="text-white font-mono">{metrics?.avgRpe || '8.0'}</strong>

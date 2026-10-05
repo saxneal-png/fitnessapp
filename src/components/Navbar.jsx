@@ -18,7 +18,7 @@ import {
 } from 'lucide-react';
 
 export function Navbar({ currentTab, setCurrentTab, onOpenConfig, onLogout }) {
-  const { currentUser, switchUser, sessionMode, changeSessionMode, allUsers, isFirebaseConnected, fbUser, logoutFirebase } = useAuth();
+  const { currentUser, switchUser, sessionMode, changeSessionMode, allUsers, userProfile, isDuoHousehold, isFirebaseConnected, fbUser, logoutFirebase } = useAuth();
 
   return (
     <header className="sticky top-0 z-40 bg-gym-900/90 backdrop-blur-md border-b border-gym-700/60 no-print">
@@ -34,80 +34,97 @@ export function Navbar({ currentTab, setCurrentTab, onOpenConfig, onLogout }) {
             <div>
               <div className="flex items-center gap-1.5">
                 <span className="font-extrabold text-sm sm:text-lg tracking-tight bg-gradient-to-r from-sky-400 via-indigo-300 to-pink-400 bg-clip-text text-transparent">
-                  Dúo <span className="hidden sm:inline">en Casa</span>
+                  {isDuoHousehold ? 'Dúo ' : 'Fitness '}
+                  <span className="hidden sm:inline">{isDuoHousehold ? 'en Casa' : 'App & Coach'}</span>
                 </span>
-                <span className="hidden md:inline-flex text-[9px] font-semibold uppercase px-1.5 py-0.5 rounded-full bg-sky-500/10 text-sky-400 border border-sky-500/20">
-                  19:00 - 20:00
-                </span>
+                {isDuoHousehold && (
+                  <span className="hidden md:inline-flex text-[9px] font-semibold uppercase px-1.5 py-0.5 rounded-full bg-sky-500/10 text-sky-400 border border-sky-500/20">
+                    19:00 - 20:00
+                  </span>
+                )}
               </div>
-              <p className="hidden sm:block text-[11px] text-slate-400 font-medium">Dionicio & Paula • Overload Tracker</p>
+              <p className="hidden sm:block text-[11px] text-slate-400 font-medium">
+                {isDuoHousehold ? 'Dionicio & Paula • Overload Tracker' : `${userProfile?.name || 'Mi Perfil'} • Sesión Privada`}
+              </p>
             </div>
           </div>
 
           {/* User Switcher & Controls */}
           <div className="flex items-center gap-1 sm:gap-2">
-            {/* Desktop Mode switch: Duo vs Single */}
-            <div className="hidden lg:flex items-center bg-gym-800 rounded-lg p-0.5 border border-gym-700">
-              <button
-                onClick={() => changeSessionMode('duo')}
-                className={`flex items-center gap-1 px-2 py-1 rounded text-xs font-semibold transition-all ${
-                  sessionMode === 'duo'
-                    ? 'bg-gradient-to-r from-sky-500/20 to-pink-500/20 text-white border border-sky-400/40 shadow-sm'
-                    : 'text-slate-400 hover:text-slate-200'
-                }`}
-                title="Modo Dúo: Pantalla compartida"
-              >
-                <Users className="w-3 h-3 text-sky-400" />
-                <span>Dúo</span>
-              </button>
-              <button
-                onClick={() => changeSessionMode('single')}
-                className={`flex items-center gap-1 px-2 py-1 rounded text-xs font-semibold transition-all ${
-                  sessionMode === 'single'
-                    ? 'bg-gym-700 text-white shadow-sm'
-                    : 'text-slate-400 hover:text-slate-200'
-                }`}
-                title="Modo Individual: Vista móvil"
-              >
-                <User className="w-3 h-3" />
-                <span>Single</span>
-              </button>
-            </div>
-
-            {/* Active User Switcher: Mobile Compact Toggle / Desktop Switcher */}
-            <div className="flex items-center">
-              {/* Mobile compact switcher button (taps cycle through registered athletes) */}
-              <button
-                onClick={() => {
-                  const uids = Object.keys(allUsers);
-                  const currentIdx = uids.indexOf(currentUser);
-                  const nextUid = uids[(currentIdx + 1) % uids.length];
-                  switchUser(nextUid);
-                }}
-                className="sm:hidden flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-xs font-bold border border-sky-400/50 bg-sky-500/20 text-sky-200 transition-all active:scale-95"
-                title="Toca para cambiar de atleta"
-              >
-                <span>{allUsers[currentUser]?.avatar || '🏋️‍♂️'} {allUsers[currentUser]?.name || 'Atleta'}</span>
-                <span className="text-[10px] text-slate-400 opacity-70">⇄</span>
-              </button>
-
-              {/* Desktop Dual/Multi Switcher */}
-              <div className="hidden sm:flex items-center bg-gym-800 rounded-xl p-1 border border-gym-700 max-w-[280px] overflow-x-auto scrollbar-none gap-1">
-                {Object.values(allUsers).map((athlete) => (
-                  <button
-                    key={athlete.uid}
-                    onClick={() => switchUser(athlete.uid)}
-                    className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold transition-all shrink-0 ${
-                      currentUser === athlete.uid
-                        ? 'bg-sky-500 text-white shadow-md shadow-sky-500/30 font-extrabold'
-                        : 'text-slate-400 hover:text-white'
-                    }`}
-                  >
-                    <span>{athlete.avatar || '🏋️‍♂️'}</span>
-                    <span>{athlete.name}</span>
-                  </button>
-                ))}
+            {/* Desktop Mode switch: Duo vs Single (Solo para hogar Dúo) */}
+            {isDuoHousehold && (
+              <div className="hidden lg:flex items-center bg-gym-800 rounded-lg p-0.5 border border-gym-700">
+                <button
+                  onClick={() => changeSessionMode('duo')}
+                  className={`flex items-center gap-1 px-2 py-1 rounded text-xs font-semibold transition-all ${
+                    sessionMode === 'duo'
+                      ? 'bg-gradient-to-r from-sky-500/20 to-pink-500/20 text-white border border-sky-400/40 shadow-sm'
+                      : 'text-slate-400 hover:text-slate-200'
+                  }`}
+                  title="Modo Dúo: Pantalla compartida"
+                >
+                  <Users className="w-3 h-3 text-sky-400" />
+                  <span>Dúo</span>
+                </button>
+                <button
+                  onClick={() => changeSessionMode('single')}
+                  className={`flex items-center gap-1 px-2 py-1 rounded text-xs font-semibold transition-all ${
+                    sessionMode === 'single'
+                      ? 'bg-gym-700 text-white shadow-sm'
+                      : 'text-slate-400 hover:text-slate-200'
+                  }`}
+                  title="Modo Individual: Vista móvil"
+                >
+                  <User className="w-3 h-3" />
+                  <span>Single</span>
+                </button>
               </div>
+            )}
+
+            {/* Selector de Atleta o Badge de Usuario Privado */}
+            <div className="flex items-center">
+              {isDuoHousehold ? (
+                <>
+                  {/* Mobile compact switcher button */}
+                  <button
+                    onClick={() => {
+                      const uids = Object.keys(allUsers);
+                      const currentIdx = uids.indexOf(currentUser);
+                      const nextUid = uids[(currentIdx + 1) % uids.length];
+                      switchUser(nextUid);
+                    }}
+                    className="sm:hidden flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-xs font-bold border border-sky-400/50 bg-sky-500/20 text-sky-200 transition-all active:scale-95"
+                    title="Toca para cambiar de atleta"
+                  >
+                    <span>{allUsers[currentUser]?.avatar || '🏋️‍♂️'} {allUsers[currentUser]?.name || 'Atleta'}</span>
+                    <span className="text-[10px] text-slate-400 opacity-70">⇄</span>
+                  </button>
+
+                  {/* Desktop Dual Switcher */}
+                  <div className="hidden sm:flex items-center bg-gym-800 rounded-xl p-1 border border-gym-700 max-w-[280px] overflow-x-auto scrollbar-none gap-1">
+                    {Object.values(allUsers).map((athlete) => (
+                      <button
+                        key={athlete.uid}
+                        onClick={() => switchUser(athlete.uid)}
+                        className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold transition-all shrink-0 ${
+                          currentUser === athlete.uid
+                            ? 'bg-sky-500 text-white shadow-md shadow-sky-500/30 font-extrabold'
+                            : 'text-slate-400 hover:text-white'
+                        }`}
+                      >
+                        <span>{athlete.avatar || '🏋️‍♂️'}</span>
+                        <span>{athlete.name}</span>
+                      </button>
+                    ))}
+                  </div>
+                </>
+              ) : (
+                /* Cuenta privada individual: solo su perfil personal */
+                <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gym-800 border border-gym-700 text-slate-200 text-xs font-bold shadow-sm">
+                  <span className="text-sm">{userProfile?.avatar || '🏋️‍♂️'}</span>
+                  <span className="max-w-[120px] truncate">{userProfile?.name || 'Mi Perfil'}</span>
+                </div>
+              )}
             </div>
 
             {/* Cloud Status Badge & Config */}

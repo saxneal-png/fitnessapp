@@ -30,7 +30,7 @@ function MainApp() {
     return localStorage.getItem('fitness_duo_guest_access') === 'true';
   });
 
-  const { currentUser, sessionMode, fbUser, isAuthenticated, authLoading, isFirebaseConnected, changeSessionMode, logoutFirebase } = useAuth();
+  const { currentUser, sessionMode, fbUser, isAuthenticated, authLoading, isFirebaseConnected, changeSessionMode, logoutFirebase, isDuoHousehold, userProfile } = useAuth();
 
   const handleGuestDuo = () => {
     setGuestAccess(true);
@@ -91,16 +91,28 @@ function MainApp() {
       {/* Footer */}
       <footer className="border-t border-gym-800 py-6 text-center text-xs text-slate-500 space-y-1 no-print">
         <div className="flex items-center justify-center gap-1.5 font-medium">
-          <span>Dúo en Casa</span>
-          <span>•</span>
-          <span className="text-sky-400 font-bold">Dionicio</span>
-          <span>&</span>
-          <span className="text-pink-400 font-bold">Paula</span>
-          <span>•</span>
-          <span>19:00 a 20:00</span>
+          {isDuoHousehold ? (
+            <>
+              <span>Dúo en Casa</span>
+              <span>•</span>
+              <span className="text-sky-400 font-bold">Dionicio</span>
+              <span>&</span>
+              <span className="text-pink-400 font-bold">Paula</span>
+              <span>•</span>
+              <span>19:00 a 20:00</span>
+            </>
+          ) : (
+            <>
+              <span>Fitness App & Coach</span>
+              <span>•</span>
+              <span className="text-sky-400 font-bold">{userProfile?.name || 'Mi Perfil'}</span>
+              <span>•</span>
+              <span>Sesión Individual Privada</span>
+            </>
+          )}
         </div>
         <p className="text-[11px] text-slate-600">
-          Set Mancuernas Modulares 40kg + Trotadora Eléctrica • Firebase Spark & GitHub Actions
+          Set Mancuernas Modulares 40kg + Trotadora Eléctrica • Coach IA Personalizado
         </p>
       </footer>
 

@@ -27,6 +27,8 @@ export function AuthProvider({ children }) {
   const [allUsers, setAllUsers] = useState(() => getAllAthletes());
 
   const [currentUser, setCurrentUser] = useState(() => {
+    const session = getAuthenticatedSession();
+    if (session && session.uid) return session.uid;
     return localStorage.getItem(ACTIVE_USER_STORAGE) || 'dionicio';
   });
 
@@ -35,6 +37,8 @@ export function AuthProvider({ children }) {
   });
 
   const [householdId, setHouseholdId] = useState(() => {
+    const session = getAuthenticatedSession();
+    if (session && session.householdId) return session.householdId;
     const active = localStorage.getItem(ACTIVE_USER_STORAGE) || 'dionicio';
     const users = getAllAthletes();
     if (users[active] && users[active].householdId) {
@@ -89,7 +93,14 @@ export function AuthProvider({ children }) {
     }
   }, []);
 
+  const isDuoHousehold = householdId === 'hogar-dionicio-paula' && (currentUser === 'dionicio' || currentUser === 'paula');
+
   const switchUser = (uid) => {
+    // Si no es el hogar compartido de Dionicio y Paula, la cuenta es privada y no permite acceder a otros atletas
+    if (!isDuoHousehold && uid !== currentUser) {
+      console.warn('Acceso denegado: cuenta privada aislada.');
+      return;
+    }
     const currentAthletes = getAllAthletes();
     if (currentAthletes[uid]) {
       setCurrentUser(uid);
@@ -173,12 +184,21 @@ export function AuthProvider({ children }) {
 
   const isAuthenticated = Boolean(fbUser || authSession);
   const currentAthletes = allUsers || DEFAULT_USERS;
-  const userProfile = currentAthletes[currentUser] || currentAthletes.dionicio || Object.values(currentAthletes)[0];
+
+  // Aislamiento estricto: Si es el hogar de Dionicio y Paula, ven a ambos atletas.
+  // Si es un usuario independiente en cuenta privada, solo ve su propio perfil en allUsers y en la UI.
+  const householdAthletes = isDuoHousehold
+    ? { dionicio: currentAthletes.dionicio || DEFAULT_USERS.dionicio, paula: currentAthletes.paula || DEFAULT_USERS.paula }
+    : (currentAthletes[currentUser] ? { [currentUser]: currentAthletes[currentUser] } : { [currentUser]: { uid: currentUser, name: 'Atleta' } });
+
+  const userProfile = householdAthletes[currentUser] || currentAthletes[currentUser] || Object.values(householdAthletes)[0];
 
   const value = {
     currentUser,
     userProfile,
-    allUsers: currentAthletes,
+    allUsers: householdAthletes,
+    globalUsers: currentAthletes,
+    isDuoHousehold,
     switchUser,
     refreshUsers,
     registerAthlete,

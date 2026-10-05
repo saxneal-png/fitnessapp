@@ -33,7 +33,7 @@ import {
 import { Layers } from 'lucide-react';
 
 export function WorkoutLogger() {
-  const { currentUser, householdId } = useAuth();
+  const { currentUser, householdId, isDuoHousehold, userProfile, allUsers } = useAuth();
   
   const [logType, setLogType] = useState('strength'); // 'strength' or 'treadmill'
   const [selectedDay, setSelectedDay] = useState('torso'); // 'torso' or 'pierna_core'
@@ -43,7 +43,8 @@ export function WorkoutLogger() {
   const currentWorkoutDay = WORKOUT_DAYS.find(d => d.id === selectedDay) || WORKOUT_DAYS[0];
   const currentExercise = currentWorkoutDay.exercises.find(e => e.id === selectedExerciseId) || currentWorkoutDay.exercises[0];
 
-  const defaultWeight = currentUser === 'dionicio' ? currentExercise.defaultWeightDionicio : currentExercise.defaultWeightPaula;
+  const isMale = (userProfile?.gender || (currentUser === 'dionicio' ? 'male' : 'female')) === 'male';
+  const defaultWeight = isMale ? currentExercise.defaultWeightDionicio : currentExercise.defaultWeightPaula;
 
   const [sets, setSets] = useState([
     { setNumber: 1, weightKg: defaultWeight, reps: 10, rpe: 7.5 },
@@ -534,19 +535,22 @@ export function WorkoutLogger() {
           <div className="flex items-center justify-between">
             <h3 className="font-extrabold text-base text-white flex items-center gap-2">
               <Clock className="w-4 h-4 text-sky-400" />
-              <span>Últimos Registros del Hogar</span>
+              <span>{isDuoHousehold ? 'Últimos Registros del Hogar' : 'Mis Últimos Registros'}</span>
             </h3>
-            <span className="text-[11px] text-slate-400 font-mono">Total: {recentLogs.length}</span>
+            <span className="text-[11px] text-slate-400 font-mono">
+              Total: {(isDuoHousehold ? recentLogs : recentLogs.filter(l => l.userId === currentUser)).length}
+            </span>
           </div>
 
           <div className="space-y-3 max-h-[500px] overflow-y-auto pr-1">
-            {recentLogs.length === 0 ? (
+            {(isDuoHousehold ? recentLogs : recentLogs.filter(l => l.userId === currentUser)).length === 0 ? (
               <div className="p-6 rounded-xl bg-gym-900/60 border border-dashed border-gym-700 text-center text-xs text-slate-500 space-y-1 font-mono">
                 <p>Sin registros en la nube aún.</p>
                 <p className="text-[11px] text-slate-600">Completa tu primera serie hoy para ver el historial y feedback.</p>
               </div>
             ) : (
-              recentLogs.slice(0, 8).map((log) => {
+              (isDuoHousehold ? recentLogs : recentLogs.filter(l => l.userId === currentUser)).slice(0, 8).map((log) => {
+                const athlete = allUsers[log.userId] || (log.userId === currentUser ? userProfile : { name: log.userId, avatar: '🏋️‍♂️' });
                 const isDionicio = log.userId === 'dionicio';
                 return (
                   <div
@@ -554,12 +558,14 @@ export function WorkoutLogger() {
                     className={`p-3.5 rounded-xl border text-xs space-y-1.5 transition-all ${
                       isDionicio
                         ? 'bg-sky-950/20 border-sky-500/30'
-                        : 'bg-pink-950/20 border-pink-500/30'
+                        : log.userId === 'paula'
+                        ? 'bg-pink-950/20 border-pink-500/30'
+                        : 'bg-emerald-950/20 border-emerald-500/30'
                     }`}
                   >
                     <div className="flex items-center justify-between">
-                      <span className={`font-black ${isDionicio ? 'text-sky-400' : 'text-pink-400'}`}>
-                        {isDionicio ? '👨‍💻 Dionicio' : '👩‍💼 Paula'}
+                      <span className={`font-black ${isDionicio ? 'text-sky-400' : (log.userId === 'paula' ? 'text-pink-400' : 'text-emerald-400')}`}>
+                        {athlete.avatar || '🏋️‍♂️'} {athlete.name || 'Atleta'}
                       </span>
                       <span className="text-[10px] font-mono text-slate-400">{log.date}</span>
                     </div>

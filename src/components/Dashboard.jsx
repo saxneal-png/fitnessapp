@@ -52,7 +52,7 @@ import { getWeeklyCaloricAudit, getDailyAthleteSummary } from '../services/calor
 import { EXERCISE_MUSCLE_CATEGORIES } from '../services/adaptiveWorkoutService';
 
 export function Dashboard() {
-  const { householdId, currentUser } = useAuth();
+  const { householdId, currentUser, isDuoHousehold, userProfile, allUsers } = useAuth();
   const [logs, setLogs] = useState([]);
   const [weightEntries, setWeightEntries] = useState([]);
   const [nutritionLogs, setNutritionLogs] = useState([]);
@@ -95,61 +95,64 @@ export function Dashboard() {
   // Resumen del día seleccionado (Categorías musculares, gasto y balance)
   const dailySummary = getDailyAthleteSummary(balanceAthlete, selectedSummaryDate, logs, nutritionLogs, householdId);
 
+  const relevantLogs = isDuoHousehold ? logs : logs.filter(l => l.userId === currentUser);
+  const relevantWeights = isDuoHousehold ? weightEntries : weightEntries.filter(w => w.userId === currentUser);
+  const relevantNutrition = isDuoHousehold ? nutritionLogs : nutritionLogs.filter(n => n.userId === currentUser);
+
   // Aggregate Volume by Date
   const volumeByDateMap = {};
-  logs.filter(l => l.type === 'strength').forEach(l => {
+  relevantLogs.filter(l => l.type === 'strength').forEach(l => {
     const d = l.date;
     if (!volumeByDateMap[d]) {
-      volumeByDateMap[d] = { date: d, dionicioVolume: 0, paulaVolume: 0, totalVolume: 0 };
+      volumeByDateMap[d] = { date: d, dionicioVolume: 0, paulaVolume: 0, userVolume: 0, totalVolume: 0 };
     }
     if (l.userId === 'dionicio') {
       volumeByDateMap[d].dionicioVolume += (l.totalVolumeKg || 0);
-    } else {
+    } else if (l.userId === 'paula') {
       volumeByDateMap[d].paulaVolume += (l.totalVolumeKg || 0);
+    }
+    if (l.userId === currentUser) {
+      volumeByDateMap[d].userVolume += (l.totalVolumeKg || 0);
     }
     volumeByDateMap[d].totalVolume += (l.totalVolumeKg || 0);
   });
   const volumeChartData = Object.values(volumeByDateMap).sort((a, b) => a.date.localeCompare(b.date));
 
   // Exercise Max Weight Progression Trend
-  const exerciseLogs = logs.filter(l => l.type === 'strength' && l.exerciseId === selectedExerciseForTrend);
+  const exerciseLogs = relevantLogs.filter(l => l.type === 'strength' && l.exerciseId === selectedExerciseForTrend);
   const exerciseTrendMap = {};
   exerciseLogs.forEach(l => {
     const d = l.date;
     const maxWeight = Math.max(...(l.sets?.map(s => s.weightKg) || [0]));
     if (!exerciseTrendMap[d]) {
-      exerciseTrendMap[d] = { date: d, dionicioMax: null, paulaMax: null };
+      exerciseTrendMap[d] = { date: d, dionicioMax: null, paulaMax: null, userMax: null };
     }
-    if (l.userId === 'dionicio') {
-      exerciseTrendMap[d].dionicioMax = maxWeight;
-    } else {
-      exerciseTrendMap[d].paulaMax = maxWeight;
-    }
+    if (l.userId === 'dionicio') exerciseTrendMap[d].dionicioMax = maxWeight;
+    if (l.userId === 'paula') exerciseTrendMap[d].paulaMax = maxWeight;
+    if (l.userId === currentUser) exerciseTrendMap[d].userMax = maxWeight;
   });
   const exerciseTrendData = Object.values(exerciseTrendMap).sort((a, b) => a.date.localeCompare(b.date));
 
   // Aggregate Nutrition / Calories by Date
   const caloriesByDateMap = {};
-  nutritionLogs.forEach(n => {
+  relevantNutrition.forEach(n => {
     const d = n.date || (n.timestamp ? getLocalDateString(n.timestamp) : '');
     if (!d) return;
     if (!caloriesByDateMap[d]) {
-      caloriesByDateMap[d] = { date: d, dionicioCals: 0, paulaCals: 0, totalCals: 0 };
+      caloriesByDateMap[d] = { date: d, dionicioCals: 0, paulaCals: 0, userCals: 0, totalCals: 0 };
     }
-    if (n.userId === 'dionicio') {
-      caloriesByDateMap[d].dionicioCals += (Number(n.caloriesKcal) || 0);
-    } else {
-      caloriesByDateMap[d].paulaCals += (Number(n.caloriesKcal) || 0);
-    }
+    if (n.userId === 'dionicio') caloriesByDateMap[d].dionicioCals += (Number(n.caloriesKcal) || 0);
+    if (n.userId === 'paula') caloriesByDateMap[d].paulaCals += (Number(n.caloriesKcal) || 0);
+    if (n.userId === currentUser) caloriesByDateMap[d].userCals += (Number(n.caloriesKcal) || 0);
     caloriesByDateMap[d].totalCals += (Number(n.caloriesKcal) || 0);
   });
   const caloriesChartData = Object.values(caloriesByDateMap).sort((a, b) => a.date.localeCompare(b.date));
-  const totalCaloriesLogged = nutritionLogs.reduce((acc, n) => acc + (Number(n.caloriesKcal) || 0), 0);
+  const totalCaloriesLogged = relevantNutrition.reduce((acc, n) => acc + (Number(n.caloriesKcal) || 0), 0);
 
   // Total KPIs
-  const totalHouseholdVolume = logs.filter(l => l.type === 'strength').reduce((acc, l) => acc + (l.totalVolumeKg || 0), 0);
-  const totalCaloriesBurned = logs.filter(l => l.type === 'treadmill').reduce((acc, l) => acc + (l.activeCaloriesKcal || 0), 0);
-  const totalSessions = logs.length;
+  const totalHouseholdVolume = relevantLogs.filter(l => l.type === 'strength').reduce((acc, l) => acc + (l.totalVolumeKg || 0), 0);
+  const totalCaloriesBurned = relevantLogs.filter(l => l.type === 'treadmill').reduce((acc, l) => acc + (l.activeCaloriesKcal || 0), 0);
+  const totalSessions = relevantLogs.length;
 
   const handleAddWeight = async (e) => {
     e.preventDefault();
@@ -159,15 +162,13 @@ export function Dashboard() {
 
   // Combine weight entries by date
   const weightChartMap = {};
-  weightEntries.forEach(w => {
+  relevantWeights.forEach(w => {
     if (!weightChartMap[w.date]) {
-      weightChartMap[w.date] = { date: w.date, dionicioWeight: null, paulaWeight: null };
+      weightChartMap[w.date] = { date: w.date, dionicioWeight: null, paulaWeight: null, userWeight: null };
     }
-    if (w.userId === 'dionicio') {
-      weightChartMap[w.date].dionicioWeight = w.weightKg;
-    } else {
-      weightChartMap[w.date].paulaWeight = w.weightKg;
-    }
+    if (w.userId === 'dionicio') weightChartMap[w.date].dionicioWeight = w.weightKg;
+    if (w.userId === 'paula') weightChartMap[w.date].paulaWeight = w.weightKg;
+    if (w.userId === currentUser) weightChartMap[w.date].userWeight = w.weightKg;
   });
   const weightChartData = Object.values(weightChartMap).sort((a, b) => a.date.localeCompare(b.date));
 
@@ -190,10 +191,16 @@ export function Dashboard() {
         <div>
           <div className="flex items-center gap-2">
             <Users className="w-6 h-6 text-sky-400" />
-            <h2 className="text-2xl font-black text-white">Dashboard Combinado del Hogar</h2>
+            <h2 className="text-2xl font-black text-white">
+              {isDuoHousehold ? 'Dashboard Combinado del Hogar' : 'Mi Dashboard Personal'}
+            </h2>
           </div>
           <p className="text-xs sm:text-sm text-slate-400">
-            Estadísticas consolidadas de <strong>Dionicio</strong> y <strong>Paula</strong> con cálculo de gasto real y balance calórico.
+            {isDuoHousehold ? (
+              <>Estadísticas consolidadas de <strong>Dionicio</strong> y <strong>Paula</strong> con cálculo de gasto real y balance calórico.</>
+            ) : (
+              <>Estadísticas de <strong>{userProfile?.name || 'tu cuenta'}</strong> con progreso y balance calórico individual.</>
+            )}
           </p>
         </div>
 
@@ -230,7 +237,9 @@ export function Dashboard() {
           <div className="text-2xl sm:text-3xl font-black font-mono text-white mt-2">
             {totalHouseholdVolume.toLocaleString()} <span className="text-sm font-sans font-normal text-slate-400">kg</span>
           </div>
-          <p className="text-[11px] text-sky-400 mt-1">Volumen total movido por la pareja</p>
+          <p className="text-[11px] text-sky-400 mt-1">
+            {isDuoHousehold ? 'Volumen total movido por la pareja' : 'Volumen total acumulado'}
+          </p>
         </div>
 
         {/* Active Calories Burned (Treadmill) */}
@@ -451,7 +460,7 @@ export function Dashboard() {
         {/* Tabla Desglosada Día por Día de la Semana */}
         <div className="space-y-2">
           <h4 className="font-extrabold text-xs text-white uppercase tracking-wider">
-            Detalle Diario de los Últimos 7 Días — {USERS[balanceAthlete].name}
+            Detalle Diario de los Últimos 7 Días — {allUsers[balanceAthlete]?.name || userProfile?.name || 'Atleta'}
           </h4>
           <div className="overflow-x-auto rounded-2xl border border-gym-700">
             <table className="w-full text-left text-xs">
@@ -733,8 +742,14 @@ export function Dashboard() {
                   itemStyle={{ color: '#F3F4F6' }}
                 />
                 <Legend />
-                <Bar dataKey="dionicioVolume" name="Dionicio (kg)" fill="#38bdf8" radius={[4, 4, 0, 0]} />
-                <Bar dataKey="paulaVolume" name="Paula (kg)" fill="#f472b6" radius={[4, 4, 0, 0]} />
+                {isDuoHousehold ? (
+                  <>
+                    <Bar dataKey="dionicioVolume" name="Dionicio (kg)" fill="#38bdf8" radius={[4, 4, 0, 0]} />
+                    <Bar dataKey="paulaVolume" name="Paula (kg)" fill="#f472b6" radius={[4, 4, 0, 0]} />
+                  </>
+                ) : (
+                  <Bar dataKey="userVolume" name={`${userProfile?.name || 'Mi Volumen'} (kg)`} fill="#38bdf8" radius={[4, 4, 0, 0]} />
+                )}
               </BarChart>
             </ResponsiveContainer>
           ) : (
@@ -778,8 +793,14 @@ export function Dashboard() {
                   <Tooltip
                     contentStyle={{ backgroundColor: '#111827', borderColor: '#374151', borderRadius: '12px', fontSize: '12px' }}
                   />
-                  <Line type="monotone" dataKey="dionicioMax" name="Dionicio (kg)" stroke="#38bdf8" strokeWidth={3} dot={{ r: 5 }} />
-                  <Line type="monotone" dataKey="paulaMax" name="Paula (kg)" stroke="#f472b6" strokeWidth={3} dot={{ r: 5 }} />
+                  {isDuoHousehold ? (
+                    <>
+                      <Line type="monotone" dataKey="dionicioMax" name="Dionicio (kg)" stroke="#38bdf8" strokeWidth={3} dot={{ r: 5 }} />
+                      <Line type="monotone" dataKey="paulaMax" name="Paula (kg)" stroke="#f472b6" strokeWidth={3} dot={{ r: 5 }} />
+                    </>
+                  ) : (
+                    <Line type="monotone" dataKey="userMax" name={`${userProfile?.name || 'Carga Máx'} (kg)`} stroke="#38bdf8" strokeWidth={3} dot={{ r: 5 }} />
+                  )}
                 </LineChart>
               </ResponsiveContainer>
             ) : (
@@ -811,8 +832,14 @@ export function Dashboard() {
                   <Tooltip
                     contentStyle={{ backgroundColor: '#111827', borderColor: '#374151', borderRadius: '12px', fontSize: '12px' }}
                   />
-                  <Line type="monotone" dataKey="dionicioWeight" name="Dionicio (kg)" stroke="#38bdf8" strokeWidth={2.5} dot={{ r: 4 }} connectNulls />
-                  <Line type="monotone" dataKey="paulaWeight" name="Paula (kg)" stroke="#f472b6" strokeWidth={2.5} dot={{ r: 4 }} connectNulls />
+                  {isDuoHousehold ? (
+                    <>
+                      <Line type="monotone" dataKey="dionicioWeight" name="Dionicio (kg)" stroke="#38bdf8" strokeWidth={2.5} dot={{ r: 4 }} connectNulls />
+                      <Line type="monotone" dataKey="paulaWeight" name="Paula (kg)" stroke="#f472b6" strokeWidth={2.5} dot={{ r: 4 }} connectNulls />
+                    </>
+                  ) : (
+                    <Line type="monotone" dataKey="userWeight" name={`${userProfile?.name || 'Peso'} (kg)`} stroke="#38bdf8" strokeWidth={2.5} dot={{ r: 4 }} connectNulls />
+                  )}
                 </LineChart>
               </ResponsiveContainer>
             ) : (
@@ -840,19 +867,23 @@ export function Dashboard() {
               <span>Consumo Calórico Diario (kcal)</span>
             </h3>
             <p className="text-xs text-slate-400">
-              Historial de calorías registradas por Dionicio (meta: 1600 kcal) y Paula (meta: 1250 kcal)
+              {isDuoHousehold
+                ? 'Historial de calorías registradas por Dionicio y Paula'
+                : `Historial de calorías registradas por ${userProfile?.name || 'tu cuenta'}`}
             </p>
           </div>
-          <div className="flex items-center gap-3 text-xs font-mono">
-            <div className="flex items-center gap-1.5">
-              <span className="w-3 h-3 rounded-full bg-sky-400"></span>
-              <span className="text-slate-300">Dionicio</span>
+          {isDuoHousehold && (
+            <div className="flex items-center gap-3 text-xs font-mono">
+              <div className="flex items-center gap-1.5">
+                <span className="w-3 h-3 rounded-full bg-sky-400"></span>
+                <span className="text-slate-300">Dionicio</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <span className="w-3 h-3 rounded-full bg-pink-400"></span>
+                <span className="text-slate-300">Paula</span>
+              </div>
             </div>
-            <div className="flex items-center gap-1.5">
-              <span className="w-3 h-3 rounded-full bg-pink-400"></span>
-              <span className="text-slate-300">Paula</span>
-            </div>
-          </div>
+          )}
         </div>
 
         <div className="h-64 w-full">
@@ -867,8 +898,14 @@ export function Dashboard() {
                   itemStyle={{ color: '#F3F4F6' }}
                 />
                 <Legend />
-                <Bar dataKey="dionicioCals" name="Dionicio (kcal)" fill="#38bdf8" radius={[4, 4, 0, 0]} />
-                <Bar dataKey="paulaCals" name="Paula (kcal)" fill="#f472b6" radius={[4, 4, 0, 0]} />
+                {isDuoHousehold ? (
+                  <>
+                    <Bar dataKey="dionicioCals" name="Dionicio (kcal)" fill="#38bdf8" radius={[4, 4, 0, 0]} />
+                    <Bar dataKey="paulaCals" name="Paula (kcal)" fill="#f472b6" radius={[4, 4, 0, 0]} />
+                  </>
+                ) : (
+                  <Bar dataKey="userCals" name={`${userProfile?.name || 'Calorías'} (kcal)`} fill="#38bdf8" radius={[4, 4, 0, 0]} />
+                )}
               </BarChart>
             </ResponsiveContainer>
           ) : (

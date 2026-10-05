@@ -880,23 +880,25 @@ export function estimateDeterministicMeal(text = '', currentUser = 'dionicio', h
     };
   };
 
-  // Detección de Dual / Dúo (Dionicio y Paula en el mismo mensaje)
+  const isDuoHousehold = householdId === 'hogar-dionicio-paula' && (currentUser === 'dionicio' || currentUser === 'paula');
+
+  // Detección de Dual / Dúo (solo activo en el hogar de Dionicio y Paula)
   const hasDionicio = lower.includes('yo') || lower.includes('dionicio');
   const hasPaula = lower.includes('esposa') || lower.includes('paula') || lower.includes('ella') || lower.includes('mi mujer');
-  const isDuoLog = hasDionicio && hasPaula;
+  const isDuoLog = isDuoHousehold && hasDionicio && hasPaula;
 
   const context = buildHouseholdContext(householdId);
   const pantry = context.pantryItems && context.pantryItems.length > 0 
     ? context.pantryItems 
     : ['Huevos', 'Pechuga de pollo', 'Salmón', 'Merluza', 'Atún en lata', 'Arroz', 'Zapallo italiano', 'Espinacas', 'Palta / Aguacate'];
 
-  const dioPlan = context.nutrition?.dionicio?.plan || calculateAthleteNutrition('dionicio', householdId);
-  const pauPlan = context.nutrition?.paula?.plan || calculateAthleteNutrition('paula', householdId);
+  const dioPlan = isDuoHousehold ? (context.nutrition?.dionicio?.plan || calculateAthleteNutrition('dionicio', householdId)) : null;
+  const pauPlan = isDuoHousehold ? (context.nutrition?.paula?.plan || calculateAthleteNutrition('paula', householdId)) : null;
 
-  const dioTargetCals = dioPlan.targetCals;
-  const dioTargetProtein = dioPlan.targetProtein;
-  const pauTargetCals = pauPlan.targetCals;
-  const pauTargetProtein = pauPlan.targetProtein;
+  const dioTargetCals = dioPlan?.targetCals || 1600;
+  const dioTargetProtein = dioPlan?.targetProtein || 140;
+  const pauTargetCals = pauPlan?.targetCals || 1220;
+  const pauTargetProtein = pauPlan?.targetProtein || 90;
 
   if (isDuoLog) {
     // Segmentar texto para Dionicio y para Paula
@@ -1017,10 +1019,18 @@ export function estimateDeterministicMeal(text = '', currentUser = 'dionicio', h
     };
   }
 
-  // Caso individual: solo Dionicio o solo Paula
-  const targetUser = lower.includes('paula') || (!lower.includes('dionicio') && currentUser === 'paula') ? 'paula' : 'dionicio';
-  const athleteName = targetUser === 'dionicio' ? 'Dionicio' : 'Paula';
-  const targetPlan = targetUser === 'dionicio' ? dioPlan : pauPlan;
+  // Caso individual: resolver usuario atleta y plan según contexto
+  let targetUser = currentUser;
+  if (isDuoHousehold) {
+    targetUser = lower.includes('paula') || (!lower.includes('dionicio') && currentUser === 'paula') ? 'paula' : 'dionicio';
+  }
+  const athletes = getAthletesList();
+  const currentAthleteObj = athletes[targetUser] || athletes[currentUser] || { name: 'Atleta' };
+  const athleteName = currentAthleteObj.name || (targetUser === 'dionicio' ? 'Dionicio' : targetUser === 'paula' ? 'Paula' : 'Atleta');
+  
+  const targetPlan = isDuoHousehold 
+    ? (targetUser === 'dionicio' ? dioPlan : pauPlan)
+    : (context.nutrition?.[targetUser]?.plan || calculateAthleteNutrition(targetUser, householdId));
   const targetCals = targetPlan.targetCals;
   const targetProtein = targetPlan.targetProtein;
 

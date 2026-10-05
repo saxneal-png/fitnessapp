@@ -56,7 +56,7 @@ const FREQUENCIES = [
 ];
 
 export function BodyMetrics() {
-  const { currentUser, switchUser, householdId } = useAuth();
+  const { currentUser, switchUser, householdId, isDuoHousehold, userProfile } = useAuth();
   const currentHousehold = householdId || 'hogar-dionicio-paula';
   const [selectedUser, setSelectedUser] = useState(currentUser || 'dionicio');
   const [logs, setLogs] = useState([]);
@@ -221,7 +221,7 @@ export function BodyMetrics() {
       {/* Header & Athlete switcher */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 bg-gym-900 border border-gym-700/80 p-5 rounded-2xl shadow-xl">
         <div className="flex items-center gap-3">
-          <div className={'w-12 h-12 rounded-xl flex items-center justify-center ' + (selectedUser === 'dionicio' ? 'bg-sky-500/20 text-sky-400 border border-sky-500/30' : 'bg-pink-500/20 text-pink-400 border border-pink-500/30')}>
+          <div className={'w-12 h-12 rounded-xl flex items-center justify-center ' + (selectedUser === 'dionicio' ? 'bg-sky-500/20 text-sky-400 border border-sky-500/30' : (selectedUser === 'paula' ? 'bg-pink-500/20 text-pink-400 border border-pink-500/30' : 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'))}>
             <Scale className="w-6 h-6" />
           </div>
           <div>
@@ -234,21 +234,28 @@ export function BodyMetrics() {
           </div>
         </div>
 
-        {/* User Switcher */}
-        <div className="flex items-center bg-gym-800 p-1.5 rounded-xl border border-gym-700 self-start sm:self-auto">
-          <button
-            onClick={() => switchUser('dionicio')}
-            className={'px-3 py-1.5 rounded-lg text-xs font-bold transition-all ' + (selectedUser === 'dionicio' ? 'bg-sky-500 text-white shadow-md shadow-sky-500/30' : 'text-slate-400 hover:text-white')}
-          >
-            👨‍💻 Dionicio
-          </button>
-          <button
-            onClick={() => switchUser('paula')}
-            className={'px-3 py-1.5 rounded-lg text-xs font-bold transition-all ' + (selectedUser === 'paula' ? 'bg-pink-500 text-white shadow-md shadow-pink-500/30' : 'text-slate-400 hover:text-white')}
-          >
-            👩‍💼 Paula
-          </button>
-        </div>
+        {/* User Switcher (Duo) o Badge Individual (Privado) */}
+        {isDuoHousehold ? (
+          <div className="flex items-center bg-gym-800 p-1.5 rounded-xl border border-gym-700 self-start sm:self-auto">
+            <button
+              onClick={() => switchUser('dionicio')}
+              className={'px-3 py-1.5 rounded-lg text-xs font-bold transition-all ' + (selectedUser === 'dionicio' ? 'bg-sky-500 text-white shadow-md shadow-sky-500/30' : 'text-slate-400 hover:text-white')}
+            >
+              👨‍💻 Dionicio
+            </button>
+            <button
+              onClick={() => switchUser('paula')}
+              className={'px-3 py-1.5 rounded-lg text-xs font-bold transition-all ' + (selectedUser === 'paula' ? 'bg-pink-500 text-white shadow-md shadow-pink-500/30' : 'text-slate-400 hover:text-white')}
+            >
+              👩‍💼 Paula
+            </button>
+          </div>
+        ) : (
+          <div className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-gym-800 border border-gym-700 text-xs font-bold text-slate-200 self-start sm:self-auto shadow-sm">
+            <span className="text-base">{userProfile?.avatar || '🏋️‍♂️'}</span>
+            <span>{userProfile?.name || 'Mi Perfil'}</span>
+          </div>
+        )}
       </div>
 
       {/* KPI Cards */}

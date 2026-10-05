@@ -37,25 +37,32 @@ import {
   FITNESS_MODES,
   GOAL_PRESETS 
 } from '../services/nutritionCalculator';
+import { useAuth } from '../context/AuthContext';
 import confetti from 'canvas-confetti';
 
 export function BiometricsModal({ isOpen, onClose, householdId, initialAthlete = 'dionicio', onSaved }) {
-  const allAthletes = getAllAthletes();
-  const [selectedAthlete, setSelectedAthlete] = useState(initialAthlete);
-  const [formData, setFormData] = useState(() => getAthleteBiometrics(initialAthlete, householdId));
-  const [activePlan, setActivePlan] = useState(() => calculateAthleteNutrition(initialAthlete, householdId));
-  const [recommendation, setRecommendation] = useState(() => evaluateAthleteModeRecommendation(initialAthlete, householdId));
+  const { isDuoHousehold, currentUser: authUser, allUsers: householdUsers } = useAuth();
+  const availableAthletes = isDuoHousehold 
+    ? { dionicio: USERS.dionicio, paula: USERS.paula } 
+    : householdUsers;
+  const startAthlete = isDuoHousehold ? initialAthlete : (authUser || initialAthlete);
+
+  const [selectedAthlete, setSelectedAthlete] = useState(startAthlete);
+  const [formData, setFormData] = useState(() => getAthleteBiometrics(startAthlete, householdId));
+  const [activePlan, setActivePlan] = useState(() => calculateAthleteNutrition(startAthlete, householdId));
+  const [recommendation, setRecommendation] = useState(() => evaluateAthleteModeRecommendation(startAthlete, householdId));
   const [showFormulaInfo, setShowFormulaInfo] = useState(false);
 
   useEffect(() => {
     if (isOpen) {
-      setSelectedAthlete(initialAthlete);
-      const bio = getAthleteBiometrics(initialAthlete, householdId);
+      const current = isDuoHousehold ? initialAthlete : (authUser || initialAthlete);
+      setSelectedAthlete(current);
+      const bio = getAthleteBiometrics(current, householdId);
       setFormData(bio);
-      setActivePlan(calculateAthleteNutrition(initialAthlete, householdId));
-      setRecommendation(evaluateAthleteModeRecommendation(initialAthlete, householdId));
+      setActivePlan(calculateAthleteNutrition(current, householdId));
+      setRecommendation(evaluateAthleteModeRecommendation(current, householdId));
     }
-  }, [isOpen, initialAthlete, householdId]);
+  }, [isOpen, initialAthlete, householdId, isDuoHousehold, authUser]);
 
   const handleAthleteChange = (athleteId) => {
     setSelectedAthlete(athleteId);
@@ -167,24 +174,31 @@ export function BiometricsModal({ isOpen, onClose, householdId, initialAthlete =
 
         {/* Scrollable Body */}
         <div className="p-4 sm:p-6 overflow-y-auto space-y-5 flex-1">
-          {/* Athlete Selector Tabs */}
-          <div className="flex gap-2 bg-gym-950/80 p-1.5 rounded-2xl border border-gym-800 overflow-x-auto scrollbar-none">
-            {Object.values(allAthletes).map((ath) => (
-              <button
-                key={ath.uid}
-                type="button"
-                onClick={() => handleAthleteChange(ath.uid)}
-                className={`py-2 px-3.5 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-1.5 shrink-0 ${
-                  selectedAthlete === ath.uid
-                    ? 'bg-sky-500 text-gym-950 shadow-md shadow-sky-500/20'
-                    : 'text-slate-400 hover:text-white bg-gym-900/40'
-                }`}
-              >
-                <span>{ath.avatar || '🏋️‍♂️'} {ath.name}</span>
-                <span className="text-[10px] opacity-80 font-normal">({ath.height || `${ath.heightCm || 175} cm`})</span>
-              </button>
-            ))}
-          </div>
+          {/* Athlete Selector Tabs (Solo en hogar Dúo) */}
+          {isDuoHousehold ? (
+            <div className="flex gap-2 bg-gym-950/80 p-1.5 rounded-2xl border border-gym-800 overflow-x-auto scrollbar-none">
+              {Object.values(availableAthletes).map((ath) => (
+                <button
+                  key={ath.uid}
+                  type="button"
+                  onClick={() => handleAthleteChange(ath.uid)}
+                  className={`py-2 px-3.5 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-1.5 shrink-0 ${
+                    selectedAthlete === ath.uid
+                      ? 'bg-sky-500 text-gym-950 shadow-md shadow-sky-500/20'
+                      : 'text-slate-400 hover:text-white bg-gym-900/40'
+                  }`}
+                >
+                  <span>{ath.avatar || '🏋️‍♂️'} {ath.name}</span>
+                  <span className="text-[10px] opacity-80 font-normal">({ath.height || `${ath.heightCm || 175} cm`})</span>
+                </button>
+              ))}
+            </div>
+          ) : (
+            <div className="flex items-center gap-2 p-3 bg-gym-950/80 rounded-2xl border border-gym-800 text-xs font-bold text-slate-300">
+              <span className="text-base">{availableAthletes[selectedAthlete]?.avatar || '🏋️‍♂️'}</span>
+              <span>Perfil individual de <strong>{availableAthletes[selectedAthlete]?.name || 'Mi Perfil'}</strong></span>
+            </div>
+          )}
 
           {/* TARJETA 1: RECOMENDACIÓN INTELIGENTE SEGÚN MEDIDAS REALES */}
           <div className={`p-4 rounded-2xl border transition-all ${

@@ -296,7 +296,7 @@ export function getLocalNutritionLogs(householdId = 'hogar-dionicio-paula') {
 
   // Fusionar registros históricos verificados con logs personalizados excluyendo eliminados
   const mergedMap = new Map();
-  if (Array.isArray(INITIAL_HISTORICAL_NUTRITION_LOGS)) {
+  if (householdId === 'hogar-dionicio-paula' && Array.isArray(INITIAL_HISTORICAL_NUTRITION_LOGS)) {
     INITIAL_HISTORICAL_NUTRITION_LOGS.forEach(log => {
       if (!deletedIds.has(log.id)) {
         mergedMap.set(log.id, log);
@@ -434,20 +434,32 @@ export function subscribeToNutritionLogs(householdId = 'hogar-dionicio-paula', o
     };
   }
 
+  const isDuoHousehold = householdId === 'hogar-dionicio-paula';
+  const privateMemberUid = householdId.startsWith('privado_') ? householdId.replace('privado_', '') : householdId;
+
+  let memberLogs = [];
   let logsDionicio = [];
   let logsPaula = [];
 
   const mergeAndEmit = () => {
     const deletedIds = getDeletedNutritionLogIds(householdId);
     const mergedMap = new Map();
-    if (Array.isArray(INITIAL_HISTORICAL_NUTRITION_LOGS)) {
+    if (isDuoHousehold && Array.isArray(INITIAL_HISTORICAL_NUTRITION_LOGS)) {
       INITIAL_HISTORICAL_NUTRITION_LOGS.forEach(log => {
         if (!deletedIds.has(log.id)) mergedMap.set(log.id, log);
       });
     }
-    [...logsDionicio, ...logsPaula].forEach(log => {
-      if (!deletedIds.has(log.id)) mergedMap.set(log.id, log);
-    });
+
+    if (isDuoHousehold) {
+      [...logsDionicio, ...logsPaula].forEach(log => {
+        if (!deletedIds.has(log.id)) mergedMap.set(log.id, log);
+      });
+    } else {
+      memberLogs.forEach(log => {
+        if (!deletedIds.has(log.id)) mergedMap.set(log.id, log);
+      });
+    }
+
     const combined = Array.from(mergedMap.values()).sort((a, b) => {
       const timeA = a.timestamp || (a.date ? new Date(a.date).getTime() : 0);
       const timeB = b.timestamp || (b.date ? new Date(b.date).getTime() : 0);
@@ -458,29 +470,45 @@ export function subscribeToNutritionLogs(householdId = 'hogar-dionicio-paula', o
   };
 
   try {
-    const unsubD = onSnapshot(
-      collection(db, 'households', householdId, 'members', 'dionicio', 'nutrition_logs'),
-      (snap) => {
-        logsDionicio = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-        mergeAndEmit();
-      },
-      (err) => console.warn('Nutrition listener Dionicio notice:', err.message)
-    );
+    if (isDuoHousehold) {
+      const unsubD = onSnapshot(
+        collection(db, 'households', householdId, 'members', 'dionicio', 'nutrition_logs'),
+        (snap) => {
+          logsDionicio = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+          mergeAndEmit();
+        },
+        (err) => console.warn('Nutrition listener Dionicio notice:', err.message)
+      );
 
-    const unsubP = onSnapshot(
-      collection(db, 'households', householdId, 'members', 'paula', 'nutrition_logs'),
-      (snap) => {
-        logsPaula = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-        mergeAndEmit();
-      },
-      (err) => console.warn('Nutrition listener Paula notice:', err.message)
-    );
+      const unsubP = onSnapshot(
+        collection(db, 'households', householdId, 'members', 'paula', 'nutrition_logs'),
+        (snap) => {
+          logsPaula = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+          mergeAndEmit();
+        },
+        (err) => console.warn('Nutrition listener Paula notice:', err.message)
+      );
 
-    return () => {
-      nutritionSubscribers.delete(onUpdate);
-      unsubD();
-      unsubP();
-    };
+      return () => {
+        nutritionSubscribers.delete(onUpdate);
+        unsubD();
+        unsubP();
+      };
+    } else {
+      const unsubMember = onSnapshot(
+        collection(db, 'households', householdId, 'members', privateMemberUid, 'nutrition_logs'),
+        (snap) => {
+          memberLogs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+          mergeAndEmit();
+        },
+        (err) => console.warn(`Nutrition listener ${privateMemberUid} notice:`, err.message)
+      );
+
+      return () => {
+        nutritionSubscribers.delete(onUpdate);
+        unsubMember();
+      };
+    }
   } catch (err) {
     return () => {
       nutritionSubscribers.delete(onUpdate);
@@ -682,21 +710,28 @@ export function subscribeToHouseholdData(householdId, onLogsUpdate, onWeightsUpd
     return () => {};
   }
 
+  const isDuoHousehold = householdId === 'hogar-dionicio-paula';
+  const privateMemberUid = householdId.startsWith('privado_') ? householdId.replace('privado_', '') : householdId;
+
+  let memberLogs = [];
+  let memberWeights = [];
   let logsDionicio = [];
   let logsPaula = [];
   let weightsDionicio = [];
   let weightsPaula = [];
-  let hasReceivedFirstSnapshotD = false;
-  let hasReceivedFirstSnapshotP = false;
 
   const updateCombinedLogs = () => {
-    const combined = [...logsDionicio, ...logsPaula].sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+    const combined = isDuoHousehold
+      ? [...logsDionicio, ...logsPaula].sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0))
+      : [...memberLogs].sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
     saveLocalLogs(combined, householdId);
     onLogsUpdate(combined);
   };
 
   const updateCombinedWeights = () => {
-    const combined = [...weightsDionicio, ...weightsPaula].sort((a, b) => a.date.localeCompare(b.date));
+    const combined = isDuoHousehold
+      ? [...weightsDionicio, ...weightsPaula].sort((a, b) => (a.date || '').localeCompare(b.date || ''))
+      : [...memberWeights].sort((a, b) => (a.date || '').localeCompare(b.date || ''));
     saveLocalWeightEntries(combined, householdId);
     onWeightsUpdate(combined);
   };
@@ -708,62 +743,90 @@ export function subscribeToHouseholdData(householdId, onLogsUpdate, onWeightsUpd
   if (initialLocalWeights.length > 0) onWeightsUpdate(initialLocalWeights);
 
   try {
-    // Listen to Dionicio's logs in Firestore
-    const unsubLogsD = onSnapshot(
-      collection(db, 'households', householdId, 'members', 'dionicio', 'logs'),
-      (snap) => {
-        hasReceivedFirstSnapshotD = true;
-        logsDionicio = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-        notifyConnectionChange(true);
-        updateCombinedLogs();
-      },
-      (err) => {
-        console.warn('Firestore listener Dionicio logs notice:', err);
-        notifyConnectionChange(false);
-      }
-    );
+    if (isDuoHousehold) {
+      // Listen to Dionicio's logs in Firestore
+      const unsubLogsD = onSnapshot(
+        collection(db, 'households', householdId, 'members', 'dionicio', 'logs'),
+        (snap) => {
+          logsDionicio = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+          notifyConnectionChange(true);
+          updateCombinedLogs();
+        },
+        (err) => {
+          console.warn('Firestore listener Dionicio logs notice:', err);
+          notifyConnectionChange(false);
+        }
+      );
 
-    // Listen to Paula's logs in Firestore
-    const unsubLogsP = onSnapshot(
-      collection(db, 'households', householdId, 'members', 'paula', 'logs'),
-      (snap) => {
-        hasReceivedFirstSnapshotP = true;
-        logsPaula = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-        notifyConnectionChange(true);
-        updateCombinedLogs();
-      },
-      (err) => {
-        console.warn('Firestore listener Paula logs notice:', err);
-        notifyConnectionChange(false);
-      }
-    );
+      // Listen to Paula's logs in Firestore
+      const unsubLogsP = onSnapshot(
+        collection(db, 'households', householdId, 'members', 'paula', 'logs'),
+        (snap) => {
+          logsPaula = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+          notifyConnectionChange(true);
+          updateCombinedLogs();
+        },
+        (err) => {
+          console.warn('Firestore listener Paula logs notice:', err);
+          notifyConnectionChange(false);
+        }
+      );
 
-    // Listen to Dionicio's weight in Firestore
-    const unsubWeightD = onSnapshot(
-      collection(db, 'households', householdId, 'members', 'dionicio', 'bodyweight'),
-      (snap) => {
-        weightsDionicio = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-        updateCombinedWeights();
-      },
-      (err) => console.warn('Firestore listener Dionicio weight notice:', err)
-    );
+      // Listen to Dionicio's weight in Firestore
+      const unsubWeightD = onSnapshot(
+        collection(db, 'households', householdId, 'members', 'dionicio', 'bodyweight'),
+        (snap) => {
+          weightsDionicio = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+          updateCombinedWeights();
+        },
+        (err) => console.warn('Firestore listener Dionicio weight notice:', err)
+      );
 
-    // Listen to Paula's weight in Firestore
-    const unsubWeightP = onSnapshot(
-      collection(db, 'households', householdId, 'members', 'paula', 'bodyweight'),
-      (snap) => {
-        weightsPaula = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-        updateCombinedWeights();
-      },
-      (err) => console.warn('Firestore listener Paula weight notice:', err)
-    );
+      // Listen to Paula's weight in Firestore
+      const unsubWeightP = onSnapshot(
+        collection(db, 'households', householdId, 'members', 'paula', 'bodyweight'),
+        (snap) => {
+          weightsPaula = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+          updateCombinedWeights();
+        },
+        (err) => console.warn('Firestore listener Paula weight notice:', err)
+      );
 
-    return () => {
-      unsubLogsD();
-      unsubLogsP();
-      unsubWeightD();
-      unsubWeightP();
-    };
+      return () => {
+        unsubLogsD();
+        unsubLogsP();
+        unsubWeightD();
+        unsubWeightP();
+      };
+    } else {
+      // Listener privado aislado para el miembro único de este hogar
+      const unsubLogs = onSnapshot(
+        collection(db, 'households', householdId, 'members', privateMemberUid, 'logs'),
+        (snap) => {
+          memberLogs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+          notifyConnectionChange(true);
+          updateCombinedLogs();
+        },
+        (err) => {
+          console.warn(`Firestore listener ${privateMemberUid} logs notice:`, err);
+          notifyConnectionChange(false);
+        }
+      );
+
+      const unsubWeight = onSnapshot(
+        collection(db, 'households', householdId, 'members', privateMemberUid, 'bodyweight'),
+        (snap) => {
+          memberWeights = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+          updateCombinedWeights();
+        },
+        (err) => console.warn(`Firestore listener ${privateMemberUid} weight notice:`, err)
+      );
+
+      return () => {
+        unsubLogs();
+        unsubWeight();
+      };
+    }
   } catch (err) {
     console.warn('Subscription error, using local fallback:', err);
     notifyConnectionChange(false);

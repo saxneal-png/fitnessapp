@@ -19,10 +19,12 @@ import {
 } from 'lucide-react';
 
 export function PrintablePlan() {
-  const { currentUser, householdId } = useAuth();
-  const [selectedAthlete, setSelectedAthlete] = useState(currentUser || 'dionicio');
+  const { currentUser, householdId, isDuoHousehold, userProfile, allUsers } = useAuth();
+  const [selectedAthleteState, setSelectedAthleteState] = useState(currentUser || 'dionicio');
   const [logs, setLogs] = useState([]);
   
+  const selectedAthlete = isDuoHousehold ? selectedAthleteState : currentUser;
+
   // Suscribirse a logs de entrenamiento para cálculo adaptativo en vivo
   useEffect(() => {
     const unsub = subscribeToHouseholdData(
@@ -35,17 +37,13 @@ export function PrintablePlan() {
 
   useEffect(() => {
     if (currentUser) {
-      setSelectedAthlete(currentUser);
+      setSelectedAthleteState(currentUser);
     }
   }, [currentUser]);
 
-  const user = USERS[selectedAthlete] || USERS.dionicio;
+  const user = allUsers[selectedAthlete] || userProfile || USERS.dionicio;
   const isDionicio = selectedAthlete === 'dionicio';
-
-  // Generar planes adaptativos para Dionicio y Paula
-  const adaptivePlanDionicio = getAdaptiveWorkoutPlan('dionicio', logs, householdId);
-  const adaptivePlanPaula = getAdaptiveWorkoutPlan('paula', logs, householdId);
-  const currentPlan = isDionicio ? adaptivePlanDionicio : adaptivePlanPaula;
+  const currentPlan = getAdaptiveWorkoutPlan(selectedAthlete, logs, householdId);
 
   const handlePrint = () => {
     window.print();
@@ -109,29 +107,36 @@ END:VCALENDAR`;
 
         {/* Athlete Switcher & Actions */}
         <div className="flex flex-wrap items-center gap-2">
-          {/* Athlete Selector Buttons */}
-          <div className="bg-gym-900 border border-gym-700 rounded-xl p-1 flex items-center gap-1">
-            <button
-              onClick={() => setSelectedAthlete('dionicio')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
-                selectedAthlete === 'dionicio'
-                  ? 'bg-sky-500 text-white shadow-sm'
-                  : 'text-slate-400 hover:text-white'
-              }`}
-            >
-              <span>👨‍💻 Dionicio</span>
-            </button>
-            <button
-              onClick={() => setSelectedAthlete('paula')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
-                selectedAthlete === 'paula'
-                  ? 'bg-pink-500 text-white shadow-sm'
-                  : 'text-slate-400 hover:text-white'
-              }`}
-            >
-              <span>👩‍💼 Paula</span>
-            </button>
-          </div>
+          {/* Athlete Selector Buttons (Duo) o Badge Personal */}
+          {isDuoHousehold ? (
+            <div className="bg-gym-900 border border-gym-700 rounded-xl p-1 flex items-center gap-1">
+              <button
+                onClick={() => setSelectedAthleteState('dionicio')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
+                  selectedAthlete === 'dionicio'
+                    ? 'bg-sky-500 text-white shadow-sm'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                <span>👨‍💻 Dionicio</span>
+              </button>
+              <button
+                onClick={() => setSelectedAthleteState('paula')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
+                  selectedAthlete === 'paula'
+                    ? 'bg-pink-500 text-white shadow-sm'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                <span>👩‍💼 Paula</span>
+              </button>
+            </div>
+          ) : (
+            <div className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-gym-900 border border-gym-700 text-xs font-bold text-slate-200">
+              <span>{user?.avatar || '🏋️‍♂️'}</span>
+              <span>Plan de {user?.name || 'Mi Perfil'}</span>
+            </div>
+          )}
 
           <button
             onClick={handlePrint}

@@ -147,6 +147,14 @@ export const GOAL_PRESETS = {
 
 const LOCAL_STORAGE_BIOMETRICS_KEY = 'fitness_duo_athlete_biometrics';
 
+function getCustomAthletesLocal() {
+  try {
+    const raw = localStorage.getItem('fitness_duo_custom_users');
+    if (raw) return JSON.parse(raw);
+  } catch (e) {}
+  return {};
+}
+
 export function getAthleteBiometrics(userId = 'dionicio', householdId = 'hogar-dionicio-paula') {
   let stored = {};
   try {
@@ -156,7 +164,34 @@ export function getAthleteBiometrics(userId = 'dionicio', householdId = 'hogar-d
     console.warn('Error al leer biometría guardada:', e);
   }
 
-  const base = DEFAULT_BIOMETRICS[userId] || DEFAULT_BIOMETRICS.dionicio;
+  let base = DEFAULT_BIOMETRICS[userId];
+  if (!base) {
+    const customAthletes = getCustomAthletesLocal();
+    const athlete = customAthletes[userId] || {};
+    const isMale = (athlete.gender || 'male') === 'male';
+    const bWeight = Number(athlete.baselineWeightKg || athlete.weightKg) || (isMale ? 75.0 : 60.0);
+    const hCm = Number(athlete.heightCm) || (isMale ? 175 : 160);
+    const age = Number(athlete.age) || 30;
+    const bodyFat = isMale ? 20.0 : 26.0;
+    const lean = Number((bWeight * (1 - (bodyFat / 100))).toFixed(1));
+
+    base = {
+      userId,
+      athleteName: athlete.name || 'Atleta',
+      gender: athlete.gender || (isMale ? 'male' : 'female'),
+      age,
+      heightCm: hCm,
+      baselineWeightKg: bWeight,
+      bodyFatPct: bodyFat,
+      leanMassKg: lean,
+      activityLevel: 'desk_job_with_training',
+      activeMode: athlete.activeMode || 'visceral_fat_loss',
+      goal: athlete.goal || 'fat_loss',
+      digestiveProtection: !isMale,
+      maxFatsCap: isMale ? 50 : 42
+    };
+  }
+
   const userStored = stored[userId] || {};
 
   const weightEntries = getLocalWeightEntries(householdId)
@@ -166,7 +201,8 @@ export function getAthleteBiometrics(userId = 'dionicio', householdId = 'hogar-d
   let activeWeight = userStored.baselineWeightKg || base.baselineWeightKg;
   let isWeightFromLog = false;
   let lastWeightDate = null;
-  let activeWaist = userStored.waistCm || (userId === 'dionicio' ? 92 : 78);
+  const isMale = (userStored.gender || base.gender) === 'male';
+  let activeWaist = userStored.waistCm || (isMale ? 88 : 78);
   let activeHips = userStored.hipsCm || null;
 
   if (weightEntries.length > 0) {
@@ -243,9 +279,10 @@ export function saveAthleteMode(userId, modeId, householdId = 'hogar-dionicio-pa
  */
 export function evaluateAthleteModeRecommendation(userId = 'dionicio', householdId = 'hogar-dionicio-paula') {
   const profile = getAthleteBiometrics(userId, householdId);
-  const heightCm = Number(profile.heightCm) || (userId === 'dionicio' ? 180 : 160);
-  const weightKg = Number(profile.currentWeightKg) || (userId === 'dionicio' ? 86 : 65);
-  const waistCm = Number(profile.waistCm) || (userId === 'dionicio' ? 92 : 78);
+  const isMale = (profile.gender || 'male') === 'male';
+  const heightCm = Number(profile.heightCm) || (isMale ? 175 : 160);
+  const weightKg = Number(profile.currentWeightKg) || (isMale ? 75 : 60);
+  const waistCm = Number(profile.waistCm) || (isMale ? 88 : 78);
   const currentMode = profile.activeMode || 'visceral_fat_loss';
 
   // Historial de medidas y pesajes
@@ -272,7 +309,7 @@ export function evaluateAthleteModeRecommendation(userId = 'dionicio', household
   
   // Regla de Oro Clínica: Si WHtR >= 0.50 (Grasa Visceral activa), el modo Aumento Muscular (Hipertrofia) queda bloqueado
   const isHypertrophyBlocked = waistHeightRatio >= 0.50;
-  const targetWaistGoalCm = userId === 'dionicio' ? 88 : 74;
+  const targetWaistGoalCm = isMale ? Math.round(heightCm * 0.49) : Math.round(heightCm * 0.48);
   const hypertrophyBlockedReason = isHypertrophyBlocked
     ? `⛔ Bloqueo Clínico Activo: Tu ratio cintura/altura es ${waistHeightRatio} (≥ 0.50 con cintura ${waistCm}cm). Iniciar un superávit en este punto expandiría la grasa visceral y empeoraría la sensibilidad a la insulina. Debes reducir cintura bajo ${targetWaistGoalCm} cm antes de autorizar aumento muscular.`
     : null;
@@ -431,27 +468,74 @@ export function calculateAthleteNutrition(userId = 'dionicio', householdId = 'ho
   let targetFatsG = 57;
 
   if (activeMode === 'visceral_fat_loss') {
-    deficitKcal = userId === 'dionicio' ? 760 : 400;
-    targetCals = userId === 'dionicio' ? 1600 : 1220; // Exacto 1.200 a 1.250 kcal para Paula con 63 kg
-    targetProteinG = userId === 'dionicio' ? 130 : 82; // 80-85g para Paula (protección estricta de colon y vesícula)
-    targetFatsG = userId === 'dionicio' ? 55 : (profile.digestiveProtection ? 40 : 48); // Si no hay protección digestiva, permite ratio estándar
+    if (userId === 'dionicio') {
+      deficitKcal = 760;
+      targetCals = 1600;
+      targetProteinG = 130;
+      targetFatsG = 55;
+    } else if (userId === 'paula') {
+      deficitKcal = 400;
+      targetCals = 1220;
+      targetProteinG = 82;
+      targetFatsG = profile.digestiveProtection ? 40 : 48;
+    } else {
+      deficitKcal = Math.round(Math.min(550, Math.max(300, tdee * 0.22)));
+      const minFloor = gender === 'male' ? 1500 : 1200;
+      targetCals = Math.max(minFloor, tdee - deficitKcal);
+      targetProteinG = Math.round(weightKg * (gender === 'male' ? 1.8 : 1.6));
+      targetFatsG = Math.round(weightKg * 0.7);
+    }
   } else if (activeMode === 'body_recomposition') {
-    deficitKcal = userId === 'dionicio' ? 350 : 200;
-    targetCals = Math.round(tdee - deficitKcal);
-    targetProteinG = userId === 'dionicio' ? 140 : 85; // 85g óptimo
-    targetFatsG = userId === 'dionicio' ? 65 : (profile.digestiveProtection ? 42 : 52); 
+    if (userId === 'dionicio') {
+      deficitKcal = 350;
+      targetCals = Math.round(tdee - 350);
+      targetProteinG = 140;
+      targetFatsG = 65;
+    } else if (userId === 'paula') {
+      deficitKcal = 200;
+      targetCals = Math.round(tdee - 200);
+      targetProteinG = 85;
+      targetFatsG = profile.digestiveProtection ? 42 : 52;
+    } else {
+      deficitKcal = Math.round(Math.min(350, Math.max(200, tdee * 0.12)));
+      targetCals = Math.round(tdee - deficitKcal);
+      targetProteinG = Math.round(weightKg * (gender === 'male' ? 2.0 : 1.7));
+      targetFatsG = Math.round(weightKg * 0.8);
+    }
   } else if (activeMode === 'hypertrophy_muscle_gain') {
-    const surplusKcal = userId === 'dionicio' ? 250 : 150;
-    deficitKcal = -surplusKcal; // Negativo para reflejar superávit
-    targetCals = Math.round(tdee + surplusKcal);
-    targetProteinG = userId === 'dionicio' ? 145 : 88; // Máximo 88g para no saturar digestión
-    targetFatsG = userId === 'dionicio' ? 75 : (profile.digestiveProtection ? 42 : 56); 
+    if (userId === 'dionicio') {
+      const surplusKcal = 250;
+      deficitKcal = -surplusKcal;
+      targetCals = Math.round(tdee + surplusKcal);
+      targetProteinG = 145;
+      targetFatsG = 75;
+    } else if (userId === 'paula') {
+      const surplusKcal = 150;
+      deficitKcal = -surplusKcal;
+      targetCals = Math.round(tdee + surplusKcal);
+      targetProteinG = 88;
+      targetFatsG = profile.digestiveProtection ? 42 : 56;
+    } else {
+      const surplusKcal = gender === 'male' ? 250 : 150;
+      deficitKcal = -surplusKcal;
+      targetCals = Math.round(tdee + surplusKcal);
+      targetProteinG = Math.round(weightKg * (gender === 'male' ? 1.9 : 1.7));
+      targetFatsG = Math.round(weightKg * 0.9);
+    }
   } else {
     // metabolic_maintenance
     deficitKcal = 0;
     targetCals = tdee;
-    targetProteinG = userId === 'dionicio' ? 135 : 82;
-    targetFatsG = userId === 'dionicio' ? 70 : (profile.digestiveProtection ? 42 : 54); 
+    if (userId === 'dionicio') {
+      targetProteinG = 135;
+      targetFatsG = 70;
+    } else if (userId === 'paula') {
+      targetProteinG = 82;
+      targetFatsG = profile.digestiveProtection ? 42 : 54;
+    } else {
+      targetProteinG = Math.round(weightKg * (gender === 'male' ? 1.8 : 1.5));
+      targetFatsG = Math.round(weightKg * 0.8);
+    }
   }
 
   // PROTECCIÓN DIGESTIVA (Techo Estricto de Grasas / Vesícula y Colon Sensible)
