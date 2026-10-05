@@ -8,13 +8,32 @@ class SoundSynthesizer {
 
   init() {
     if (!this.ctx) {
-      const AudioContext = window.AudioContext || window.webkitAudioContext;
-      if (AudioContext) {
-        this.ctx = new AudioContext();
+      const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+      if (AudioContextClass) {
+        this.ctx = new AudioContextClass();
       }
     }
     if (this.ctx && this.ctx.state === 'suspended') {
-      this.ctx.resume();
+      this.ctx.resume().catch(() => {});
+    }
+    this.scheduleIdleSuspension();
+  }
+
+  scheduleIdleSuspension() {
+    if (this.idleTimer) clearTimeout(this.idleTimer);
+    // Suspende el contexto de audio tras 15 segundos de inactividad para liberar DSP en móviles
+    this.idleTimer = setTimeout(() => {
+      if (this.ctx && this.ctx.state === 'running') {
+        this.ctx.suspend().catch(() => {});
+      }
+    }, 15000);
+  }
+
+  dispose() {
+    if (this.idleTimer) clearTimeout(this.idleTimer);
+    if (this.ctx) {
+      this.ctx.close().catch(() => {});
+      this.ctx = null;
     }
   }
 

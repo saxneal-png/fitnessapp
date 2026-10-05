@@ -3,6 +3,7 @@ import { useAuth } from '../context/AuthContext';
 import { WORKOUT_DAYS, USERS } from '../data/workoutCatalog';
 import { saveWorkoutLog, subscribeToHouseholdData } from '../firebase/config';
 import { getPreExerciseAdvice, getLiveSetFeedback, getStoredGeminiKey } from '../services/geminiService';
+import { TreadmillTracker } from './workout/TreadmillTracker';
 import { 
   Dumbbell, 
   Footprints, 
@@ -23,6 +24,13 @@ import {
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { getLocalDateString } from '../utils/dateUtils';
+import { 
+  EXERCISE_MUSCLE_CATEGORIES, 
+  getExerciseAdaptation, 
+  calculateDailyMuscleCategories, 
+  calculateStrengthCaloriesBurned 
+} from '../services/adaptiveWorkoutService';
+import { Layers } from 'lucide-react';
 
 export function WorkoutLogger() {
   const { currentUser, householdId } = useAuth();
@@ -73,6 +81,24 @@ export function WorkoutLogger() {
 
   // Dynamic pre-exercise recommendation based on previous logs
   const preExerciseAdvice = getPreExerciseAdvice(currentUser, selectedExerciseId, selectedDay, recentLogs);
+  const currentCategory = EXERCISE_MUSCLE_CATEGORIES[currentExercise.id] || {
+    category: 'Fuerza General',
+    shortCategory: 'General'
+  };
+  const adaptation = getExerciseAdaptation(currentUser, currentExercise, recentLogs);
+
+  // Totales de entrenamiento generados hoy para el usuario actual
+  const todayLogs = recentLogs.filter(l => l.userId === currentUser && l.date === workoutDate);
+  const todayStrengthLogs = todayLogs.filter(l => l.type === 'strength');
+  const todayTreadmillLogs = todayLogs.filter(l => l.type === 'treadmill');
+  const todayVolume = todayStrengthLogs.reduce((acc, l) => acc + (Number(l.totalVolumeKg) || 0), 0);
+  const todayCategories = calculateDailyMuscleCategories(todayStrengthLogs);
+  const userWeight = currentUser === 'dionicio' ? 86 : 63;
+  const todayStrengthBurn = todayStrengthLogs.length > 0 
+    ? calculateStrengthCaloriesBurned(userWeight, 25, todayVolume) 
+    : 0;
+  const todayTreadmillBurn = todayTreadmillLogs.reduce((acc, l) => acc + (Number(l.activeCaloriesKcal) || 0), 0);
+  const todayTrainingBurn = todayStrengthBurn + todayTreadmillBurn;
 
   // Update default sets when exercise or user changes
   useEffect(() => {
@@ -289,7 +315,12 @@ export function WorkoutLogger() {
 
                 {/* Exercise */}
                 <div>
-                  <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Ejercicio</label>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-xs font-bold text-slate-400 uppercase">Ejercicio</label>
+                    <span className="text-[10px] font-mono text-sky-400 bg-sky-950/40 px-2 py-0.5 rounded border border-sky-500/30">
+                      {currentCategory.shortCategory}
+                    </span>
+                  </div>
                   <select
                     value={selectedExerciseId}
                     onChange={(e) => setSelectedExerciseId(e.target.value)}
@@ -308,7 +339,7 @@ export function WorkoutLogger() {
                   <div className="flex items-center justify-between">
                     <span className="text-[11px] font-extrabold text-sky-400 uppercase tracking-wider flex items-center gap-1.5">
                       <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-                      <span>Recomendación del Coach para esta serie</span>
+                      <span>Plan Adaptativo: {adaptation.badgeText}</span>
                     </span>
                     <span className="text-[10px] font-mono text-slate-400 bg-gym-800 px-2 py-0.5 rounded">
                       {preExerciseAdvice.isHistorical ? `Última sesión: ${preExerciseAdvice.lastLogDate}` : 'Semana 0 (Base)'}
@@ -448,106 +479,58 @@ export function WorkoutLogger() {
               </button>
             </form>
           ) : (
-            <form onSubmit={handleSaveTreadmillLog} className="bg-gym-800/90 border border-gym-700 rounded-2xl p-5 sm:p-6 shadow-xl space-y-5">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {/* Date */}
-                <div>
-                  <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Fecha</label>
-                  <input
-                    type="date"
-                    value={workoutDate}
-                    onChange={(e) => setWorkoutDate(e.target.value)}
-                    className="w-full bg-gym-900 border border-gym-700 rounded-xl px-3 py-2 text-sm text-white font-mono focus:outline-none focus:border-pink-500"
-                    required
-                  />
-                </div>
-
-                {/* Duration */}
-                <div>
-                  <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Duración (min)</label>
-                  <input
-                    type="number"
-                    value={treadmillData.durationMinutes}
-                    onChange={(e) => setTreadmillData({ ...treadmillData, durationMinutes: parseInt(e.target.value) || 25 })}
-                    className="w-full bg-gym-900 border border-gym-700 rounded-xl px-3 py-2 text-sm text-white font-mono focus:outline-none focus:border-pink-500"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                {/* Incline */}
-                <div className="bg-gym-900/80 p-3 rounded-xl border border-gym-700/60">
-                  <label className="block text-[10px] uppercase font-bold text-pink-400 mb-1">Inclinación (1-15)</label>
-                  <input
-                    type="number"
-                    min="1"
-                    max="15"
-                    value={treadmillData.incline}
-                    onChange={(e) => setTreadmillData({ ...treadmillData, incline: parseInt(e.target.value) || 0 })}
-                    className="w-full bg-gym-800 border border-gym-700 rounded-lg px-2 py-1.5 text-base font-mono font-black text-white focus:outline-none"
-                  />
-                </div>
-
-                {/* Speed */}
-                <div className="bg-gym-900/80 p-3 rounded-xl border border-gym-700/60">
-                  <label className="block text-[10px] uppercase font-bold text-sky-400 mb-1">Velocidad (km/h)</label>
-                  <input
-                    type="number"
-                    step="0.1"
-                    value={treadmillData.avgSpeedKmH}
-                    onChange={(e) => setTreadmillData({ ...treadmillData, avgSpeedKmH: parseFloat(e.target.value) || 0 })}
-                    className="w-full bg-gym-800 border border-gym-700 rounded-lg px-2 py-1.5 text-base font-mono font-black text-white focus:outline-none"
-                  />
-                </div>
-
-                {/* Heart Rate */}
-                <div className="bg-gym-900/80 p-3 rounded-xl border border-gym-700/60">
-                  <label className="block text-[10px] uppercase font-bold text-red-400 mb-1">FC Media (bpm)</label>
-                  <input
-                    type="number"
-                    value={treadmillData.avgHeartRateBpm}
-                    onChange={(e) => setTreadmillData({ ...treadmillData, avgHeartRateBpm: parseInt(e.target.value) || 0 })}
-                    className="w-full bg-gym-800 border border-gym-700 rounded-lg px-2 py-1.5 text-base font-mono font-black text-white focus:outline-none"
-                  />
-                </div>
-
-                {/* Calories */}
-                <div className="bg-gym-900/80 p-3 rounded-xl border border-gym-700/60">
-                  <label className="block text-[10px] uppercase font-bold text-amber-400 mb-1">Calorías (kcal)</label>
-                  <input
-                    type="number"
-                    value={treadmillData.activeCaloriesKcal}
-                    onChange={(e) => setTreadmillData({ ...treadmillData, activeCaloriesKcal: parseInt(e.target.value) || 0 })}
-                    className="w-full bg-gym-800 border border-gym-700 rounded-lg px-2 py-1.5 text-base font-mono font-black text-white focus:outline-none"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Notas de la sesión</label>
-                <input
-                  type="text"
-                  placeholder="Ej: Inclinación 9 sostenida en Zona 2 sin apoyo de manos"
-                  value={treadmillData.notes}
-                  onChange={(e) => setTreadmillData({ ...treadmillData, notes: e.target.value })}
-                  className="w-full bg-gym-900 border border-gym-700 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-pink-500"
-                />
-              </div>
-
-              <button
-                type="submit"
-                disabled={isCoachAnalyzing}
-                className="w-full py-3.5 bg-gradient-to-r from-pink-500 to-rose-600 hover:from-pink-400 hover:to-rose-500 text-white font-black rounded-xl shadow-lg shadow-pink-500/20 flex items-center justify-center gap-2 transition-all transform active:scale-98"
-              >
-                <Save className="w-5 h-5" />
-                <span>Guardar Sesión de Trotadora</span>
-              </button>
-            </form>
+            <TreadmillTracker
+              treadmillData={treadmillData}
+              onChange={setTreadmillData}
+              onSubmit={handleSaveTreadmillLog}
+              isCoachAnalyzing={isCoachAnalyzing}
+              workoutDate={workoutDate}
+              onDateChange={setWorkoutDate}
+            />
           )}
         </div>
 
         {/* Recent Household Logs Sidebar */}
         <div className="space-y-4">
+          {/* Card de Categorías Totales y Gasto de Hoy */}
+          <div className="p-4 rounded-2xl bg-gym-850 border border-gym-700 bg-gradient-to-br from-gym-800 to-gym-900 shadow-xl space-y-3">
+            <div className="flex items-center justify-between">
+              <h3 className="font-extrabold text-xs uppercase text-slate-300 tracking-wider flex items-center gap-1.5">
+                <Layers className="w-4 h-4 text-sky-400" />
+                <span>Totales de Hoy ({workoutDate})</span>
+              </h3>
+              <span className="text-[10px] font-mono text-emerald-400 bg-emerald-950/40 px-2 py-0.5 rounded border border-emerald-500/30 font-bold">
+                +{todayTrainingBurn} kcal quemadas
+              </span>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2 text-xs font-mono">
+              <div className="bg-gym-900/90 p-2.5 rounded-xl border border-gym-700/60">
+                <span className="text-[10px] text-slate-400 block">Volumen Pesas</span>
+                <span className="text-white font-black text-sm">{todayVolume} kg</span>
+              </div>
+              <div className="bg-gym-900/90 p-2.5 rounded-xl border border-gym-700/60">
+                <span className="text-[10px] text-slate-400 block">Trotadora</span>
+                <span className="text-pink-400 font-black text-sm">
+                  {todayTreadmillLogs.reduce((acc, l) => acc + (Number(l.durationMinutes) || 0), 0)} min
+                </span>
+              </div>
+            </div>
+
+            {todayCategories.length > 0 && (
+              <div className="space-y-1.5 pt-1 border-t border-gym-700/60">
+                <span className="text-[10px] font-bold uppercase text-slate-400 block">Categorías Estimuladas:</span>
+                <div className="flex flex-wrap gap-1">
+                  {todayCategories.map((c, i) => (
+                    <span key={i} className="text-[10px] px-2 py-0.5 rounded-md bg-sky-950/50 text-sky-300 border border-sky-500/30 font-mono">
+                      {c.shortCategory}: {c.totalVolumeKg}kg
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
           <div className="flex items-center justify-between">
             <h3 className="font-extrabold text-base text-white flex items-center gap-2">
               <Clock className="w-4 h-4 text-sky-400" />

@@ -1,16 +1,27 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, lazy, Suspense } from 'react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { Navbar } from './components/Navbar';
 import { LoginScreen } from './components/LoginScreen';
 import { Timer } from './components/Timer';
 import { WorkoutLogger } from './components/WorkoutLogger';
-import { Dashboard } from './components/Dashboard';
-import { PrintablePlan } from './components/PrintablePlan';
-import { BodyMetrics } from './components/BodyMetrics';
-import { PantryPlanner } from './components/PantryPlanner';
-import { GeminiCoach } from './components/GeminiCoach';
 import { FirebaseConfigModal } from './components/FirebaseConfigModal';
 import { ErrorBoundary } from './components/ErrorBoundary';
+
+// Code Splitting / Lazy Loading de vistas pesadas (Recharts, Gemini, Planos)
+const Dashboard = lazy(() => import('./components/Dashboard').then(m => ({ default: m.Dashboard })));
+const PrintablePlan = lazy(() => import('./components/PrintablePlan').then(m => ({ default: m.PrintablePlan })));
+const BodyMetrics = lazy(() => import('./components/BodyMetrics').then(m => ({ default: m.BodyMetrics })));
+const PantryPlanner = lazy(() => import('./components/PantryPlanner').then(m => ({ default: m.PantryPlanner })));
+const GeminiCoach = lazy(() => import('./components/GeminiCoach').then(m => ({ default: m.GeminiCoach })));
+
+function ViewSkeleton() {
+  return (
+    <div className="flex flex-col items-center justify-center min-h-[350px] space-y-3">
+      <div className="w-8 h-8 border-3 border-emerald-500 border-t-transparent rounded-full animate-spin"></div>
+      <p className="text-xs text-slate-400 font-mono">Cargando módulo...</p>
+    </div>
+  );
+}
 
 function MainApp() {
   const [currentTab, setCurrentTab] = useState('timer');
@@ -66,13 +77,15 @@ function MainApp() {
 
       {/* Main Content Area */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-6 pb-28 md:pb-8 overflow-x-hidden">
-        {currentTab === 'timer' && <Timer onQuickLog={() => setCurrentTab('logger')} />}
-        {currentTab === 'logger' && <WorkoutLogger />}
-        {currentTab === 'metrics' && <BodyMetrics />}
-        {currentTab === 'dashboard' && <Dashboard />}
-        {currentTab === 'planner' && <PrintablePlan />}
-        {currentTab === 'pantry' && <PantryPlanner />}
-        {currentTab === 'coach' && <GeminiCoach />}
+        <Suspense fallback={<ViewSkeleton />}>
+          {currentTab === 'timer' && <Timer onQuickLog={() => setCurrentTab('logger')} />}
+          {currentTab === 'logger' && <WorkoutLogger />}
+          {currentTab === 'metrics' && <BodyMetrics />}
+          {currentTab === 'dashboard' && <Dashboard />}
+          {currentTab === 'planner' && <PrintablePlan />}
+          {currentTab === 'pantry' && <PantryPlanner />}
+          {currentTab === 'coach' && <GeminiCoach />}
+        </Suspense>
       </main>
 
       {/* Footer */}

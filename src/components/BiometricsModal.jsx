@@ -25,6 +25,7 @@ import {
   AlertTriangle
 } from 'lucide-react';
 import { USERS } from '../data/workoutCatalog';
+import { getAllAthletes } from '../services/authService';
 import { 
   getAthleteBiometrics, 
   saveAthleteBiometrics, 
@@ -39,6 +40,7 @@ import {
 import confetti from 'canvas-confetti';
 
 export function BiometricsModal({ isOpen, onClose, householdId, initialAthlete = 'dionicio', onSaved }) {
+  const allAthletes = getAllAthletes();
   const [selectedAthlete, setSelectedAthlete] = useState(initialAthlete);
   const [formData, setFormData] = useState(() => getAthleteBiometrics(initialAthlete, householdId));
   const [activePlan, setActivePlan] = useState(() => calculateAthleteNutrition(initialAthlete, householdId));
@@ -166,31 +168,22 @@ export function BiometricsModal({ isOpen, onClose, householdId, initialAthlete =
         {/* Scrollable Body */}
         <div className="p-4 sm:p-6 overflow-y-auto space-y-5 flex-1">
           {/* Athlete Selector Tabs */}
-          <div className="grid grid-cols-2 gap-2 bg-gym-950/80 p-1 rounded-2xl border border-gym-800">
-            <button
-              type="button"
-              onClick={() => handleAthleteChange('dionicio')}
-              className={`py-2 px-3 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-2 ${
-                isDionicio
-                  ? 'bg-sky-500 text-gym-950 shadow-md shadow-sky-500/20'
-                  : 'text-slate-400 hover:text-white'
-              }`}
-            >
-              <span>👨‍💻 Dionicio</span>
-              <span className="text-[10px] opacity-80">(180 cm)</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => handleAthleteChange('paula')}
-              className={`py-2 px-3 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-2 ${
-                !isDionicio
-                  ? 'bg-pink-500 text-white shadow-md shadow-pink-500/20'
-                  : 'text-slate-400 hover:text-white'
-              }`}
-            >
-              <span>👩‍💼 Paula</span>
-              <span className="text-[10px] opacity-80">(160 cm)</span>
-            </button>
+          <div className="flex gap-2 bg-gym-950/80 p-1.5 rounded-2xl border border-gym-800 overflow-x-auto scrollbar-none">
+            {Object.values(allAthletes).map((ath) => (
+              <button
+                key={ath.uid}
+                type="button"
+                onClick={() => handleAthleteChange(ath.uid)}
+                className={`py-2 px-3.5 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-1.5 shrink-0 ${
+                  selectedAthlete === ath.uid
+                    ? 'bg-sky-500 text-gym-950 shadow-md shadow-sky-500/20'
+                    : 'text-slate-400 hover:text-white bg-gym-900/40'
+                }`}
+              >
+                <span>{ath.avatar || '🏋️‍♂️'} {ath.name}</span>
+                <span className="text-[10px] opacity-80 font-normal">({ath.height || `${ath.heightCm || 175} cm`})</span>
+              </button>
+            ))}
           </div>
 
           {/* TARJETA 1: RECOMENDACIÓN INTELIGENTE SEGÚN MEDIDAS REALES */}

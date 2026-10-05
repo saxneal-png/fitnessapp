@@ -8,13 +8,13 @@ import { calculateAthleteNutrition, getAthleteBiometrics, evaluateAthleteModeRec
  * Elimina la bifurcación manual duplicada de 'isDionicio' y constantes de estilo/nombres.
  */
 export function useAthleteProfile(targetUserId = null) {
-  const { currentUser, householdId } = useAuth();
+  const { currentUser, householdId, allUsers } = useAuth();
   const userId = targetUserId || currentUser || 'dionicio';
   const isDionicio = userId === 'dionicio';
-  const partnerId = isDionicio ? 'paula' : 'dionicio';
+  const partnerId = isDionicio ? 'paula' : (userId === 'paula' ? 'dionicio' : null);
 
-  const userConfig = USERS[userId] || USERS.dionicio;
-  const partnerConfig = USERS[partnerId] || USERS.paula;
+  const userConfig = (allUsers && allUsers[userId]) || USERS[userId] || USERS.dionicio;
+  const partnerConfig = partnerId && allUsers ? allUsers[partnerId] : (partnerId ? USERS[partnerId] : null);
 
   const biometrics = useMemo(() => {
     return getAthleteBiometrics(userId, householdId);
@@ -41,11 +41,10 @@ export function useAthleteProfile(targetUserId = null) {
     userId,
     isDionicio,
     partnerId,
-    name: userConfig.name,
-    displayName: isDionicio ? '👨‍💻 Dionicio' : '👩‍💼 Paula',
-    partnerName: partnerConfig.name,
-    partnerDisplayName: isDionicio ? '👩‍💼 Paula' : '👨‍💻 Dionicio',
-    avatar: userConfig.avatar,
+    displayName: `${userConfig.avatar || '🏋️‍♂️'} ${userConfig.name || userId}`,
+    partnerName: partnerConfig?.name || null,
+    partnerDisplayName: partnerConfig ? `${partnerConfig.avatar || '🏋️‍♂️'} ${partnerConfig.name}` : null,
+    avatar: userConfig.avatar || '🏋️‍♂️',
     theme,
     biometrics,
     nutritionPlan,

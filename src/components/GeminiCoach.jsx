@@ -46,35 +46,51 @@ import {
 } from 'lucide-react';
 
 export function GeminiCoach() {
-  const { currentUser, householdId } = useAuth();
-  const [apiKey, setApiKey] = useState(() => getStoredGeminiKey());
-  const [selectedModel, setSelectedModel] = useState(() => getStoredGeminiModel());
-  const [showKeyInput, setShowKeyInput] = useState(!getStoredGeminiKey());
+  const { currentUser, userProfile, householdId } = useAuth();
+  const [apiKey, setApiKey] = useState(() => getStoredGeminiKey(currentUser));
+  const [selectedModel, setSelectedModel] = useState(() => getStoredGeminiModel(currentUser));
+  const [showKeyInput, setShowKeyInput] = useState(() => !getStoredGeminiKey(currentUser));
   const [showBiometricsModal, setShowBiometricsModal] = useState(false);
   const [showMealSettingsModal, setShowMealSettingsModal] = useState(false);
   const [learnedCatalog, setLearnedCatalog] = useState([]);
-  const [tempKey, setTempKey] = useState(apiKey);
-  const [householdStats, setHouseholdStats] = useState(() => buildHouseholdContext(householdId));
+  const [tempKey, setTempKey] = useState(() => getStoredGeminiKey(currentUser));
+  const [householdStats, setHouseholdStats] = useState(() => buildHouseholdContext(householdId, currentUser));
   const [savingMealIdx, setSavingMealIdx] = useState(null);
   const [autoSaveMeals, setAutoSaveMeals] = useState(() => {
     return localStorage.getItem('fitness_duo_auto_save_meals') !== 'false';
   });
 
-  const [messages, setMessages] = useState([
+  const isDuoHousehold = householdId === 'hogar-dionicio-paula' && (currentUser === 'dionicio' || currentUser === 'paula');
+
+  const [messages, setMessages] = useState(() => [
     {
       role: 'assistant',
-      content: `¡Hola Dionicio y Paula! Soy su Agente Fitness y Asesor Nutricional Autónomo para su programa "Dúo en Casa" (19:00 a 20:00).
+      content: isDuoHousehold
+        ? `¡Hola Dionicio y Paula! Soy su Agente Fitness y Asesor Nutricional Autónomo para su programa "Dúo en Casa" (19:00 a 20:00).
 🇨🇱 Adaptado a la estructura chilena: Desayuno, Almuerzo y Once / Once-Comida (¡sin cena!).
 Tengo acceso en tiempo real a sus entrenamientos, su Despensa y la Base de Alimentos & Marcas del Hogar:
-- 🥗 **Dime lo que comieron** en lenguaje natural (ej: "Yo 1 diente de marraqueta con pollo y café, Paula 1 vaso de leche loncoleche full pro") y calcularé los nutrientes exactos para ambos.
-- 🎯 **Te diré con exactitud clínica qué y cuánto les falta para cerrar el día** (Dionicio: 1.600 kcal / 130g P • Paula: 1.250 kcal / 95g P).
-- 🥪 **Les sugeriré su Once Dúo Post-Entreno (20:00) usando EXCLUSIVAMENTE los alimentos de su despensa compartida.**
+- 🥗 **Dime lo que comieron** en lenguaje natural y calcularé los nutrientes exactos para ambos.
+- 🎯 **Te diré con exactitud clínica qué y cuánto les falta para cerrar el día**.
+- 🥪 **Les sugeriré su Once Dúo Post-Entreno (20:00) usando EXCLUSIVAMENTE los alimentos de su despensa compartida.**`
+        : `¡Hola ${userProfile?.name || 'Atleta'}! Soy tu Personal Trainer y Asesor Nutricional Autónomo Privado.
+Estoy conectado en tiempo real a tus entrenamientos, series de pesas, cardio y tus metas calóricas personales:
+- 🥗 **Dime lo que comiste en lenguaje natural** y calcularé calorías y macros exactos.
+- 🎯 **Te diré con exactitud cuánto te falta para cerrar el día** según tu objetivo (${userProfile?.activeMode || 'Pérdida de Grasa'}).
+- 🏋️‍♂️ **Recomendaré los pesos y series para tu sesión de hoy** con sobrecarga progresiva.
 
-¿Qué comieron hoy o cómo organizamos su Once tras el entreno?`
+¿Qué comiste hoy o qué consulta tienes para tu entrenamiento?`
     }
   ]);
-  const [inputQuery, setInputQuery] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
+
+  // Actualizar apiKey y stats al cambiar de usuario
+  useEffect(() => {
+    const currentKey = getStoredGeminiKey(currentUser);
+    setApiKey(currentKey);
+    setTempKey(currentKey);
+    setShowKeyInput(!currentKey);
+    setSelectedModel(getStoredGeminiModel(currentUser));
+    setHouseholdStats(buildHouseholdContext(householdId, currentUser));
+  }, [currentUser, householdId]);
 
   // Suscripción al catálogo de marcas aprendidas del hogar
   useEffect(() => {
@@ -95,14 +111,15 @@ Tengo acceso en tiempo real a sus entrenamientos, su Despensa y la Base de Alime
 
   // Refresh household context stats periodically or on focus
   useEffect(() => {
-    setHouseholdStats(buildHouseholdContext(householdId));
-  }, [householdId, messages]);
+    setHouseholdStats(buildHouseholdContext(householdId, currentUser));
+  }, [householdId, currentUser, messages]);
 
   const handleSaveKey = (e) => {
     e.preventDefault();
-    setApiKey(tempKey.trim());
-    saveGeminiKey(tempKey.trim());
-    saveGeminiModel(selectedModel);
+    const clean = tempKey.trim();
+    setApiKey(clean);
+    saveGeminiKey(clean, currentUser);
+    saveGeminiModel(selectedModel, currentUser);
     setShowKeyInput(false);
   };
 

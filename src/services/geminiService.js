@@ -21,20 +21,50 @@ export const GEMINI_AVAILABLE_MODELS = [
   { id: 'gemini-1.5-pro', label: 'Gemini 1.5 Pro' },
 ];
 
-export function getStoredGeminiKey() {
-  return localStorage.getItem(GEMINI_STORAGE_KEY) || '';
+export function getStoredGeminiKey(userId = null) {
+  if (userId) {
+    const userKey = localStorage.getItem(`${GEMINI_STORAGE_KEY}_${userId}`);
+    if (userKey) return userKey.trim();
+  }
+  try {
+    const active = localStorage.getItem('fitness_duo_active_user');
+    if (active) {
+      const activeKey = localStorage.getItem(`${GEMINI_STORAGE_KEY}_${active}`);
+      if (activeKey) return activeKey.trim();
+    }
+  } catch (e) {}
+  return (localStorage.getItem(GEMINI_STORAGE_KEY) || '').trim();
 }
 
-export function saveGeminiKey(key) {
-  localStorage.setItem(GEMINI_STORAGE_KEY, key.trim());
+export function saveGeminiKey(key, userId = null) {
+  const cleanKey = (key || '').trim();
+  if (userId) {
+    localStorage.setItem(`${GEMINI_STORAGE_KEY}_${userId}`, cleanKey);
+  }
+  localStorage.setItem(GEMINI_STORAGE_KEY, cleanKey);
 }
 
-export function getStoredGeminiModel() {
+export function getStoredGeminiModel(userId = null) {
+  if (userId) {
+    const userModel = localStorage.getItem(`${GEMINI_MODEL_STORAGE_KEY}_${userId}`);
+    if (userModel) return userModel.trim();
+  }
+  try {
+    const active = localStorage.getItem('fitness_duo_active_user');
+    if (active) {
+      const activeModel = localStorage.getItem(`${GEMINI_MODEL_STORAGE_KEY}_${active}`);
+      if (activeModel) return activeModel.trim();
+    }
+  } catch (e) {}
   return localStorage.getItem(GEMINI_MODEL_STORAGE_KEY) || 'gemini-2.0-flash-lite';
 }
 
-export function saveGeminiModel(model) {
-  localStorage.setItem(GEMINI_MODEL_STORAGE_KEY, model.trim());
+export function saveGeminiModel(model, userId = null) {
+  const cleanModel = (model || '').trim();
+  if (userId) {
+    localStorage.setItem(`${GEMINI_MODEL_STORAGE_KEY}_${userId}`, cleanModel);
+  }
+  localStorage.setItem(GEMINI_MODEL_STORAGE_KEY, cleanModel);
 }
 
 /**
@@ -214,10 +244,24 @@ export function extractAthleteMetrics(logs = [], weights = [], userId = 'dionici
   };
 }
 
+function getAthletesList() {
+  let custom = {};
+  try {
+    const raw = localStorage.getItem('fitness_duo_custom_users');
+    if (raw) custom = JSON.parse(raw);
+  } catch (e) {}
+  return {
+    ...USERS,
+    ...custom
+  };
+}
+
 /**
- * Construye el contexto base del hogar para las consultas del coach
+ * Construye el contexto base del hogar o espacio privado para las consultas del coach
  */
-export function buildHouseholdContext(householdId = 'hogar-dionicio-paula') {
+export function buildHouseholdContext(householdId = 'hogar-dionicio-paula', targetUserId = null) {
+  const allAthletes = getAthletesList();
+  const activeUserId = targetUserId || localStorage.getItem('fitness_duo_active_user') || 'dionicio';
   const logs = getLocalLogs(householdId);
   const weights = getLocalWeightEntries(householdId);
   
@@ -233,64 +277,60 @@ export function buildHouseholdContext(householdId = 'hogar-dionicio-paula') {
     if (rawMenu) activeMenu = JSON.parse(rawMenu);
   } catch (e) {}
 
+  // Extraer métricas para todos los atletas relevantes
   const dionicioMetrics = extractAthleteMetrics(logs, weights, 'dionicio');
   const paulaMetrics = extractAthleteMetrics(logs, weights, 'paula');
+  const userMetrics = extractAthleteMetrics(logs, weights, activeUserId);
 
   const dionicioLogs = logs.filter(l => l.userId === 'dionicio');
   const paulaLogs = logs.filter(l => l.userId === 'paula');
+  const userLogs = logs.filter(l => l.userId === activeUserId);
 
   const nutritionLogs = getLocalNutritionLogs(householdId);
   const todayStr = getLocalDateString();
   
-  const dionicioTodayNutrition = nutritionLogs.filter(n => n.userId === 'dionicio' && (n.date === todayStr || (!n.date && getLocalDateString(n.timestamp) === todayStr)));
-  const paulaTodayNutrition = nutritionLogs.filter(n => n.userId === 'paula' && (n.date === todayStr || (!n.date && getLocalDateString(n.timestamp) === todayStr)));
-
-  const dionicioTodayCals = dionicioTodayNutrition.reduce((acc, n) => acc + (Number(n.caloriesKcal) || 0), 0);
-  const paulaTodayCals = paulaTodayNutrition.reduce((acc, n) => acc + (Number(n.caloriesKcal) || 0), 0);
-
-  const dionicioTodayProtein = dionicioTodayNutrition.reduce((acc, n) => acc + (Number(n.proteinG) || 0), 0);
-  const paulaTodayProtein = paulaTodayNutrition.reduce((acc, n) => acc + (Number(n.proteinG) || 0), 0);
-
-  const dionicioPlan = calculateAthleteNutrition('dionicio', householdId);
-  const paulaPlan = calculateAthleteNutrition('paula', householdId);
+  // Nutrición por atleta
+  const nutritionMap = {};
+  for (const uid of Object.keys(allAthletes)) {
+    const uLogs = nutritionLogs.filter(n => n.userId === uid && (n.date === todayStr || (!n.date && getLocalDateString(n.timestamp) === todayStr)));
+    const todayCals = uLogs.reduce((acc, n) => acc + (Number(n.caloriesKcal) || 0), 0);
+    const todayProtein = uLogs.reduce((acc, n) => acc + (Number(n.proteinG) || 0), 0);
+    const plan = calculateAthleteNutrition(uid, householdId);
+    
+    nutritionMap[uid] = {
+      todayCals,
+      targetCals: plan.targetCals,
+      todayProtein,
+      targetProtein: plan.targetProtein,
+      targetCarbs: plan.targetCarbs,
+      targetFats: plan.targetFats,
+      plan,
+      todayMealsCount: uLogs.length,
+      todayMeals: uLogs
+    };
+  }
 
   return {
-    athletes: USERS,
+    athletes: allAthletes,
+    activeUserId,
     totalLogsCount: logs.length,
     dionicioMetrics,
     paulaMetrics,
+    userMetrics,
     recentLogs: logs.slice(0, 10),
     dionicioRecent: dionicioLogs.slice(0, 5),
     paulaRecent: paulaLogs.slice(0, 5),
-    bodyweights: weights.slice(0, 5),
+    userRecent: userLogs.slice(0, 5),
+    bodyweights: weights.filter(w => w.userId === activeUserId || !targetUserId).slice(0, 5),
     pantryItems: pantry,
     hasActiveMenu: !activeMenu,
     menuSnippet: activeMenu ? activeMenu.content?.substring(0, 300) : 'Sin menú generado aún',
     nutrition: {
       allLogs: nutritionLogs,
       todayDate: todayStr,
-      dionicio: {
-        todayCals: dionicioTodayCals,
-        targetCals: dionicioPlan.targetCals,
-        todayProtein: dionicioTodayProtein,
-        targetProtein: dionicioPlan.targetProtein,
-        targetCarbs: dionicioPlan.targetCarbs,
-        targetFats: dionicioPlan.targetFats,
-        plan: dionicioPlan,
-        todayMealsCount: dionicioTodayNutrition.length,
-        todayMeals: dionicioTodayNutrition
-      },
-      paula: {
-        todayCals: paulaTodayCals,
-        targetCals: paulaPlan.targetCals,
-        todayProtein: paulaTodayProtein,
-        targetProtein: paulaPlan.targetProtein,
-        targetCarbs: paulaPlan.targetCarbs,
-        targetFats: paulaPlan.targetFats,
-        plan: paulaPlan,
-        todayMealsCount: paulaTodayNutrition.length,
-        todayMeals: paulaTodayNutrition
-      }
+      ...nutritionMap,
+      dionicio: nutritionMap.dionicio || { todayCals: 0, targetCals: 1600, todayProtein: 0, targetProtein: 130 },
+      paula: nutritionMap.paula || { todayCals: 0, targetCals: 1220, todayProtein: 0, targetProtein: 82 }
     },
     mealSettings: getLocalMealSettings(householdId),
     foodCatalog: getLocalFoodCatalog(householdId)
@@ -567,16 +607,18 @@ export function generateDeterministicStrictMenu(pantryItems) {
 }
 
 /**
- * Consulta general al Coach con contexto 360° de la aplicación y rol de Personal Trainer de Élite
+ * Consulta general al Coach con contexto 360° individualizado y rol de Personal Trainer de Élite
  */
 export async function askCoachWithFullContext(queryText, currentUser, householdId, apiKey) {
-  const context = buildHouseholdContext(householdId);
-  const user = USERS[currentUser] || USERS.dionicio;
-  const partnerId = currentUser === 'dionicio' ? 'paula' : 'dionicio';
-  const partner = USERS[partnerId];
+  const athletes = getAthletesList();
+  const user = athletes[currentUser] || athletes.dionicio || Object.values(athletes)[0];
+  const isDuoHousehold = householdId === 'hogar-dionicio-paula' && (currentUser === 'dionicio' || currentUser === 'paula');
+  const partnerId = isDuoHousehold ? (currentUser === 'dionicio' ? 'paula' : 'dionicio') : null;
+  const partner = partnerId ? athletes[partnerId] : null;
 
-  const currentMetrics = currentUser === 'dionicio' ? context.dionicioMetrics : context.paulaMetrics;
-  const partnerMetrics = currentUser === 'dionicio' ? context.paulaMetrics : context.dionicioMetrics;
+  const context = buildHouseholdContext(householdId, currentUser);
+  const currentMetrics = extractAthleteMetrics(context.recentLogs, context.bodyweights, currentUser);
+  const userKey = apiKey || getStoredGeminiKey(currentUser);
 
   const formatPRs = (metrics) => {
     const prEntries = Object.entries(metrics.exercisePRs || {});
@@ -586,7 +628,50 @@ export async function askCoachWithFullContext(queryText, currentUser, householdI
     ).join('\n');
   };
 
-  const systemInstruction = `Eres el PERSONAL TRAINER DE ÉLITE Y NUTRICIONISTA DEPORTIVO EXCLUSIVO de Dionicio y Paula para su programa "Dúo en Casa" (19:00 a 20:00).
+  const userPlan = context.nutrition?.[currentUser]?.plan || calculateAthleteNutrition(currentUser, householdId);
+  const userNut = context.nutrition?.[currentUser] || { todayCals: 0, targetCals: userPlan.targetCals, todayProtein: 0, targetProtein: userPlan.targetProtein };
+
+  let systemInstruction = '';
+
+  if (!isDuoHousehold) {
+    // ================= MODO COACH INDIVIDUAL Y PRIVADO =================
+    systemInstruction = `Eres el PERSONAL TRAINER DE ÉLITE Y NUTRICIONISTA DEPORTIVO EXCLUSIVO Y PRIVADO de ${user.name}.
+Tu misión es guiar, corregir, motivar y ajustar las cargas de entrenamiento y nutrición de ${user.name} basándote ÚNICAMENTE en sus datos privados y la ciencia del ejercicio.
+Trabajas exclusivamente para ${user.name} con su API Key personal. No mezclas ni haces referencia a datos de otras personas.
+
+====================================================
+📊 ESTADO Y MÉTRICAS EN TIEMPO REAL DE ${user.name.toUpperCase()}:
+Atleta: ${user.name} (${user.level || 'Principiante'} • ${user.height || '175 cm'} • ${user.phase || 'Semana 0'})
+- Edad: ${user.age || 30} años | Género: ${user.gender || 'male'}
+- Volumen semanal levantado: ${currentMetrics.weeklyVolumeKg} kg (${currentMetrics.totalSetsCount} series en total)
+- RPE promedio reciente: ${currentMetrics.avgRpe}/10 (Objetivo: ${user.targetRPE || '6 - 7.5 / 10'})
+- Sesiones de Trotadora/Cardio: ${currentMetrics.cardio.sessionsCount} (${currentMetrics.cardio.totalMinutes} min, ~${currentMetrics.cardio.totalCalories} kcal)
+- Peso corporal actual: ${currentMetrics.bodyweight.current ? `${currentMetrics.bodyweight.current} kg` : 'Sin registrar'} (Delta: ${currentMetrics.bodyweight.delta > 0 ? '+' : ''}${currentMetrics.bodyweight.delta} kg)
+
+🏋️‍♂️ RÉCORDS PERSONALES Y PROGRESIÓN DE ${user.name.toUpperCase()}:
+${formatPRs(currentMetrics)}
+
+====================================================
+🎯 MODO FISIOLÓGICO Y OBJETIVO METABÓLICO ACTIVO:
+- Modo de ${user.name}: ${userPlan.activeModeConfig?.name || 'Pérdida de Grasa Visceral'}
+- Meta Calórica Diaria: ${userPlan.targetCals} kcal/día (${userPlan.formulaDetails?.adjustment || 'Déficit Clínico'})
+- Proteína Diaria: ${userPlan.targetProtein}g | Grasas: ${userPlan.targetFats}g | Carbohidratos: ${userPlan.targetCarbs}g
+- Ingesta consumida hoy: ${userNut.todayCals} / ${userPlan.targetCals} kcal (${userNut.todayProtein}g / ${userPlan.targetProtein}g proteína)
+- Faltan para cerrar el día: ${Math.max(0, userPlan.targetCals - userNut.todayCals)} kcal y ${Math.max(0, userPlan.targetProtein - userNut.todayProtein)}g de proteína.
+
+====================================================
+🥘 DESPENSA Y ALIMENTOS DISPONIBLES:
+- Despensa: ${context.pantryItems.join(', ') || 'Sin ingredientes informados'}
+
+DIRECTRICES DE TUS RESPUESTAS:
+- Habla directamente a ${user.name} de forma motivadora, empática, técnica y concisa.
+- Cita sus números o ejercicios registrados para fundamentar tus consejos.
+- Si te piden sugerencia de cargas para hoy, revisa su historial y dale los kg exactos a levantar.
+- Formato Markdown impecable con emojis deportivos, viñetas y pasos claros.`;
+  } else {
+    // ================= MODO COACH HOGAR DÚO (DIONICIO Y PAULA) =================
+    const partnerMetrics = extractAthleteMetrics(context.recentLogs, context.bodyweights, partnerId);
+    systemInstruction = `Eres el PERSONAL TRAINER DE ÉLITE Y NUTRICIONISTA DEPORTIVO EXCLUSIVO de Dionicio y Paula para su programa "Dúo en Casa" (19:00 a 20:00).
 Tu misión es guiar, corregir, motivar y ajustar sus cargas de entrenamiento con base en sus datos reales y la ciencia del ejercicio.
 
 ====================================================
@@ -609,56 +694,14 @@ ${formatPRs(partnerMetrics)}
 🥘 DESPENSA Y NUTRICIÓN COMPARTIDA:
 - Despensa: ${context.pantryItems.join(', ') || 'Sin ingredientes informados'}
 - Menú Semanal: ${context.hasActiveMenu ? 'Generado y activo' : 'Pendiente de generar'}
-- Protocolo: Cena compartida a las 20:00 con MISMA receta y porciones adaptadas (${user.name}: ${user.nutrition}).
-
-====================================================
-⚙️ EQUIPAMIENTO Y REGLAS DEL HOGAR:
-1. Mancuernas modulares de 40kg en total (discos de 1.25kg, 2.5kg y 5kg).
-2. Trotadora eléctrica (19:00 a 20:00 rotando cada 25 min: un atleta en fuerza y el otro en cardio).
-3. Enfoque Semana 0: Calibración técnica, descansos controlados (45-60s) y RPE 6-7 sin llegar al fallo muscular prematuro.
-
-DIRECTRICES DE TUS RESPUESTAS:
-- Habla como un entrenador personal experto, motivador, empático y directo.
-- Cita SIEMPRE sus números o ejercicios registrados para fundamentar tus consejos.
-- Si te piden sugerencia de cargas para hoy, revisa su historial y dale los kg exactos a configurar en las mancuernas.
-- Formato Markdown impecable con emojis deportivos, viñetas y pasos claros.
-
-====================================================
-🎯 MODO FISIOLÓGICO Y OBJETIVO METABÓLICO ACTIVO:
-- Modo de ${user.name}: ${context.nutrition?.[currentUser]?.plan?.activeModeConfig?.name || 'Pérdida de Grasa Visceral'}
-- Medida Cintura: ${context.nutrition?.[currentUser]?.plan?.waistCm ? `${context.nutrition?.[currentUser]?.plan?.waistCm} cm` : 'Pendiente'} | Ratio Cintura/Altura: ${context.nutrition?.[currentUser]?.plan?.recommendation?.waistHeightRatio || '0.51'} (${context.nutrition?.[currentUser]?.plan?.recommendation?.riskLevel || 'Moderado'})
-- Diagnóstico Clínico del Asesor: ${context.nutrition?.[currentUser]?.plan?.recommendation?.clinicalRationale || 'Déficit para reducción de grasa visceral'}
-- Próximo Hito para cambiar de modo: ${context.nutrition?.[currentUser]?.plan?.recommendation?.milestoneToNextMode || 'Bajar cintura a <88cm'}
-- Bloqueo de Hipertrofia: ${context.nutrition?.[currentUser]?.plan?.recommendation?.isHypertrophyBlocked ? 'ACTIVADO (WHtR ≥ 0.50, prohibido superávit hasta bajar cintura)' : 'DESBLOQUEADO'}
-- Modo de su Pareja (${partner.name}): ${context.nutrition?.[partnerId]?.plan?.activeModeConfig?.name || 'Pérdida de Grasa Visceral'}
-
-====================================================
-🛡️ REGLAS CLÍNICAS, DIGESTIVAS Y PREFERENCIAS ESTRICTAS:
-1. DIONICIO (180 cm, 86 kg, 40 años, PAL 1.32, ~65.5 kg masa magra):
-   - Meta Calórica Techo: 1.600 kcal/día (Déficit forzado de -760 kcal para oxidar grasa visceral sin pérdida de masa magra).
-   - Proteína: 130g (fijada sobre masa magra ~65.5 kg a 2.0 g/kg magros).
-   - Grasas: 55-57g (piso hormonal). Carbohidratos: 140-145g (energía para mancuernas y caminadora).
-   - Suplementación: 5g creatina monohidrato diaria continua. Proteína Cáscara Foods MÁXIMO 1 scoop diario (por su aporte de 300 mg de magnesio elemental bioasimilable).
-   - Preferencias alimentarias: Adora carne vacuna magra (posta rosada, pollo ganso cocido), marraqueta, huevos, queso Gauda Frutillar, sardinas al agua, pan amasado con aceite (sin manteca) y longaniza casera (con moderación en almuerzo).
-   - 🚫 ALIMENTO PROHIBIDO / DISLIKE: QUESILLO (nunca sugerir quesillo a Dionicio).
-   - Regla de pesaje: Solo pesaje matutino estricto en ayunas. Descartar pesajes vespertinos/nocturnos (ej. 88.3 kg con ropa/comida) por retención osmótica de bolo alimenticio.
-   - NUNCA sugerir 2.200 kcal; detendría la pérdida de grasa por su NEAT de oficina.
-
-2. PAULA (160 cm, 63 kg, 41 años, PAL 1.28, ~45.0 kg masa magra):
-   - Meta Calórica Techo: 1.220 a 1.250 kcal/día (TDEE real ~1.618 kcal con déficit seguro).
-   - PROTECCIÓN DIGESTIVA: ${context.nutrition?.paula?.plan?.digestiveProtection ? `🛡️ ACTIVADA: HARD CAP DE GRASAS MÁXIMO ${context.nutrition?.paula?.plan?.maxFatsCap || 42}g/día (gatillo de intolerancia en 45g). Cuidar vesícula y colon sensible.` : 'DESACTIVADA: Ratio de grasas flexible según el modo activo.'}
-   - Proteína calibrada liviana: 80 a 85g (máximo 88g en hipertrofia). NUNCA sobrecargarla con 95-105g de proteína ni forzar batidos innecesarios.
-   - Carbohidratos limpios: 130-135g (arroz blanco, avena, papas, marraqueta, frutas) para financiar cualquier requerimiento extra de energía.
-   - Suplementación: 5g creatina diaria. Cáscara Foods solo como rescate eventual (máx 1 scoop).
-   - Preferencias alimentarias: Adora el quesillo Colun, tomate fresco c/cilantro/ajo, yogurt griego Quillayes proteico, pechuga de pollo, pescados magros (merluza a la plancha, salmón) y marraqueta.
-   - 🚫 REGLA DE REFLUJO NOCTURNO: ${context.nutrition?.paula?.plan?.digestiveProtection ? 'CERO embutidos densos, cuero de pollo asado o quesos grasos en la once. La longaniza casera solo al almuerzo para vaciamiento gástrico.' : 'Preferir grasas saludables y ligeras en la noche.'}
 
 ====================================================
 🥗 CALORÍAS Y NUTRICIÓN DE HOY:
-- ${user.name}: ${context.nutrition?.[currentUser]?.todayCals || 0} / ${context.nutrition?.[currentUser]?.targetCals || 1600} kcal (${context.nutrition?.[currentUser]?.todayProtein || 0}g proteína | ${context.nutrition?.[currentUser]?.plan?.targetFats || 57}g grasas)
-- ${partner.name}: ${context.nutrition?.[partnerId]?.todayCals || 0} / ${context.nutrition?.[partnerId]?.targetCals || 1220} kcal (${context.nutrition?.[partnerId]?.todayProtein || 0}g proteína | ${context.nutrition?.[partnerId]?.plan?.targetFats || 40}g grasas)`;
+- ${user.name}: ${context.nutrition?.[currentUser]?.todayCals || 0} / ${context.nutrition?.[currentUser]?.targetCals || 1600} kcal (${context.nutrition?.[currentUser]?.todayProtein || 0}g proteína)
+- ${partner.name}: ${context.nutrition?.[partnerId]?.todayCals || 0} / ${context.nutrition?.[partnerId]?.targetCals || 1220} kcal (${context.nutrition?.[partnerId]?.todayProtein || 0}g proteína)`;
+  }
 
-  return await callGemini(systemInstruction, queryText, apiKey);
+  return await callGemini(systemInstruction, queryText, userKey);
 }
 
 /**
@@ -1034,14 +1077,20 @@ export function estimateDeterministicMeal(text = '', currentUser = 'dionicio', h
 }
 
 /**
- * ASESOR NUTRICIONAL Y FITNESS COMPLETO (Autónomo, Multi-Atleta Dúo, Cierre de Día y Despensa)
+ * ASESOR NUTRICIONAL Y FITNESS COMPLETO (Autónomo, Multi-Atleta y Exclusivo por Usuario)
  */
 export async function analyzeCoachChatWithAction(queryText, currentUser, householdId, apiKey) {
-  const user = USERS[currentUser] || USERS.dionicio;
-  const partnerId = currentUser === 'dionicio' ? 'paula' : 'dionicio';
-  const partner = USERS[partnerId] || USERS.paula;
-  const context = buildHouseholdContext(householdId);
-  const key = apiKey || getStoredGeminiKey();
+  const athletes = getAthletesList();
+  const user = athletes[currentUser] || athletes.dionicio || Object.values(athletes)[0];
+  const isDuoHousehold = householdId === 'hogar-dionicio-paula' && (currentUser === 'dionicio' || currentUser === 'paula');
+  const partnerId = isDuoHousehold ? (currentUser === 'dionicio' ? 'paula' : 'dionicio') : null;
+  const partner = partnerId ? athletes[partnerId] : null;
+
+  const context = buildHouseholdContext(householdId, currentUser);
+  const key = apiKey || getStoredGeminiKey(currentUser);
+
+  const userPlan = context.nutrition?.[currentUser]?.plan || calculateAthleteNutrition(currentUser, householdId);
+  const userNut = context.nutrition?.[currentUser] || { todayCals: 0, targetCals: userPlan.targetCals, todayProtein: 0, targetProtein: userPlan.targetProtein };
 
   const dioPlan = context.nutrition?.dionicio?.plan || calculateAthleteNutrition('dionicio', householdId);
   const pauPlan = context.nutrition?.paula?.plan || calculateAthleteNutrition('paula', householdId);
@@ -1061,146 +1110,80 @@ export async function analyzeCoachChatWithAction(queryText, currentUser, househo
     'atun', 'atún', 'merendé', 'snack', 'comida', 'plato', 'almuerzo', 'desayuno', 'cena', 'llevamos'
   ].some(k => lower.includes(k));
 
-  const hasDuoMention = (lower.includes('yo') || lower.includes('dionicio')) && (lower.includes('esposa') || lower.includes('paula') || lower.includes('ella'));
+  const hasDuoMention = isDuoHousehold && (lower.includes('yo') || lower.includes('dionicio')) && (lower.includes('esposa') || lower.includes('paula') || lower.includes('ella'));
 
   const householdCatalog = getLocalFoodCatalog(householdId);
   const catalogSummary = householdCatalog.map(item => `- ${item.name} (${item.brand || 'Comercial'}): ${item.servingDesc || `${item.servingSize}g`} = ${item.calories} kcal, ${item.proteinG}g P, ${item.carbsG}g C, ${item.fatsG}g G`).join('\n');
 
-  const systemInstruction = `Eres el ASESOR NUTRICIONAL Y FITNESS INTEGRAL EXCLUSIVO de Dionicio y Paula para su programa "Dúo en Casa".
-No eres un chat pasivo; eres su AGENTE INTELIGENTE AUTÓNOMO DE NUTRICIÓN Y RENDIMIENTO.
+  let systemInstruction = '';
+
+  if (!isDuoHousehold) {
+    // ================= PROMPT COACH 100% PRIVADO E INDIVIDUAL =================
+    systemInstruction = `Eres el ASESOR NUTRICIONAL Y PERSONAL TRAINER EXCLUSIVO Y PRIVADO de ${user.name}.
+Tu misión es guiar, calcular y motivar a ${user.name} usando ÚNICAMENTE sus datos personales y su API Key personal.
+No mezclas datos con ningún otro usuario ni revelas información ajena.
 
 ====================================================
-DIRECTRICES METABÓLICAS CLÍNICAS ESTRICTAS (ANTI-SOBREESTIMACIÓN DE FACTOR DE ACTIVIDAD):
-No caigas en la trampa de inflar el gasto diario por entrenar 1 hora si la jornada laboral es de oficina/escritorio:
-
-👨‍💻 REGLAS METABÓLICAS DE DIONICIO (86 kg, 180 cm, 40 años, ~23.5% grasa corporal, ~65.5 kg masa magra):
-1. TMB Base (Mifflin-St Jeor): 1.785 a 1.790 kcal/día (energía vital en reposo absoluto).
-2. Factor de Actividad Real: 1.32 sobre TMB (TDEE promedio real = ~2.360 kcal/día). NUNCA USES factores >= 1.45 o 1.55.
-3. Déficit Calórico Real: -760 kcal/día (~5.300 kcal semanales de déficit para oxidar grasa visceral).
-4. Meta Calórica Diaria: 1.550 a 1.650 kcal (TARGET EXACTO: 1.600 kcal/día).
-5. Proteína Diaria: 125 a 130 g/día (TARGET: 130g = 520 kcal). Calculada a 2.0 g/kg sobre masa magra (65.5 kg).
-6. Grasas Saludables: 50 a 57 g/día (TARGET: 55-57g). Piso biológico estricto.
-7. Carbohidratos: 140 a 145 g/día. Remanente glucolítico para fuerza en trotadora y mancuernas.
-8. Suplementación & Cáscara Foods: 5g creatina continua diaria. Cáscara Foods MÁXIMO 1 scoop diario (por los 300 mg de magnesio elemental bioasimilable).
-9. Gustos & Dislikes: Le gusta posta rosada, pollo ganso cocido, marraqueta, huevos, queso Gauda Frutillar, sardinas al agua, pan amasado con aceite (sin manteca), longaniza casera en almuerzo. 🚫 DETESTA EL QUESILLO (nunca sugerirle quesillo).
-- Ingerido hoy antes de este mensaje: ${dioNut.todayCals} / 1600 kcal | ${dioNut.todayProtein}g / 130g proteína.
-- Faltan para cerrar el día: ${Math.max(0, 1600 - dioNut.todayCals)} kcal y ${Math.max(0, 130 - dioNut.todayProtein)}g proteína.
-
-👩‍💼 REGLAS METABÓLICAS DE PAULA (63 kg, 160 cm, 41 años, ~28% grasa, ~45.0 kg masa magra):
-1. TMB Base (Mifflin-St Jeor): 1.264 kcal/día (pesaje basal en ayunas: 63.0 kg).
-2. Factor de Actividad Real: 1.28 sobre TMB (TDEE real = ~1.618 kcal/día).
-3. Meta Calórica Diaria: 1.200 a 1.250 kcal (TARGET EXACTO: 1.220 a 1.250 kcal/día).
-4. Proteína Diaria Liviana: 80 a 85 g/día (TARGET: 82g, máx 88g). Anti-distensión gástrica y de colon. NUNCA forzar 95-105g ni batidos innecesarios.
-5. PROTECCIÓN DIGESTIVA: ${pauPlan.digestiveProtection ? `🛡️ ACTIVADA: HARD CAP ESTRICTO DE GRASAS MÁXIMO ${pauPlan.maxFatsCap || 42} g/día (gatillo clínico de intolerancia en 45g). Cuidar vesícula y colon sensible.` : 'DESACTIVADA: Grasas flexibles según requerimiento calórico del modo activo.'}
-6. Carbohidratos Limpios: 130 a 135 g/día (arroz blanco, papas, marraqueta, avena, frutas).
-7. Gustos & Restricciones: Le gusta el quesillo Colun, tomate fresco c/cilantro/ajo, yogurt griego Quillayes, pechuga de pollo, merluza a la plancha, salmón y marraqueta. 🚫 REGLA DE REFLUJO NOCTURNO: Cero embutidos densos, cuero de pollo asado o quesos grasos en la once. La longaniza casera solo al almuerzo.
-- Ingerido hoy antes de este mensaje: ${pauNut.todayCals} / 1250 kcal | ${pauNut.todayProtein}g / 82g proteína.
-- Faltan para cerrar el día: ${Math.max(0, 1250 - pauNut.todayCals)} kcal y ${Math.max(0, 82 - pauNut.todayProtein)}g proteína.
+📊 PERFIL Y REGLAS METABÓLICAS DE ${user.name.toUpperCase()}:
+- Nombre: ${user.name} | Edad: ${user.age || 30} años | Estatura: ${user.height || '175 cm'}
+- Modo Activo: ${userPlan.activeModeConfig?.name || 'Pérdida de Grasa Visceral'}
+- Meta Calórica Diaria: ${userPlan.targetCals} kcal/día
+- Proteína Diaria: ${userPlan.targetProtein}g | Grasas: ${userPlan.targetFats}g | Carbohidratos: ${userPlan.targetCarbs}g
+- Consumido hoy antes de este mensaje: ${userNut.todayCals} / ${userPlan.targetCals} kcal | ${userNut.todayProtein}g / ${userPlan.targetProtein}g proteína.
+- Faltan para cerrar el día: ${Math.max(0, userPlan.targetCals - userNut.todayCals)} kcal y ${Math.max(0, userPlan.targetProtein - userNut.todayProtein)}g proteína.
 
 ====================================================
-INVENTARIO REAL DE ALIMENTOS EN SU DESPENSA ACTIVA:
+🥘 DESPENSA ACTIVA:
 [ ${pantryList.join(', ')} ]
 
-====================================================
-CATÁLOGO DE MARCAS Y PRODUCTOS CONOCIDOS EN EL HOGAR:
+CATÁLOGO DE PRODUCTOS:
 ${catalogSummary}
 
-====================================================
-REGLAS MANDATORIAS:
-1. DETECCIÓN Y DESGLOSE DUAL (DIONICIO Y PAULA EN UN SOLO MENSAJE):
-   - El usuario te puede escribir un mensaje completo describiendo lo que comió él ("yo...") y lo que comió su esposa ("mi esposa..." o "Paula..."), e incluso varias comidas (ej: desayuno y almuerzo).
-   - DEBES SEPARAR Y CALCULAR CON PRECISIÓN QUIRÚRGICA cada comida para Dionicio (userId: "dionicio") y cada comida para Paula (userId: "paula").
-   - Calcula Calorías totales (kcal), Proteína (g), Carbohidratos (g) y Grasas (g) para cada una de las comidas descritas.
-
-2. DETECCIÓN E INVESTIGACIÓN DE MARCAS COMERCIALES Y NUEVOS PRODUCTOS:
-   - Si el usuario indica una marca o característica comercial (ej: "un vaso de leche loncoleche full pro", "yogurt protein soprole", etc.):
-     a) Revisa el 'CATÁLOGO DE MARCAS' arriba.
-     b) Si no está en el catálogo, investiga y deduce con precisión la ficha nutricional oficial real de mercado chileno (por porción y por 100g).
-     c) Calcula la comida consumida basándote en la porción real ingerida (ej: 1 vaso = 200 ml de Loncoleche Full Pro = 110 kcal, 14g P, 9g C, 0.4g G).
-     d) Incluye el producto en el array "learnedFoods" en el JSON final para que la app lo guarde automáticamente en la base de datos de Firestore del hogar y aprenda para siempre.
-
-3. CÁLCULO EXACTO PARA "CERRAR EL DÍA" PARA AMBOS:
-   - Para Dionicio: Suma lo reportado a su acumulado de hoy. Indica cuánto lleva y cuántas kcal y gramos de proteína le faltan para su meta científica de 1.600 kcal y 130g proteína.
-   - Para Paula: Suma lo reportado a su acumulado de hoy. Indica cuánto lleva y cuántas kcal y gramos de proteína le faltan para su meta científica de 1.250 kcal y 95g proteína.
-
-4. EXPLICACIÓN FUNDAMENTADA (SI CONSULTAN):
-   - Si te preguntan por cómo se determinaron sus necesidades, explica detalladamente que se descartaron los multiplicadores inflados de gimnasio (PAL >= 1.55) que fijaban 2.200 kcal y habrían estancado la pérdida de grasa por el trabajo sedentario de oficina.
-   - Detalla que su TMB real es de 1.790 kcal, con factor PAL 1.32 (TDEE ~2.360 kcal), y que al tener ~20 kg de grasa de reserva, su déficit real es de -750 kcal diarias (meta: ~1.600 kcal) con 130g de proteína calculados sobre masa magra (65.5 kg).
-
-5. PROPUESTA DE ONCE / ONCE-COMIDA COMPARTIDA DÚO (20:00 POST-ENTRENO) CON DESPENSA:
-   - 🇨🇱 CULTURA CHILENA OBLIGATORIA: En Chile NO SE CENA. Los atletas desayunan, almuerzan y toman ONCE (u Once-Comida).
-   - Basándote EXCLUSIVAMENTE en su Despensa real, diseña la ONCE DÚO (20:00): MISMA preparación/receta pero con los gramajes específicos y diferenciados para Dionicio y Paula para que ambos cierren su día exacto.
-
-6. BLOQUE OBLIGATORIO DE PERSISTENCIA AUTOMÁTICA EN BASE DE DATOS:
-   Si el mensaje describe alimentos o ingesta, DEBES INCLUIR AL FINAL de tu respuesta este bloque JSON exacto para que el sistema actualice Firestore y LocalStorage para cada atleta:
+REGLAS OBLIGATORIAS:
+1. Calcula Calorías (kcal), Proteína (g), Carbohidratos (g) y Grasas (g) con total precisión para la comida informada por ${user.name}.
+2. Informa cuánto lleva hoy y qué le falta para cerrar su día según sus metas.
+3. Si el mensaje describe comida, DEBES INCLUIR AL FINAL de tu respuesta este bloque JSON exacto:
 
 \`\`\`json:nutrition_action
 {
   "isMealLog": true,
-  "isDuoLog": true,
+  "isDuoLog": false,
   "entries": [
     {
-      "userId": "dionicio",
-      "athleteName": "Dionicio",
+      "userId": "${currentUser}",
+      "athleteName": "${user.name}",
       "mealType": "desayuno | almuerzo | once | snack",
       "title": "Nombre de la comida",
-      "caloriesKcal": 210,
-      "proteinG": 16,
-      "carbsG": 28,
-      "fatsG": 3,
-      "items": ["1 diente marraqueta", "40g pollo"]
-    },
-    {
-      "userId": "paula",
-      "athleteName": "Paula",
-      "mealType": "almuerzo",
-      "title": "Nombre de la comida",
-      "caloriesKcal": 325,
+      "caloriesKcal": 350,
       "proteinG": 28,
-      "carbsG": 26,
-      "fatsG": 10,
-      "items": ["80g arroz", "55g salmón", "45g merluza", "150g zapallo italiano"]
+      "carbsG": 30,
+      "fatsG": 8,
+      "items": ["100g pollo", "150g arroz"]
     }
   ],
-  "learnedFoods": [
-    {
-      "name": "Leche Loncoleche Full Pro",
-      "brand": "Loncoleche",
-      "servingDesc": "1 vaso (200 ml)",
-      "servingSize": 200,
-      "servingUnit": "ml",
-      "calories": 110,
-      "proteinG": 14,
-      "carbsG": 9,
-      "fatsG": 0.4,
-      "category": "Lácteos Proteicos"
-    }
-  ],
-  "dionicioClosure": {
-    "todayTotalCals": ${dioNut.todayCals},
-    "targetCals": ${dioPlan.targetCals},
-    "remainingCals": ${Math.max(0, dioPlan.targetCals - dioNut.todayCals)},
-    "todayTotalProtein": ${dioNut.todayProtein},
-    "targetProtein": ${dioPlan.targetProtein},
-    "remainingProtein": ${Math.max(0, dioPlan.targetProtein - dioNut.todayProtein)}
-  },
-  "paulaClosure": {
-    "todayTotalCals": ${pauNut.todayCals},
-    "targetCals": ${pauPlan.targetCals},
-    "remainingCals": ${Math.max(0, pauPlan.targetCals - pauNut.todayCals)},
-    "todayTotalProtein": ${pauNut.todayProtein},
-    "targetProtein": ${pauPlan.targetProtein},
-    "remainingProtein": ${Math.max(0, pauPlan.targetProtein - pauNut.todayProtein)}
-  },
-  "sharedDinnerProposal": {
-    "title": "Once Dúo Post-Entreno (20:00) con Despensa",
-    "recipe": "Receta compartida con despensa",
-    "dionicioPortion": "Porción exacta para Dionicio",
-    "paulaPortion": "Porción exacta para Paula"
+  "closureAdvice": {
+    "todayTotalCals": ${userNut.todayCals},
+    "targetCals": ${userPlan.targetCals},
+    "remainingCals": ${Math.max(0, userPlan.targetCals - userNut.todayCals)},
+    "todayTotalProtein": ${userNut.todayProtein},
+    "targetProtein": ${userPlan.targetProtein},
+    "remainingProtein": ${Math.max(0, userPlan.targetProtein - userNut.todayProtein)}
   }
 }
-\`\`\`
-*(Si el mensaje es únicamente para un atleta, usa "isDuoLog": false y coloca su comida en el array "entries")*`;
+\`\`\``;
+  } else {
+    // ================= PROMPT COACH DÚO HOGAR (DIONICIO Y PAULA) =================
+    systemInstruction = `Eres el ASESOR NUTRICIONAL Y FITNESS INTEGRAL EXCLUSIVO de Dionicio y Paula para su programa "Dúo en Casa".
+No eres un chat pasivo; eres su AGENTE INTELIGENTE AUTÓNOMO DE NUTRICIÓN Y RENDIMIENTO.
+
+👨‍💻 DIONICIO: Meta ${dioPlan.targetCals} kcal / ${dioPlan.targetProtein}g P. Llevaba: ${dioNut.todayCals} kcal (${dioNut.todayProtein}g P).
+👩‍💼 PAULA: Meta ${pauPlan.targetCals} kcal / ${pauPlan.targetProtein}g P. Llevaba: ${pauNut.todayCals} kcal (${pauNut.todayProtein}g P).
+
+INVENTARIO DESPENSA: [ ${pantryList.join(', ')} ]
+CATÁLOGO DE MARCAS: ${catalogSummary}
+
+Si el mensaje describe alimentos, incluye al final el bloque \`\`\`json:nutrition_action ... \`\`\``;
+  }
 
   if (!key) {
     // Modo offline / heurístico
@@ -1231,9 +1214,7 @@ ${estimated.entries.filter(e => e.userId === 'paula').map(e => `- **${e.title}:*
 🥘 **Propuesta de Cena Dúo Post-Entreno (20:00) con su Despensa:**
 **${din.recipe}**
 - **Porción Dionicio:** ${din.dionicioPortion}
-- **Porción Paula:** ${din.paulaPortion}
-
-*(Todas las comidas han sido organizadas y están listas para persistirse en sus perfiles respectivos de Firestore).*`;
+- **Porción Paula:** ${din.paulaPortion}`;
     } else {
       const c = estimated.closureAdvice;
       text = `🥗 **¡Comida Calculada para ${user.name}!**
@@ -1241,7 +1222,7 @@ ${estimated.entries.filter(e => e.userId === 'paula').map(e => `- **${e.title}:*
 - **Llevas hoy:** ${c.newTotalCals} / ${c.targetCals} kcal (${c.newTotalProtein}g / ${c.targetProtein}g proteína).
 - **Te faltan:** **${c.remainingCals} kcal** y **${c.remainingProtein}g de proteína** para cerrar tu día.
 
-🥘 **Cena con Despensa (${c.availablePantrySnippet}):**
+🥘 **Propuesta con tu despensa:**
 ${c.suggestedRecipe}`;
     }
 
@@ -1302,9 +1283,9 @@ ${c.suggestedRecipe}`;
     }
 
     return {
-      text: `🥗 **Registro procesado para el hogar:**
+      text: `🥗 **Registro procesado para ${user.name}:**
 - Se calcularon las comidas con base en los gramajes provistos y catálogo comercial.
-- Ambos perfiles fueron actualizados con su déficit restante para el cierre del día.`,
+- Tu perfil privado fue actualizado con el aporte calórico y balance de cierre.`,
       detectedMeal: estimated
     };
   }

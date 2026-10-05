@@ -74,44 +74,39 @@ export function Navbar({ currentTab, setCurrentTab, onOpenConfig, onLogout }) {
               </button>
             </div>
 
-            {/* Active User Switcher: Mobile Compact Toggle / Desktop Dual Buttons */}
+            {/* Active User Switcher: Mobile Compact Toggle / Desktop Switcher */}
             <div className="flex items-center">
-              {/* Mobile compact switcher button (1 tap toggles athlete) */}
+              {/* Mobile compact switcher button (taps cycle through registered athletes) */}
               <button
-                onClick={() => switchUser(currentUser === 'dionicio' ? 'paula' : 'dionicio')}
-                className={`sm:hidden flex items-center gap-1 px-2 py-1 rounded-xl text-xs font-bold border transition-all active:scale-95 ${
-                  currentUser === 'dionicio'
-                    ? 'bg-sky-500/20 text-sky-300 border-sky-400/50'
-                    : 'bg-pink-500/20 text-pink-300 border-pink-400/50'
-                }`}
+                onClick={() => {
+                  const uids = Object.keys(allUsers);
+                  const currentIdx = uids.indexOf(currentUser);
+                  const nextUid = uids[(currentIdx + 1) % uids.length];
+                  switchUser(nextUid);
+                }}
+                className="sm:hidden flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-xs font-bold border border-sky-400/50 bg-sky-500/20 text-sky-200 transition-all active:scale-95"
                 title="Toca para cambiar de atleta"
               >
-                <span>{currentUser === 'dionicio' ? '👨‍💻 Dionicio' : '👩‍💼 Paula'}</span>
+                <span>{allUsers[currentUser]?.avatar || '🏋️‍♂️'} {allUsers[currentUser]?.name || 'Atleta'}</span>
                 <span className="text-[10px] text-slate-400 opacity-70">⇄</span>
               </button>
 
-              {/* Desktop Dual Switcher */}
-              <div className="hidden sm:flex items-center bg-gym-800 rounded-xl p-1 border border-gym-700">
-                <button
-                  onClick={() => switchUser('dionicio')}
-                  className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold transition-all ${
-                    currentUser === 'dionicio'
-                      ? 'bg-sky-500 text-white shadow-md shadow-sky-500/30'
-                      : 'text-slate-400 hover:text-sky-300'
-                  }`}
-                >
-                  <span>👨‍💻 Dionicio</span>
-                </button>
-                <button
-                  onClick={() => switchUser('paula')}
-                  className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold transition-all ${
-                    currentUser === 'paula'
-                      ? 'bg-pink-500 text-white shadow-md shadow-pink-500/30'
-                      : 'text-slate-400 hover:text-pink-300'
-                  }`}
-                >
-                  <span>👩‍💼 Paula</span>
-                </button>
+              {/* Desktop Dual/Multi Switcher */}
+              <div className="hidden sm:flex items-center bg-gym-800 rounded-xl p-1 border border-gym-700 max-w-[280px] overflow-x-auto scrollbar-none gap-1">
+                {Object.values(allUsers).map((athlete) => (
+                  <button
+                    key={athlete.uid}
+                    onClick={() => switchUser(athlete.uid)}
+                    className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold transition-all shrink-0 ${
+                      currentUser === athlete.uid
+                        ? 'bg-sky-500 text-white shadow-md shadow-sky-500/30 font-extrabold'
+                        : 'text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    <span>{athlete.avatar || '🏋️‍♂️'}</span>
+                    <span>{athlete.name}</span>
+                  </button>
+                ))}
               </div>
             </div>
 

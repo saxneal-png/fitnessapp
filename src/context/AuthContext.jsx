@@ -1,5 +1,5 @@
-﻿import React, { createContext, useContext, useState, useEffect } from 'react';
-import { USERS } from '../data/workoutCatalog';
+import React, { createContext, useContext, useState, useEffect } from 'react';
+import { USERS as DEFAULT_USERS } from '../data/workoutCatalog';
 import { auth, isInitialized, ensureAnonymousAuth, subscribeToConnectionStatus } from '../firebase/config';
 import { 
   signInWithEmailAndPassword, 
@@ -9,8 +9,12 @@ import {
 } from 'firebase/auth';
 import { 
   verifyAndLogin, 
+  registerAthlete as registerAthleteService,
   getAuthenticatedSession, 
-  clearAuthenticatedSession 
+  clearAuthenticatedSession,
+  getAllAthletes,
+  sendRecoveryOtp,
+  verifyOtpAndResetPassword
 } from '../services/authService';
 
 const AuthContext = createContext(null);
@@ -20,6 +24,8 @@ const SESSION_MODE_STORAGE = 'fitness_duo_session_mode';
 const HOUSEHOLD_ID_STORAGE = 'fitness_duo_household_id';
 
 export function AuthProvider({ children }) {
+  const [allUsers, setAllUsers] = useState(() => getAllAthletes());
+
   const [currentUser, setCurrentUser] = useState(() => {
     return localStorage.getItem(ACTIVE_USER_STORAGE) || 'dionicio';
   });
@@ -29,6 +35,11 @@ export function AuthProvider({ children }) {
   });
 
   const [householdId, setHouseholdId] = useState(() => {
+    const active = localStorage.getItem(ACTIVE_USER_STORAGE) || 'dionicio';
+    const users = getAllAthletes();
+    if (users[active] && users[active].householdId) {
+      return users[active].householdId;
+    }
     return localStorage.getItem(HOUSEHOLD_ID_STORAGE) || 'hogar-dionicio-paula';
   });
 
@@ -36,6 +47,12 @@ export function AuthProvider({ children }) {
   const [authSession, setAuthSession] = useState(() => getAuthenticatedSession());
   const [authLoading, setAuthLoading] = useState(true);
   const [isCloudOnline, setIsCloudOnline] = useState(false);
+
+  const refreshUsers = () => {
+    const updated = getAllAthletes();
+    setAllUsers(updated);
+    return updated;
+  };
 
   useEffect(() => {
     // 1. Subscribe to cloud connection changes
@@ -49,10 +66,12 @@ export function AuthProvider({ children }) {
         setFbUser(user);
         setAuthLoading(false);
         if (user) {
-          if (user.uid === 'paula' || (user.email && user.email.toLowerCase().includes('paula'))) {
-            switchUser('paula');
-          } else if (user.uid === 'dionicio' || (user.email && (user.email.toLowerCase().includes('dionicio') || user.email.toLowerCase().includes('atleta1')))) {
-            switchUser('dionicio');
+          const currentAthletes = getAllAthletes();
+          for (const [uid, athlete] of Object.entries(currentAthletes)) {
+            if (user.uid === uid || (user.email && athlete.email && user.email.toLowerCase() === athlete.email.toLowerCase())) {
+              switchUser(uid);
+              break;
+            }
           }
         }
       });
@@ -71,9 +90,14 @@ export function AuthProvider({ children }) {
   }, []);
 
   const switchUser = (uid) => {
-    if (USERS[uid]) {
+    const currentAthletes = getAllAthletes();
+    if (currentAthletes[uid]) {
       setCurrentUser(uid);
       localStorage.setItem(ACTIVE_USER_STORAGE, uid);
+      
+      const targetHousehold = currentAthletes[uid].householdId || (currentAthletes[uid].isCustomUser ? `privado_${uid}` : 'hogar-dionicio-paula');
+      setHouseholdId(targetHousehold);
+      localStorage.setItem(HOUSEHOLD_ID_STORAGE, targetHousehold);
     }
   };
 
@@ -88,10 +112,22 @@ export function AuthProvider({ children }) {
   };
 
   /**
-   * Inicio de sesión híbrido de producción:
-   * Valida criptográficamente las credenciales autorizadas del hogar y sincroniza con Firebase
+   * Registro de un nuevo atleta con aislamiento de datos y API Key
    */
-  const loginAthlete = async (email, password, selectedUser = 'dionicio') => {
+  const registerAthlete = async (userData) => {
+    const result = await registerAthleteService(userData);
+    refreshUsers();
+    setAuthSession(result.session);
+    switchUser(result.user);
+    await ensureAnonymousAuth();
+    return result;
+  };
+
+  /**
+   * Inicio de sesión multi-usuario:
+   * Valida criptográficamente las credenciales autorizadas del atleta y sincroniza con Firebase
+   */
+  const loginAthlete = async (email, password, selectedUser = null) => {
     // 1. Verificación segura con Vault Criptográfico
     const vaultResult = await verifyAndLogin(email, password, selectedUser);
     
@@ -113,8 +149,12 @@ export function AuthProvider({ children }) {
     }
 
     // 3. Activar sesión
+    refreshUsers();
     setAuthSession(vaultResult.session);
     switchUser(vaultResult.user);
+    if (vaultResult.householdId) {
+      changeHouseholdId(vaultResult.householdId);
+    }
     await ensureAnonymousAuth();
     return vaultResult;
   };
@@ -132,12 +172,18 @@ export function AuthProvider({ children }) {
   };
 
   const isAuthenticated = Boolean(fbUser || authSession);
+  const currentAthletes = allUsers || DEFAULT_USERS;
+  const userProfile = currentAthletes[currentUser] || currentAthletes.dionicio || Object.values(currentAthletes)[0];
 
   const value = {
     currentUser,
-    userProfile: USERS[currentUser] || USERS.dionicio,
-    allUsers: USERS,
+    userProfile,
+    allUsers: currentAthletes,
     switchUser,
+    refreshUsers,
+    registerAthlete,
+    sendRecoveryOtp,
+    verifyOtpAndResetPassword,
     sessionMode,
     changeSessionMode,
     householdId,
