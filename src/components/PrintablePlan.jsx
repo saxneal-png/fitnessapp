@@ -49,26 +49,31 @@ export function PrintablePlan() {
     window.print();
   };
 
-  // Generate .ICS file for weekly workouts (19:00 to 20:00)
+  // Generate .ICS file for weekly workouts
   const handleDownloadICS = () => {
+    const calendarTitle = isDuoHousehold ? 'Rutina Dúo en Casa - Plan Adaptativo' : `Plan de Entrenamiento - ${user?.name || 'Personal'}`;
+    const sessionDetails = isDuoHousehold
+      ? 'Sesión 19:00-20:00 con mancuernas modulares y trotadora.\\nPlan adaptativo según RPE y sobrecarga progresiva.\\nBloque 1 (25m) + Transición (3m) + Bloque 2 (25m).'
+      : 'Sesión de entrenamiento de fuerza y cardio.\\nPlan adaptativo según RPE y sobrecarga progresiva.';
+
     const icsData = `BEGIN:VCALENDAR
 VERSION:2.0
-PRODID:-//DuoEnCasa//Fitness App//ES
+PRODID:-//FitnessApp//PersonalTrainer//ES
 CALSCALE:GREGORIAN
 METHOD:PUBLISH
-X-WR-CALNAME:Rutina Dúo en Casa - Plan Adaptativo (19:00 - 20:00)
+X-WR-CALNAME:${calendarTitle}
 X-WR-TIMEZONE:America/Santiago
 BEGIN:VEVENT
-SUMMARY:🏋️ Dúo en Casa: Torso & Trotadora (Plan Adaptativo)
-DESCRIPTION:Sesión 19:00-20:00 con mancuernas modulares y trotadora.\\nPlan adaptativo según RPE y sobrecarga progresiva.\\nBloque 1 (25m) + Transición (3m) + Bloque 2 (25m).
+SUMMARY:🏋️ ${isDuoHousehold ? 'Dúo en Casa: Torso & Trotadora' : 'Entrenamiento: Torso & Cardio'}
+DESCRIPTION:${sessionDetails}
 DTSTART;TZID=America/Santiago:20260914T190000
 DTEND;TZID=America/Santiago:20260914T200000
 RRULE:FREQ=WEEKLY;BYDAY=MO,TH
 STATUS:CONFIRMED
 END:VEVENT
 BEGIN:VEVENT
-SUMMARY:🦵 Dúo en Casa: Pierna & Core + Trotadora (Plan Adaptativo)
-DESCRIPTION:Sesión 19:00-20:00 de sentadilla goblet, peso muerto rumano y trotadora.\\nPlan adaptativo según RPE y sobrecarga progresiva.\\nBloque 1 (25m) + Transición (3m) + Bloque 2 (25m).
+SUMMARY:🦵 ${isDuoHousehold ? 'Dúo en Casa: Pierna & Core' : 'Entrenamiento: Pierna & Core'}
+DESCRIPTION:${sessionDetails}
 DTSTART;TZID=America/Santiago:20260915T190000
 DTEND;TZID=America/Santiago:20260915T200000
 RRULE:FREQ=WEEKLY;BYDAY=TU,FR
@@ -79,13 +84,15 @@ END:VCALENDAR`;
     const blob = new Blob([icsData], { type: 'text/calendar;charset=utf-8' });
     const link = document.createElement('a');
     link.href = window.URL.createObjectURL(blob);
-    link.setAttribute('download', `Rutina_Duo_Plan_Adaptativo_${selectedAthlete}.ics`);
+    link.setAttribute('download', `Rutina_Plan_Adaptativo_${selectedAthlete}.ics`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
   };
 
-  const googleCalendarUrl = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=Entrenamiento+D%C3%BAo+en+Casa+(Plan+Adaptativo)&details=Rutina+sincronizada+de+Fuerza+y+Trotadora+Dionicio+y+Paula+(19:00-20:00).&dates=20260914T220000Z/20260914T230000Z&recur=RRULE:FREQ%3DWEEKLY;BYDAY%3DMO,TU,TH,FR`;
+  const calTitle = encodeURIComponent(isDuoHousehold ? 'Entrenamiento Dúo en Casa (Plan Adaptativo)' : `Entrenamiento de Fuerza - ${user?.name || 'Personal'}`);
+  const calDesc = encodeURIComponent(isDuoHousehold ? 'Rutina sincronizada de Fuerza y Trotadora Dúo en Casa (19:00-20:00).' : `Rutina personalizada de Fuerza y Cardio para ${user?.name || 'ti'}.`);
+  const googleCalendarUrl = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${calTitle}&details=${calDesc}&dates=20260914T220000Z/20260914T230000Z&recur=RRULE:FREQ%3DWEEKLY;BYDAY%3DMO,TU,TH,FR`;
 
   return (
     <div className="space-y-6">

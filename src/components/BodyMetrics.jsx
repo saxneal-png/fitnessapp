@@ -416,7 +416,9 @@ export function BodyMetrics() {
               Nuevo Registro
             </h2>
             <span className="text-[11px] font-mono text-slate-400">
-              {selectedUser === 'dionicio' ? 'Perfil Dionicio' : 'Perfil Paula'}
+              {isDuoHousehold
+                ? (selectedUser === 'dionicio' ? 'Perfil Dionicio' : 'Perfil Paula')
+                : `Perfil de ${userProfile?.name || 'Atleta'}`}
             </span>
           </div>
 
@@ -571,7 +573,7 @@ export function BodyMetrics() {
             <button
               type="submit"
               disabled={saving}
-              className={'w-full py-2.5 rounded-xl font-bold text-xs flex items-center justify-center gap-2 transition-all shadow-lg ' + (selectedUser === 'dionicio' ? 'bg-sky-500 hover:bg-sky-400 text-white shadow-sky-500/25' : 'bg-pink-500 hover:bg-pink-400 text-white shadow-pink-500/25') + (saving ? ' opacity-60 cursor-not-allowed' : '')}
+              className={'w-full py-2.5 rounded-xl font-bold text-xs flex items-center justify-center gap-2 transition-all shadow-lg ' + (selectedUser === 'dionicio' ? 'bg-sky-500 hover:bg-sky-400 text-white shadow-sky-500/25' : (selectedUser === 'paula' ? 'bg-pink-500 hover:bg-pink-400 text-white shadow-pink-500/25' : 'bg-emerald-500 hover:bg-emerald-400 text-white shadow-emerald-500/25')) + (saving ? ' opacity-60 cursor-not-allowed' : '')}
             >
               {saving ? (
                 <>
@@ -581,7 +583,7 @@ export function BodyMetrics() {
               ) : (
                 <>
                   <PlusCircle className="w-4 h-4" />
-                  <span>Guardar Medición de {selectedUser === 'dionicio' ? 'Dionicio' : 'Paula'}</span>
+                  <span>Guardar Medición de {isDuoHousehold ? (selectedUser === 'dionicio' ? 'Dionicio' : 'Paula') : (userProfile?.name || 'mi perfil')}</span>
                 </>
               )}
             </button>
@@ -686,7 +688,7 @@ export function BodyMetrics() {
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-base font-bold text-white flex items-center gap-2">
             <Calendar className="w-4 h-4 text-emerald-400" />
-            Historial de Pesos y Medidas de {selectedUser === 'dionicio' ? 'Dionicio' : 'Paula'}
+            Historial de Pesos y Medidas de {isDuoHousehold ? (selectedUser === 'dionicio' ? 'Dionicio' : 'Paula') : (userProfile?.name || 'mi perfil')}
           </h2>
           <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-gym-800 text-slate-300 border border-gym-700">
             {logs.length} registros
@@ -695,7 +697,7 @@ export function BodyMetrics() {
 
         {logs.length === 0 ? (
           <div className="text-center py-8 text-slate-500 text-xs">
-            No hay registros guardados en el historial de {selectedUser === 'dionicio' ? 'Dionicio' : 'Paula'}.
+            No hay registros guardados en el historial de {isDuoHousehold ? (selectedUser === 'dionicio' ? 'Dionicio' : 'Paula') : (userProfile?.name || 'tu cuenta')}.
           </div>
         ) : (
           <div className="overflow-x-auto">

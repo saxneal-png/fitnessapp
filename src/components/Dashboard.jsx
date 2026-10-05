@@ -306,28 +306,35 @@ export function Dashboard() {
 
           {/* Selector de Atleta para la Auditoría */}
           <div className="flex items-center gap-2">
-            <div className="bg-gym-900 border border-gym-700 rounded-xl p-1 flex items-center">
-              <button
-                onClick={() => setBalanceAthlete('dionicio')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
-                  balanceAthlete === 'dionicio'
-                    ? 'bg-sky-500 text-white shadow-sm'
-                    : 'text-slate-400 hover:text-white'
-                }`}
-              >
-                <span>👨‍💻 Dionicio</span>
-              </button>
-              <button
-                onClick={() => setBalanceAthlete('paula')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
-                  balanceAthlete === 'paula'
-                    ? 'bg-pink-500 text-white shadow-sm'
-                    : 'text-slate-400 hover:text-white'
-                }`}
-              >
-                <span>👩‍💼 Paula</span>
-              </button>
-            </div>
+            {isDuoHousehold ? (
+              <div className="bg-gym-900 border border-gym-700 rounded-xl p-1 flex items-center">
+                <button
+                  onClick={() => setBalanceAthlete('dionicio')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
+                    balanceAthlete === 'dionicio'
+                      ? 'bg-sky-500 text-white shadow-sm'
+                      : 'text-slate-400 hover:text-white'
+                  }`}
+                >
+                  <span>👨‍💻 Dionicio</span>
+                </button>
+                <button
+                  onClick={() => setBalanceAthlete('paula')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
+                    balanceAthlete === 'paula'
+                      ? 'bg-pink-500 text-white shadow-sm'
+                      : 'text-slate-400 hover:text-white'
+                  }`}
+                >
+                  <span>👩‍💼 Paula</span>
+                </button>
+              </div>
+            ) : (
+              <div className="px-3 py-1.5 rounded-xl bg-gym-900 border border-gym-700 text-xs font-bold text-sky-400 flex items-center gap-1.5 shadow-sm">
+                <span>{userProfile?.avatar || '🏋️‍♂️'}</span>
+                <span>{userProfile?.name || 'Mi Perfil'}</span>
+              </div>
+            )}
           </div>
         </div>
 
@@ -698,10 +705,14 @@ export function Dashboard() {
             </div>
           </div>
           <h3 className="text-lg font-extrabold text-white">
-            ¡Todo listo para su primer entrenamiento en vivo (19:00 a 20:00)!
+            {isDuoHousehold
+              ? '¡Todo listo para su primer entrenamiento en vivo (19:00 a 20:00)!'
+              : `¡Todo listo para tu primer entrenamiento, ${userProfile?.name || 'atleta'}!`}
           </h3>
           <p className="text-xs sm:text-sm text-slate-400 max-w-xl mx-auto">
-            La base de datos está lista para producción. Cuando completen su primera sesión de hoy con mancuernas o trotadora, los gráficos y métricas de Dionicio y Paula se sincronizarán aquí automáticamente.
+            {isDuoHousehold
+              ? 'La base de datos está lista para producción. Cuando completen su primera sesión de hoy con mancuernas o trotadora, los gráficos y métricas del hogar se sincronizarán aquí automáticamente.'
+              : 'La base de datos está lista. En cuanto registres tu primera serie de pesas o sesión de cardio, tus métricas individuales y sobrecarga progresiva aparecerán aquí.'}
           </p>
         </div>
       )}
@@ -715,19 +726,23 @@ export function Dashboard() {
               <span>Volumen de Entrenamiento por Sesión (kg x reps)</span>
             </h3>
             <p className="text-xs text-slate-400">
-              Comparativa de volumen total movido en cada fecha por Dionicio y Paula.
+              {isDuoHousehold
+                ? 'Comparativa de volumen total movido en cada fecha por Dionicio y Paula.'
+                : `Evolución del tonelaje movido en cada sesión por ${userProfile?.name || 'tu cuenta'}.`}
             </p>
           </div>
-          <div className="flex items-center gap-3 text-xs font-mono">
-            <div className="flex items-center gap-1.5">
-              <span className="w-3 h-3 rounded-full bg-sky-400"></span>
-              <span className="text-slate-300">Dionicio</span>
+          {isDuoHousehold && (
+            <div className="flex items-center gap-3 text-xs font-mono">
+              <div className="flex items-center gap-1.5">
+                <span className="w-3 h-3 rounded-full bg-sky-400"></span>
+                <span className="text-slate-300">Dionicio</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <span className="w-3 h-3 rounded-full bg-pink-400"></span>
+                <span className="text-slate-300">Paula</span>
+              </div>
             </div>
-            <div className="flex items-center gap-1.5">
-              <span className="w-3 h-3 rounded-full bg-pink-400"></span>
-              <span className="text-slate-300">Paula</span>
-            </div>
-          </div>
+          )}
         </div>
 
         <div className="h-72 w-full">
@@ -940,14 +955,23 @@ export function Dashboard() {
             <form onSubmit={handleAddWeight} className="space-y-3">
               <div>
                 <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Usuario</label>
-                <select
-                  value={newWeight.userId}
-                  onChange={(e) => setNewWeight({ ...newWeight, userId: e.target.value })}
-                  className="w-full bg-gym-900 border border-gym-700 rounded-xl px-3 py-2 text-sm text-white focus:outline-none"
-                >
-                  <option value="dionicio">👨‍💻 Dionicio</option>
-                  <option value="paula">👩‍💼 Paula</option>
-                </select>
+                {isDuoHousehold ? (
+                  <select
+                    value={newWeight.userId}
+                    onChange={(e) => setNewWeight({ ...newWeight, userId: e.target.value })}
+                    className="w-full bg-gym-900 border border-gym-700 rounded-xl px-3 py-2 text-sm text-white focus:outline-none"
+                  >
+                    <option value="dionicio">👨‍💻 Dionicio</option>
+                    <option value="paula">👩‍💼 Paula</option>
+                  </select>
+                ) : (
+                  <input
+                    type="text"
+                    disabled
+                    value={userProfile?.name || 'Mi Perfil'}
+                    className="w-full bg-gym-900 border border-gym-700 rounded-xl px-3 py-2 text-sm text-slate-300 font-bold opacity-80"
+                  />
+                )}
               </div>
 
               <div>

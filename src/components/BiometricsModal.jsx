@@ -427,7 +427,7 @@ export function BiometricsModal({ isOpen, onClose, householdId, initialAthlete =
                   <span>Calibración Realista por Masa Magra & Antropometría</span>
                 </div>
                 <p className="text-slate-300 leading-relaxed font-sans text-xs">
-                  {activePlan.formulaDetails.formulaName}: TMB calculada con Mifflin-St Jeor multiplicada por PAL realista de oficina (1.32 para Dionicio, 1.28 para Paula).
+                  {activePlan.formulaDetails.formulaName}: TMB calculada con Mifflin-St Jeor multiplicada por el nivel de actividad física (PAL) calibrado para tu rutina y perfil antropométrico.
                 </p>
                 <div className="p-2.5 rounded-lg bg-gym-950 border border-gym-800 space-y-1 text-[11px]">
                   <div>• <strong>TMB Mifflin-St Jeor:</strong> {activePlan.bmr} kcal/día en reposo absoluto.</div>

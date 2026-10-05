@@ -46,7 +46,7 @@ import {
 } from 'lucide-react';
 
 export function GeminiCoach() {
-  const { currentUser, userProfile, householdId } = useAuth();
+  const { currentUser, userProfile, householdId, allUsers } = useAuth();
   const [apiKey, setApiKey] = useState(() => getStoredGeminiKey(currentUser));
   const [selectedModel, setSelectedModel] = useState(() => getStoredGeminiModel(currentUser));
   const [showKeyInput, setShowKeyInput] = useState(() => !getStoredGeminiKey(currentUser));
@@ -62,11 +62,14 @@ export function GeminiCoach() {
 
   const isDuoHousehold = householdId === 'hogar-dionicio-paula' && (currentUser === 'dionicio' || currentUser === 'paula');
 
+  const [inputQuery, setInputQuery] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+
   const [messages, setMessages] = useState(() => [
     {
       role: 'assistant',
       content: isDuoHousehold
-        ? `¡Hola Dionicio y Paula! Soy su Agente Fitness y Asesor Nutricional Autónomo para su programa "Dúo en Casa" (19:00 a 20:00).
+        ? `¡Hola! Soy su Agente Fitness y Asesor Nutricional Autónomo para su programa "Dúo en Casa" (19:00 a 20:00).
 🇨🇱 Adaptado a la estructura chilena: Desayuno, Almuerzo y Once / Once-Comida (¡sin cena!).
 Tengo acceso en tiempo real a sus entrenamientos, su Despensa y la Base de Alimentos & Marcas del Hogar:
 - 🥗 **Dime lo que comieron** en lenguaje natural y calcularé los nutrientes exactos para ambos.
@@ -369,7 +372,7 @@ Estoy conectado en tiempo real a tus entrenamientos, series de pesas, cardio y t
             <span>Atleta & Modo</span>
           </div>
           <div className="text-xl font-black text-white flex items-center justify-between">
-            <span>{USERS[currentUser]?.name}</span>
+            <span>{userProfile?.name || allUsers[currentUser]?.name || 'Atleta'}</span>
             <span className="text-sm">
               {householdStats.nutrition?.[currentUser]?.plan?.activeModeConfig?.icon || '🔥'}
             </span>
@@ -392,18 +395,18 @@ Estoy conectado en tiempo real a tus entrenamientos, series de pesas, cardio y t
           <div className="text-xl font-black text-white font-mono">
             {householdStats.pantryItems.length} <span className="text-xs font-normal text-slate-400">ítems</span>
           </div>
-          <span className="text-[10px] text-emerald-300 block">100% cocina compartida</span>
+          <span className="text-[10px] text-emerald-300 block">{isDuoHousehold ? '100% cocina compartida' : 'Despensa personal'}</span>
         </div>
 
         <div className="bg-gym-800/90 border border-amber-500/30 rounded-2xl p-3.5 space-y-1">
           <div className="flex items-center gap-1.5 text-amber-400 text-xs font-bold">
             <Utensils className="w-4 h-4" />
-            <span>Menú Semanal</span>
+            <span>{isDuoHousehold ? 'Menú Semanal' : 'Plan Nutricional'}</span>
           </div>
           <div className="text-xl font-black text-white">
-            {householdStats.hasActiveMenu ? 'Activo' : 'Pendiente'}
+            {householdStats.hasActiveMenu ? 'Activo' : 'Personalizado'}
           </div>
-          <span className="text-[10px] text-slate-400 block">Once fijada a las 20:00</span>
+          <span className="text-[10px] text-slate-400 block">{isDuoHousehold ? 'Once fijada a las 20:00' : 'Metas sincronizadas'}</span>
         </div>
       </div>
 
@@ -535,7 +538,7 @@ Estoy conectado en tiempo real a tus entrenamientos, series de pesas, cardio y t
             <span>📊 Analizar Fatiga & RPE</span>
           </div>
           <p className="text-[11px] text-slate-400">
-            Evalúa la sobrecarga real de las series de {USERS[currentUser]?.name}.
+            Evalúa la sobrecarga real de las series de {userProfile?.name || allUsers[currentUser]?.name || 'tu entrenamiento'}.
           </p>
         </button>
 
@@ -545,10 +548,10 @@ Estoy conectado en tiempo real a tus entrenamientos, series de pesas, cardio y t
         >
           <div className="flex items-center gap-2 text-emerald-400 font-bold text-xs mb-1">
             <Coffee className="w-4 h-4 group-hover:scale-110 transition-transform" />
-            <span>🥪 Coordinar Once Dúo (20:00)</span>
+            <span>🥪 {isDuoHousehold ? 'Coordinar Once Dúo (20:00)' : 'Planificar Once Post-Entreno'}</span>
           </div>
           <p className="text-[11px] text-slate-400">
-            Sincroniza la Once / Once-Comida compartida con el gasto de la sesión.
+            {isDuoHousehold ? 'Sincroniza la Once / Once-Comida compartida con el gasto de la sesión.' : 'Sincroniza tu comida post-entreno con tus calorías restantes.'}
           </p>
         </button>
 
@@ -570,7 +573,7 @@ Estoy conectado en tiempo real a tus entrenamientos, series de pesas, cardio y t
       {(() => {
         const nutData = householdStats.nutrition?.[currentUser] || { todayCals: 0, targetCals: 2000, todayProtein: 0, targetProtein: 140, todayMealsCount: 0 };
         const pct = Math.min(100, Math.round((nutData.todayCals / (nutData.targetCals || 1)) * 100));
-        const isDionicio = currentUser === 'dionicio';
+        const athleteName = userProfile?.name || allUsers[currentUser]?.name || 'Atleta';
 
         return (
           <div className="bg-gradient-to-r from-gym-800 via-gym-800/90 to-emerald-950/30 border border-emerald-500/30 rounded-2xl p-4 sm:p-5 shadow-xl space-y-3">
@@ -582,8 +585,8 @@ Estoy conectado en tiempo real a tus entrenamientos, series de pesas, cardio y t
                 <div>
                   <h3 className="font-extrabold text-white text-sm sm:text-base flex items-center gap-2">
                     <span>Balance Calórico de Hoy</span>
-                    <span className={`text-[10px] uppercase font-bold px-2 py-0.5 rounded-full ${isDionicio ? 'bg-sky-500/20 text-sky-400 border border-sky-500/30' : 'bg-pink-500/20 text-pink-400 border border-pink-500/30'}`}>
-                      {USERS[currentUser]?.name}
+                    <span className="text-[10px] uppercase font-bold px-2 py-0.5 rounded-full bg-sky-500/20 text-sky-400 border border-sky-500/30">
+                      {athleteName}
                     </span>
                   </h3>
                   <p className="text-[11px] text-slate-400">
@@ -659,19 +662,21 @@ Estoy conectado en tiempo real a tus entrenamientos, series de pesas, cardio y t
       })()}
 
       {/* Quick Coaching Actions & Prompts */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2.5 sm:gap-3">
-        <button
-          onClick={() => handlePresetPrompt('log_duo_day')}
-          className="p-3.5 rounded-2xl bg-gradient-to-br from-gym-800 to-indigo-950/40 border border-indigo-500/30 hover:border-indigo-400 text-left transition-all group active:scale-95 sm:col-span-2 lg:col-span-1"
-        >
-          <div className="flex items-center gap-2 text-indigo-400 font-bold text-xs mb-1">
-            <Sparkles className="w-4 h-4 group-hover:scale-110 transition-transform" />
-            <span>👥 Registrar Día Dúo</span>
-          </div>
-          <p className="text-[11px] text-slate-400">
-            Desglosa marraqueta, salmón, merluza y arroz para ambos a la vez.
-          </p>
-        </button>
+      <div className={`grid grid-cols-1 sm:grid-cols-2 ${isDuoHousehold ? 'lg:grid-cols-5' : 'lg:grid-cols-4'} gap-2.5 sm:gap-3`}>
+        {isDuoHousehold && (
+          <button
+            onClick={() => handlePresetPrompt('log_duo_day')}
+            className="p-3.5 rounded-2xl bg-gradient-to-br from-gym-800 to-indigo-950/40 border border-indigo-500/30 hover:border-indigo-400 text-left transition-all group active:scale-95 sm:col-span-2 lg:col-span-1"
+          >
+            <div className="flex items-center gap-2 text-indigo-400 font-bold text-xs mb-1">
+              <Sparkles className="w-4 h-4 group-hover:scale-110 transition-transform" />
+              <span>👥 Registrar Día Dúo</span>
+            </div>
+            <p className="text-[11px] text-slate-400">
+              Desglosa marraqueta, salmón, merluza y arroz para ambos a la vez.
+            </p>
+          </button>
+        )}
 
         <button
           onClick={() => handlePresetPrompt('closure_check')}
@@ -692,10 +697,10 @@ Estoy conectado en tiempo real a tus entrenamientos, series de pesas, cardio y t
         >
           <div className="flex items-center gap-2 text-emerald-400 font-bold text-xs mb-1">
             <Utensils className="w-4 h-4 group-hover:scale-110 transition-transform" />
-            <span>🥘 Cena Post-Entreno</span>
+            <span>🥘 {isDuoHousehold ? 'Once / Cena Dúo' : 'Comida Post-Entreno'}</span>
           </div>
           <p className="text-[11px] text-slate-400">
-            Receta 20:00 adaptando porciones para Dionicio y Paula.
+            {isDuoHousehold ? 'Receta post-entreno adaptando porciones para ambos.' : 'Receta post-entreno con tus macros y despensa.'}
           </p>
         </button>
 
@@ -721,7 +726,7 @@ Estoy conectado en tiempo real a tus entrenamientos, series de pesas, cardio y t
             <span>⏱️ Briefing Sesión (19:00)</span>
           </div>
           <p className="text-[11px] text-slate-400">
-            Recomienda pesos y rotación de mancuernas y trotadora.
+            Recomienda pesos y rotación de mancuernas y entrenamiento.
           </p>
         </button>
       </div>
@@ -757,27 +762,26 @@ Estoy conectado en tiempo real a tus entrenamientos, series de pesas, cardio y t
               {/* Tarjeta de Acción Nutricional Detectada por el Coach */}
               {m.detectedMeal && (
                 <div className="mt-3 pt-3 border-t border-gym-700/80 bg-gym-950/70 rounded-xl p-3.5 space-y-3 border border-emerald-500/30">
-                  {m.detectedMeal.isDuoLog || (Array.isArray(m.detectedMeal.entries) && m.detectedMeal.entries.length > 1) ? (
-                    /* ================= VISTA DUAL (DIONICIO & PAULA) ================= */
+                  {isDuoHousehold && (m.detectedMeal.isDuoLog || (Array.isArray(m.detectedMeal.entries) && m.detectedMeal.entries.length > 1)) ? (
+                    /* ================= VISTA DUAL (DÚO HOGAR) ================= */
                     <div className="space-y-3">
                       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-gym-800 pb-2">
                         <span className="font-extrabold text-xs text-white flex items-center gap-1.5">
                           <Apple className="w-4 h-4 text-emerald-400" />
-                          <span>👥 Ingesta Dual Coordinada (Dionicio & Paula)</span>
+                          <span>👥 Ingesta Dual Coordinada (Dúo en Casa)</span>
                         </span>
                         <span className="text-[10px] uppercase font-bold px-2.5 py-0.5 rounded-full bg-gradient-to-r from-sky-500/20 to-pink-500/20 text-emerald-300 border border-emerald-500/40 font-mono">
                           {m.detectedMeal.entries?.length || 2} Comidas Detectadas
                         </span>
                       </div>
 
-                      {/* Tarjetas de Atletas: Dionicio y Paula */}
-                      {/* Tarjetas de Atletas: Dionicio y Paula */}
+                      {/* Tarjetas de Atletas del Dúo */}
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                         {/* Dionicio */}
                         <div className="bg-gym-900/90 border border-sky-500/30 rounded-xl p-3 space-y-2">
                           <div className="flex items-center justify-between text-xs font-bold text-sky-400">
-                            <span>👨‍💻 Dionicio (180 cm)</span>
-                            <span className="text-[10px] text-slate-400 font-mono">Meta: 1.600 kcal • 130g P</span>
+                            <span>👨‍💻 Dionicio</span>
+                            <span className="text-[10px] text-slate-400 font-mono">Meta: 1.600 kcal</span>
                           </div>
                           
                           {/* Comidas de Dionicio */}
@@ -820,8 +824,8 @@ Estoy conectado en tiempo real a tus entrenamientos, series de pesas, cardio y t
                         {/* Paula */}
                         <div className="bg-gym-900/90 border border-pink-500/30 rounded-xl p-3 space-y-2">
                           <div className="flex items-center justify-between text-xs font-bold text-pink-400">
-                            <span>👩‍💼 Paula (160 cm)</span>
-                            <span className="text-[10px] text-slate-400 font-mono">Meta: 1.250 kcal • 95g P</span>
+                            <span>👩‍💼 Paula</span>
+                            <span className="text-[10px] text-slate-400 font-mono">Meta: 1.250 kcal</span>
                           </div>
                           
                           {/* Comidas de Paula */}
@@ -972,9 +976,9 @@ Estoy conectado en tiempo real a tus entrenamientos, series de pesas, cardio y t
                       <div className="w-full py-2 px-3 rounded-xl bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 text-xs font-bold flex items-center justify-center gap-1.5">
                         <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
                         <span>
-                          {m.detectedMeal.isDuoLog || (Array.isArray(m.detectedMeal.entries) && m.detectedMeal.entries.length > 1)
-                            ? `✅ Guardadas ${m.detectedMeal.entries?.length || 2} comidas en Firestore Cloud (Dionicio y Paula)`
-                            : `✅ Guardada autónomamente en tu Base de Datos (+${m.detectedMeal.caloriesKcal} kcal)`}
+                          {isDuoHousehold && (m.detectedMeal.isDuoLog || (Array.isArray(m.detectedMeal.entries) && m.detectedMeal.entries.length > 1))
+                            ? `✅ Guardadas ${m.detectedMeal.entries?.length || 2} comidas en Firestore Cloud (Dúo en Casa)`
+                            : `✅ Guardada en tu Base de Datos (+${m.detectedMeal.caloriesKcal} kcal)`}
                         </span>
                       </div>
                     ) : (
@@ -993,8 +997,8 @@ Estoy conectado en tiempo real a tus entrenamientos, series de pesas, cardio y t
                           <>
                             <BookmarkPlus className="w-4 h-4" />
                             <span>
-                              {m.detectedMeal.isDuoLog || (Array.isArray(m.detectedMeal.entries) && m.detectedMeal.entries.length > 1)
-                                ? `Guardar las ${m.detectedMeal.entries?.length || 2} comidas en Firestore Cloud (Dionicio y Paula)`
+                              {isDuoHousehold && (m.detectedMeal.isDuoLog || (Array.isArray(m.detectedMeal.entries) && m.detectedMeal.entries.length > 1))
+                                ? `Guardar las ${m.detectedMeal.entries?.length || 2} comidas en Firestore Cloud (Dúo en Casa)`
                                 : `Guardar esta comida en mi Base de Datos (+${m.detectedMeal.caloriesKcal} kcal)`}
                             </span>
                           </>

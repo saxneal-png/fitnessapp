@@ -77,7 +77,7 @@ const DEFAULT_COMMON_INGREDIENTS = [
 ];
 
 export function PantryPlanner() {
-  const { currentUser, householdId, isCloudOnline } = useAuth();
+  const { currentUser, householdId, isCloudOnline, isDuoHousehold, userProfile } = useAuth();
   
   const [pantryItems, setPantryItems] = useState(() => {
     try {
@@ -486,28 +486,35 @@ export function PantryPlanner() {
           <div className="flex flex-wrap items-center justify-between gap-3 bg-gym-800/80 border border-gym-700 p-3.5 rounded-2xl">
             <div className="flex items-center gap-2">
               <span className="text-xs font-bold text-slate-300">Viendo ingesta de:</span>
-              <div className="flex items-center gap-1 bg-gym-900 p-1 rounded-xl border border-gym-700">
-                <button
-                  onClick={() => setSelectedAthlete('dionicio')}
-                  className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${
-                    selectedAthlete === 'dionicio'
-                      ? 'bg-sky-500 text-white shadow-sm'
-                      : 'text-slate-400 hover:text-sky-300'
-                  }`}
-                >
-                  👨‍💻 Dionicio
-                </button>
-                <button
-                  onClick={() => setSelectedAthlete('paula')}
-                  className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${
-                    selectedAthlete === 'paula'
-                      ? 'bg-pink-500 text-white shadow-sm'
-                      : 'text-slate-400 hover:text-pink-300'
-                  }`}
-                >
-                  👩‍💼 Paula
-                </button>
-              </div>
+              {isDuoHousehold ? (
+                <div className="flex items-center gap-1 bg-gym-900 p-1 rounded-xl border border-gym-700">
+                  <button
+                    onClick={() => setSelectedAthlete('dionicio')}
+                    className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${
+                      selectedAthlete === 'dionicio'
+                        ? 'bg-sky-500 text-white shadow-sm'
+                        : 'text-slate-400 hover:text-sky-300'
+                    }`}
+                  >
+                    👨‍💻 Dionicio
+                  </button>
+                  <button
+                    onClick={() => setSelectedAthlete('paula')}
+                    className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${
+                      selectedAthlete === 'paula'
+                        ? 'bg-pink-500 text-white shadow-sm'
+                        : 'text-slate-400 hover:text-pink-300'
+                    }`}
+                  >
+                    👩‍💼 Paula
+                  </button>
+                </div>
+              ) : (
+                <div className="flex items-center gap-1.5 px-3 py-1 rounded-xl bg-gym-900 border border-gym-700 text-xs font-bold text-sky-400 shadow-sm">
+                  <span>{userProfile?.avatar || '🏋️‍♂️'}</span>
+                  <span>{userProfile?.name || 'Mi Perfil'}</span>
+                </div>
+              )}
             </div>
 
             <div className="flex items-center gap-2">
@@ -575,27 +582,39 @@ export function PantryPlanner() {
                   >
                     🥛 1 vaso leche Loncoleche Full Pro
                   </button>
-                  <button
-                    type="button"
-                    onClick={() => setSmartMealText('Yo al desayuno: 1 diente de marraqueta con 40g de pollo y café con alulosa. Almuerzo: 178g de arroz con 57g de salmón, 61g de merluza y 190g de zapallo italiano')}
-                    className="text-[10px] bg-gym-900 hover:bg-gym-750 text-slate-300 hover:text-sky-300 border border-gym-700/80 px-2.5 py-1 rounded-lg transition-all text-left"
-                  >
-                    👨‍💻 Día Dionicio (Desayuno + Almuerzo pesados)
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setSmartMealText('Paula al desayuno: 1 diente de marraqueta con 40g de pollo y café. Almuerzo: 80g de arroz con 55g de salmón, 45g de merluza y 150g de zapallo')}
-                    className="text-[10px] bg-gym-900 hover:bg-gym-750 text-slate-300 hover:text-pink-300 border border-gym-700/80 px-2.5 py-1 rounded-lg transition-all text-left"
-                  >
-                    👩‍💼 Día Paula (Gramajes adaptados)
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setSmartMealText('Esto llevamos al dia de hoy: yo al desayuno: un diente de marraqueta con 40 gramos de pechuga de pollo con un café endulzado con alulosa, de almuerzo comí 178gramos de arroz con 57 gramos de salmón y 61 gramos de merluza a la plancha, y 190 gramos de zapallo italiano cocido. Mi esposa al desayuno: un diente de marraqueta con 40 gramos de pechuga de pollo con un café endulzado con alulosa, de almuerzo comí 80 gramos de arroz con 55 gramos de salmón y 45 gramos de merluza a la plancha, y 150 gramos de zapallo italiano cocido')}
-                    className="text-[10px] bg-gym-900 hover:bg-gym-750 text-slate-300 hover:text-amber-300 border border-gym-700/80 px-2.5 py-1 rounded-lg transition-all text-left"
-                  >
-                    👥 Registro Dual Completo (Ambos juntos)
-                  </button>
+                  {isDuoHousehold ? (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => setSmartMealText('Yo al desayuno: 1 diente de marraqueta con 40g de pollo y café con alulosa. Almuerzo: 178g de arroz con 57g de salmón, 61g de merluza y 190g de zapallo italiano')}
+                        className="text-[10px] bg-gym-900 hover:bg-gym-750 text-slate-300 hover:text-sky-300 border border-gym-700/80 px-2.5 py-1 rounded-lg transition-all text-left"
+                      >
+                        👨‍💻 Día Dionicio (Desayuno + Almuerzo pesados)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setSmartMealText('Paula al desayuno: 1 diente de marraqueta con 40g de pollo y café. Almuerzo: 80g de arroz con 55g de salmón, 45g de merluza y 150g de zapallo')}
+                        className="text-[10px] bg-gym-900 hover:bg-gym-750 text-slate-300 hover:text-pink-300 border border-gym-700/80 px-2.5 py-1 rounded-lg transition-all text-left"
+                      >
+                        👩‍💼 Día Paula (Gramajes adaptados)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setSmartMealText('Esto llevamos al dia de hoy: yo al desayuno: un diente de marraqueta con 40 gramos de pechuga de pollo con un café endulzado con alulosa, de almuerzo comí 178gramos de arroz con 57 gramos de salmón y 61 gramos de merluza a la plancha, y 190 gramos de zapallo italiano cocido. Mi esposa al desayuno: un diente de marraqueta con 40 gramos de pechuga de pollo con un café endulzado con alulosa, de almuerzo comí 80 gramos de arroz con 55 gramos de salmón y 45 gramos de merluza a la plancha, y 150 gramos de zapallo italiano cocido')}
+                        className="text-[10px] bg-gym-900 hover:bg-gym-750 text-slate-300 hover:text-amber-300 border border-gym-700/80 px-2.5 py-1 rounded-lg transition-all text-left"
+                      >
+                        👥 Registro Dual Completo (Ambos juntos)
+                      </button>
+                    </>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => setSmartMealText('Al desayuno: 1 diente de marraqueta con 50g de pechuga de pollo y un café con alulosa. De almuerzo: 150g de arroz con 180g de pechuga de pollo y ensalada de espinacas.')}
+                      className="text-[10px] bg-gym-900 hover:bg-gym-750 text-slate-300 hover:text-emerald-300 border border-gym-700/80 px-2.5 py-1 rounded-lg transition-all text-left"
+                    >
+                      🍽️ Día Completo (Desayuno + Almuerzo)
+                    </button>
+                  )}
                 </div>
               </div>
 
@@ -650,41 +669,58 @@ export function PantryPlanner() {
                   </div>
                 )}
 
-                {/* Tarjetas de Cierre del Día para Dionicio y Paula */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                  {lastAiMealResult.detectedMeal?.dionicioClosure && (
+                {/* Tarjetas de Cierre del Día */}
+                {isDuoHousehold ? (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                    {lastAiMealResult.detectedMeal?.dionicioClosure && (
+                      <div className="p-3 bg-gym-900/90 border border-sky-500/30 rounded-xl space-y-1">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-bold text-sky-400">👨‍💻 Cierre Día Dionicio</span>
+                          <span className="text-[10px] font-mono text-slate-400">Meta: 1.600 kcal</span>
+                        </div>
+                        <p className="text-xs text-white font-mono">
+                          Lleva: <strong>{lastAiMealResult.detectedMeal.dionicioClosure.todayTotalCals} kcal</strong> ({lastAiMealResult.detectedMeal.dionicioClosure.todayTotalProtein}g P)
+                        </p>
+                        <p className="text-xs text-emerald-400 font-bold font-mono">
+                          👉 Faltan: {lastAiMealResult.detectedMeal.dionicioClosure.remainingCals} kcal y {lastAiMealResult.detectedMeal.dionicioClosure.remainingProtein}g de proteína
+                        </p>
+                      </div>
+                    )}
+
+                    {lastAiMealResult.detectedMeal?.paulaClosure && (
+                      <div className="p-3 bg-gym-900/90 border border-pink-500/30 rounded-xl space-y-1">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-bold text-pink-400">👩‍💼 Cierre Día Paula</span>
+                          <span className="text-[10px] font-mono text-slate-400">Meta: 1.250 kcal</span>
+                        </div>
+                        <p className="text-xs text-white font-mono">
+                          Lleva: <strong>{lastAiMealResult.detectedMeal.paulaClosure.todayTotalCals} kcal</strong> ({lastAiMealResult.detectedMeal.paulaClosure.todayTotalProtein}g P)
+                        </p>
+                        <p className="text-xs text-emerald-400 font-bold font-mono">
+                          👉 Faltan: {lastAiMealResult.detectedMeal.paulaClosure.remainingCals} kcal y {lastAiMealResult.detectedMeal.paulaClosure.remainingProtein}g de proteína
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  lastAiMealResult.detectedMeal?.closureAdvice && (
                     <div className="p-3 bg-gym-900/90 border border-sky-500/30 rounded-xl space-y-1">
                       <div className="flex items-center justify-between">
-                        <span className="text-xs font-bold text-sky-400">👨‍💻 Cierre Día Dionicio</span>
-                        <span className="text-[10px] font-mono text-slate-400">Meta: 1.600 kcal</span>
+                        <span className="text-xs font-bold text-sky-400">🎯 Cierre de Día ({userProfile?.name || 'Mi Perfil'})</span>
+                        <span className="text-[10px] font-mono text-slate-400">Meta: {lastAiMealResult.detectedMeal.closureAdvice.targetCals} kcal</span>
                       </div>
                       <p className="text-xs text-white font-mono">
-                        Lleva: <strong>{lastAiMealResult.detectedMeal.dionicioClosure.todayTotalCals} kcal</strong> ({lastAiMealResult.detectedMeal.dionicioClosure.todayTotalProtein}g P)
+                        Lleva: <strong>{lastAiMealResult.detectedMeal.closureAdvice.newTotalCals} kcal</strong> ({lastAiMealResult.detectedMeal.closureAdvice.newTotalProtein}g P)
                       </p>
                       <p className="text-xs text-emerald-400 font-bold font-mono">
-                        👉 Faltan: {lastAiMealResult.detectedMeal.dionicioClosure.remainingCals} kcal y {lastAiMealResult.detectedMeal.dionicioClosure.remainingProtein}g de proteína
+                        👉 Faltan: {lastAiMealResult.detectedMeal.closureAdvice.remainingCals} kcal y {lastAiMealResult.detectedMeal.closureAdvice.remainingProtein}g de proteína
                       </p>
                     </div>
-                  )}
+                  )
+                )}
 
-                  {lastAiMealResult.detectedMeal?.paulaClosure && (
-                    <div className="p-3 bg-gym-900/90 border border-pink-500/30 rounded-xl space-y-1">
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs font-bold text-pink-400">👩‍💼 Cierre Día Paula</span>
-                        <span className="text-[10px] font-mono text-slate-400">Meta: 1.250 kcal</span>
-                      </div>
-                      <p className="text-xs text-white font-mono">
-                        Lleva: <strong>{lastAiMealResult.detectedMeal.paulaClosure.todayTotalCals} kcal</strong> ({lastAiMealResult.detectedMeal.paulaClosure.todayTotalProtein}g P)
-                      </p>
-                      <p className="text-xs text-emerald-400 font-bold font-mono">
-                        👉 Faltan: {lastAiMealResult.detectedMeal.paulaClosure.remainingCals} kcal y {lastAiMealResult.detectedMeal.paulaClosure.remainingProtein}g de proteína
-                      </p>
-                    </div>
-                  )}
-                </div>
-
-                {/* Propuesta de Once Dúo 20:00 con despensa */}
-                {lastAiMealResult.detectedMeal?.sharedDinnerProposal && (
+                {/* Propuesta de Once Dúo 20:00 con despensa (si es Duo) */}
+                {isDuoHousehold && lastAiMealResult.detectedMeal?.sharedDinnerProposal && (
                   <div className="p-3 bg-emerald-950/30 border border-emerald-500/30 rounded-xl space-y-1 text-xs">
                     <span className="font-extrabold text-emerald-400 flex items-center gap-1.5">
                       <Utensils className="w-3.5 h-3.5" />
@@ -711,7 +747,7 @@ export function PantryPlanner() {
               <div className="flex items-center justify-between border-b border-gym-700 pb-2">
                 <h4 className="font-extrabold text-sm text-white flex items-center gap-2">
                   <Apple className="w-4 h-4 text-emerald-400" />
-                  <span>Ingreso Manual Numérico para {USERS[selectedAthlete]?.name}</span>
+                  <span>Ingreso Manual Numérico para {isDuoHousehold ? (USERS[selectedAthlete]?.name || selectedAthlete) : (userProfile?.name || 'mi perfil')}</span>
                 </h4>
                 <span className="text-[11px] text-slate-400">Opcional para ajustes finos</span>
               </div>
@@ -1006,8 +1042,8 @@ export function PantryPlanner() {
                 <Utensils className="w-5 h-5" />
               </div>
               <div className="text-xs">
-                <span className="font-extrabold text-white block">1 Sola Cocinada</span>
-                <span className="text-slate-400">Mismo plato/receta para ambos en almuerzos y en la Once (20:00).</span>
+                <span className="font-extrabold text-white block">{isDuoHousehold ? '1 Sola Cocinada' : 'Planificación Eficiente'}</span>
+                <span className="text-slate-400">{isDuoHousehold ? 'Mismo plato/receta para ambos en almuerzos y en la Once (20:00).' : 'Cocina lotes optimizados para almuerzos y tu Once.'}</span>
               </div>
             </div>
 
@@ -1016,8 +1052,8 @@ export function PantryPlanner() {
                 <Scale className="w-5 h-5" />
               </div>
               <div className="text-xs">
-                <span className="font-extrabold text-white block">Porciones Diferenciadas</span>
-                <span className="text-slate-400">Gramajes exactos para Dionicio (180 cm) y Paula (160 cm).</span>
+                <span className="font-extrabold text-white block">Porciones Claras</span>
+                <span className="text-slate-400">{isDuoHousehold ? 'Gramajes exactos y diferenciados para cada atleta.' : 'Gramajes exactos y pesaje según tus metas metabólicas.'}</span>
               </div>
             </div>
 
