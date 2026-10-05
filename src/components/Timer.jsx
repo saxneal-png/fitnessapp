@@ -30,10 +30,10 @@ import {
 } from 'lucide-react';
 
 export function Timer({ onQuickLog }) {
-  const { currentUser, householdId } = useAuth();
+  const { currentUser, householdId, isDuoHousehold, userProfile, allUsers } = useAuth();
   
-  // Who starts where? Default: Dionicio on Strength, Paula on Treadmill (or customizable)
-  const [userAIsDionicio, setUserAIsDionicio] = useState(true);
+  // Who starts where? Default: user A on Strength, user B on Treadmill
+  const [userAStartsFirst, setUserAStartsFirst] = useState(true);
   const [selectedDayRoutine, setSelectedDayRoutine] = useState('torso'); // 'torso' | 'pierna_core'
   const [quickQuery, setQuickQuery] = useState('');
   const [isAskingCoach, setIsAskingCoach] = useState(false);
@@ -57,6 +57,14 @@ export function Timer({ onQuickLog }) {
     jumpToInterval,
   } = useWorkoutTimer();
 
+  // Determine athletes
+  const athleteKeys = Object.keys(allUsers || {});
+  const firstAthleteKey = athleteKeys[0] || (currentUser === 'paula' ? 'paula' : 'dionicio');
+  const secondAthleteKey = athleteKeys[1] || (firstAthleteKey === 'dionicio' ? 'paula' : 'dionicio');
+
+  const athleteAObj = isDuoHousehold ? (allUsers[firstAthleteKey] || USERS.dionicio) : (userProfile || { name: 'Mi Perfil', avatar: '🏋️‍♂️' });
+  const athleteBObj = isDuoHousehold ? (allUsers[secondAthleteKey] || USERS.paula) : null;
+
   // Quick In-Timer Coach Query
   const handleQuickCoachSubmit = async (e) => {
     e.preventDefault();
@@ -68,7 +76,8 @@ export function Timer({ onQuickLog }) {
     try {
       const apiKey = getStoredGeminiKey();
       const currentIntervalName = currentInterval.name;
-      const enrichedPrompt = `Estamos en medio del entrenamiento (19:00 - 20:00), específicamente en el bloque "${currentIntervalName}". Consulta del atleta (${currentUser === 'dionicio' ? 'Dionicio' : 'Paula'}): ${quickQuery}`;
+      const currentAthleteName = userProfile?.name || USERS[currentUser]?.name || 'Atleta';
+      const enrichedPrompt = `Estamos en medio del entrenamiento (19:00 - 20:00), específicamente en el bloque "${currentIntervalName}". Consulta del atleta (${currentAthleteName}): ${quickQuery}`;
       
       const res = await askCoachWithFullContext(enrichedPrompt, currentUser, householdId, apiKey);
       setCoachResponse(res);
@@ -81,15 +90,36 @@ export function Timer({ onQuickLog }) {
   };
 
   // User station assignments
-  const userA = userAIsDionicio ? 'Dionicio' : 'Paula';
-  const userB = userAIsDionicio ? 'Paula' : 'Dionicio';
-  const userAColor = userAIsDionicio ? 'text-sky-400' : 'text-pink-400';
-  const userBColor = userAIsDionicio ? 'text-pink-400' : 'text-sky-400';
-  const userABorder = userAIsDionicio ? 'border-sky-500/40 bg-sky-950/20' : 'border-pink-500/40 bg-pink-950/20';
-  const userBBorder = userAIsDionicio ? 'border-pink-500/40 bg-pink-950/20' : 'border-sky-500/40 bg-sky-950/20';
+  const userA = isDuoHousehold
+    ? (userAStartsFirst ? athleteAObj.name : athleteBObj.name)
+    : (athleteAObj.name);
+  const userB = isDuoHousehold
+    ? (userAStartsFirst ? athleteBObj.name : athleteAObj.name)
+    : 'Cardio / Accesorios';
+
+  const userAColor = isDuoHousehold
+    ? (userAStartsFirst ? 'text-sky-400' : 'text-pink-400')
+    : 'text-sky-400';
+  const userBColor = isDuoHousehold
+    ? (userAStartsFirst ? 'text-pink-400' : 'text-sky-400')
+    : 'text-emerald-400';
+
+  const userABorder = isDuoHousehold
+    ? (userAStartsFirst ? 'border-sky-500/40 bg-sky-950/20' : 'border-pink-500/40 bg-pink-950/20')
+    : 'border-sky-500/40 bg-sky-950/20';
+  const userBBorder = isDuoHousehold
+    ? (userAStartsFirst ? 'border-pink-500/40 bg-pink-950/20' : 'border-sky-500/40 bg-sky-950/20')
+    : 'border-emerald-500/40 bg-emerald-950/20';
 
   const selectedWorkout = WORKOUT_DAYS.find(d => d.id === selectedDayRoutine) || WORKOUT_DAYS[0];
-  const liveCoachAdvice = getLiveTimerAdvice(currentInterval, userAIsDionicio, selectedDayRoutine);
+  const liveCoachAdvice = getLiveTimerAdvice(
+    currentInterval, 
+    userAStartsFirst, 
+    selectedDayRoutine, 
+    athleteAObj, 
+    athleteBObj, 
+    isDuoHousehold
+  );
 
   return (
     <div className="space-y-6">
@@ -133,14 +163,16 @@ export function Timer({ onQuickLog }) {
               </button>
             </div>
 
-            <button
-              onClick={() => setUserAIsDionicio(!userAIsDionicio)}
-              className="flex items-center gap-1 px-2.5 sm:px-3 py-1.5 bg-gym-700/70 hover:bg-gym-600 text-slate-200 border border-gym-600 rounded-xl text-xs font-semibold transition-all shadow-sm active:scale-95"
-              title="Intercambiar quién inicia en Fuerza y quién en Trotadora"
-            >
-              <ArrowRightLeft className="w-3.5 h-3.5 text-amber-400" />
-              <span className="hidden sm:inline">Rotar</span>
-            </button>
+            {isDuoHousehold && (
+              <button
+                onClick={() => setUserAStartsFirst(!userAStartsFirst)}
+                className="flex items-center gap-1 px-2.5 sm:px-3 py-1.5 bg-gym-700/70 hover:bg-gym-600 text-slate-200 border border-gym-600 rounded-xl text-xs font-semibold transition-all shadow-sm active:scale-95"
+                title="Intercambiar quién inicia en Fuerza y quién en Trotadora"
+              >
+                <ArrowRightLeft className="w-3.5 h-3.5 text-amber-400" />
+                <span className="hidden sm:inline">Rotar</span>
+              </button>
+            )}
 
             <button
               onClick={() => setSoundEnabled(!soundEnabled)}
@@ -293,15 +325,21 @@ export function Timer({ onQuickLog }) {
             </button>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+          <div className={`grid grid-cols-1 ${isDuoHousehold ? 'md:grid-cols-2' : ''} gap-3 text-xs`}>
             <div className="bg-gym-950/60 p-3 rounded-xl border border-gym-800 text-slate-300 space-y-1">
-              <span className="font-bold text-sky-400 block">👨‍💻 Indicación para Dionicio:</span>
-              <p>{userAIsDionicio ? liveCoachAdvice.userATip : liveCoachAdvice.userBTip}</p>
+              <span className="font-bold text-sky-400 block">
+                {athleteAObj?.avatar || '🏋️‍♂️'} Indicación para {athleteAObj?.name || 'ti'}:
+              </span>
+              <p>{liveCoachAdvice.userATip}</p>
             </div>
-            <div className="bg-gym-950/60 p-3 rounded-xl border border-gym-800 text-slate-300 space-y-1">
-              <span className="font-bold text-pink-400 block">👩‍💼 Indicación para Paula:</span>
-              <p>{userAIsDionicio ? liveCoachAdvice.userBTip : liveCoachAdvice.userATip}</p>
-            </div>
+            {isDuoHousehold && athleteBObj && (
+              <div className="bg-gym-950/60 p-3 rounded-xl border border-gym-800 text-slate-300 space-y-1">
+                <span className="font-bold text-pink-400 block">
+                  {athleteBObj?.avatar || '👩‍💼'} Indicación para {athleteBObj?.name}:
+                </span>
+                <p>{liveCoachAdvice.userBTip}</p>
+              </div>
+            )}
           </div>
 
           {/* Inline Quick Coach Query Form */}
@@ -335,17 +373,17 @@ export function Timer({ onQuickLog }) {
           )}
         </div>
 
-        {/* Live Station Assignment Display (Dionicio vs Paula) */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-6">
-          {/* User A Card */}
+        {/* Live Station Assignment Display */}
+        <div className={`grid grid-cols-1 ${isDuoHousehold ? 'md:grid-cols-2' : ''} gap-4 mt-6`}>
+          {/* Main User Station Card */}
           <div className={`p-4 sm:p-5 rounded-2xl border transition-all ${userABorder}`}>
             <div className="flex items-center justify-between mb-2">
               <div className="flex items-center gap-2">
-                <span className="text-xl">{userA === 'Dionicio' ? '👨‍💻' : '👩‍💼'}</span>
+                <span className="text-xl">{athleteAObj?.avatar || '🏋️‍♂️'}</span>
                 <span className={`font-black text-lg ${userAColor}`}>{userA}</span>
               </div>
               <span className="text-xs font-mono uppercase bg-gym-900/80 px-2.5 py-1 rounded-full text-slate-300 border border-gym-700">
-                Estación Actual
+                {isDuoHousehold ? 'Estación Actual' : 'Tu Estación Activa'}
               </span>
             </div>
 
@@ -358,7 +396,7 @@ export function Timer({ onQuickLog }) {
                 <div className="p-3 rounded-xl bg-amber-500/20 text-amber-400 animate-pulse">
                   <ArrowRightLeft className="w-6 h-6" />
                 </div>
-              ) : (currentInterval.id === 'block1') ? (
+              ) : (currentInterval.id === 'block1' || !isDuoHousehold) ? (
                 <div className="p-3 rounded-xl bg-sky-500/20 text-sky-400">
                   <Dumbbell className="w-6 h-6" />
                 </div>
@@ -371,79 +409,81 @@ export function Timer({ onQuickLog }) {
               <div>
                 <h4 className="font-bold text-white text-base">
                   {currentInterval.isTransition
-                    ? 'Rotación a Trotadora + Hidratación'
+                    ? 'Transición / Descanso Activo + Hidratación'
                     : currentInterval.id === 'warmup'
-                    ? 'Movilidad & Calentamiento'
+                    ? 'Movilidad & Calentamiento Articular'
                     : currentInterval.id === 'block1'
-                    ? `Fuerza (${selectedWorkout.name.split(' ')[1]})`
-                    : 'Cardio en Trotadora'}
+                    ? `Fuerza (${selectedWorkout.name.split(' ')[1] || 'Principal'})`
+                    : isDuoHousehold ? 'Cardio en Trotadora' : `Fuerza & Sobrecarga`}
                 </h4>
                 <p className="text-xs text-slate-400">
                   {currentInterval.isTransition
-                    ? 'Ajusta discos de mancuernas para la siguiente rotación.'
+                    ? 'Ajusta implementos e hidrátate para el siguiente bloque.'
                     : currentInterval.id === 'warmup'
-                    ? 'Movilidad de hombros, caderas y tobillos.'
+                    ? 'Movilidad de hombros, columna, caderas y tobillos.'
                     : currentInterval.id === 'block1'
-                    ? 'Mancuernas modulares 40kg con descansos de 45-60s.'
-                    : 'Inclinación 8-11, velocidad 4.8 - 5.3 km/h.'}
+                    ? 'Ejecuta series controladas con descanso estricto de 45-60s.'
+                    : isDuoHousehold ? 'Inclinación y velocidad en Zona 2 aeróbica.' : 'Mantén técnica limpia y control del descenso.'}
                 </p>
               </div>
             </div>
           </div>
 
-          {/* User B Card */}
-          <div className={`p-4 sm:p-5 rounded-2xl border transition-all ${userBBorder}`}>
-            <div className="flex items-center justify-between mb-2">
-              <div className="flex items-center gap-2">
-                <span className="text-xl">{userB === 'Dionicio' ? '👨‍💻' : '👩‍💼'}</span>
-                <span className={`font-black text-lg ${userBColor}`}>{userB}</span>
+          {/* User B Card (Solo en Hogar Dúo) */}
+          {isDuoHousehold && athleteBObj && (
+            <div className={`p-4 sm:p-5 rounded-2xl border transition-all ${userBBorder}`}>
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-2">
+                  <span className="text-xl">{athleteBObj?.avatar || '👩‍💼'}</span>
+                  <span className={`font-black text-lg ${userBColor}`}>{userB}</span>
+                </div>
+                <span className="text-xs font-mono uppercase bg-gym-900/80 px-2.5 py-1 rounded-full text-slate-300 border border-gym-700">
+                  Estación Compartida
+                </span>
               </div>
-              <span className="text-xs font-mono uppercase bg-gym-900/80 px-2.5 py-1 rounded-full text-slate-300 border border-gym-700">
-                Estación Actual
-              </span>
-            </div>
 
-            <div className="flex items-center gap-3 mt-3">
-              {currentInterval.id === 'warmup' || currentInterval.id === 'cooldown' ? (
-                <div className="p-3 rounded-xl bg-emerald-500/20 text-emerald-400">
-                  <Flame className="w-6 h-6" />
-                </div>
-              ) : currentInterval.isTransition ? (
-                <div className="p-3 rounded-xl bg-amber-500/20 text-amber-400 animate-pulse">
-                  <ArrowRightLeft className="w-6 h-6" />
-                </div>
-              ) : (currentInterval.id === 'block1') ? (
-                <div className="p-3 rounded-xl bg-pink-500/20 text-pink-400">
-                  <Footprints className="w-6 h-6" />
-                </div>
-              ) : (
-                <div className="p-3 rounded-xl bg-sky-500/20 text-sky-400">
-                  <Dumbbell className="w-6 h-6" />
-                </div>
-              )}
+              <div className="flex items-center gap-3 mt-3">
+                {currentInterval.id === 'warmup' || currentInterval.id === 'cooldown' ? (
+                  <div className="p-3 rounded-xl bg-emerald-500/20 text-emerald-400">
+                    <Flame className="w-6 h-6" />
+                  </div>
+                ) : currentInterval.isTransition ? (
+                  <div className="p-3 rounded-xl bg-amber-500/20 text-amber-400 animate-pulse">
+                    <ArrowRightLeft className="w-6 h-6" />
+                  </div>
+                ) : (currentInterval.id === 'block1') ? (
+                  <div className="p-3 rounded-xl bg-pink-500/20 text-pink-400">
+                    <Footprints className="w-6 h-6" />
+                  </div>
+                ) : (
+                  <div className="p-3 rounded-xl bg-sky-500/20 text-sky-400">
+                    <Dumbbell className="w-6 h-6" />
+                  </div>
+                )}
 
-              <div>
-                <h4 className="font-bold text-white text-base">
-                  {currentInterval.isTransition
-                    ? 'Rotación a Fuerza + Ajuste Pesas'
-                    : currentInterval.id === 'warmup'
-                    ? 'Movilidad & Calentamiento'
-                    : currentInterval.id === 'block1'
-                    ? 'Cardio en Trotadora'
-                    : `Fuerza (${selectedWorkout.name.split(' ')[1]})`}
-                </h4>
-                <p className="text-xs text-slate-400">
-                  {currentInterval.isTransition
-                    ? 'Coloca las cargas de tus series previas e hidrátate.'
-                    : currentInterval.id === 'warmup'
-                    ? 'Movilidad de hombros, caderas y tobillos.'
-                    : currentInterval.id === 'block1'
-                    ? 'Inclinación 8-11, velocidad 4.8 - 5.3 km/h.'
-                    : 'Mancuernas modulares 40kg con descansos de 45-60s.'}
-                </p>
+                <div>
+                  <h4 className="font-bold text-white text-base">
+                    {currentInterval.isTransition
+                      ? 'Rotación a Fuerza + Ajuste Pesas'
+                      : currentInterval.id === 'warmup'
+                      ? 'Movilidad & Calentamiento'
+                      : currentInterval.id === 'block1'
+                      ? 'Cardio en Trotadora'
+                      : `Fuerza (${selectedWorkout.name.split(' ')[1] || 'Principal'})`}
+                  </h4>
+                  <p className="text-xs text-slate-400">
+                    {currentInterval.isTransition
+                      ? 'Coloca las cargas de tus series previas e hidrátate.'
+                      : currentInterval.id === 'warmup'
+                      ? 'Movilidad de hombros, caderas y tobillos.'
+                      : currentInterval.id === 'block1'
+                      ? 'Inclinación 8-11, velocidad moderada en Zona 2.'
+                      : 'Mancuernas con descansos de 45-60s.'}
+                  </p>
+                </div>
               </div>
             </div>
-          </div>
+          )}
         </div>
 
         {/* Timeline Sequence Steps */}
@@ -530,14 +570,25 @@ export function Timer({ onQuickLog }) {
                     <span className="text-slate-500 block text-[10px] uppercase font-bold">Descanso</span>
                     <span className="font-mono text-slate-300">{exercise.restSeconds}s</span>
                   </div>
-                  <div>
-                    <span className="text-slate-500 block text-[10px] uppercase font-bold">Dionicio</span>
-                    <span className="font-mono font-bold text-sky-400">~{exercise.defaultWeightDionicio} kg</span>
-                  </div>
-                  <div>
-                    <span className="text-slate-500 block text-[10px] uppercase font-bold">Paula</span>
-                    <span className="font-mono font-bold text-pink-400">~{exercise.defaultWeightPaula} kg</span>
-                  </div>
+                  {isDuoHousehold ? (
+                    <>
+                      <div>
+                        <span className="text-slate-500 block text-[10px] uppercase font-bold">{athleteAObj?.name || 'Dionicio'}</span>
+                        <span className="font-mono font-bold text-sky-400">~{exercise.defaultWeightDionicio || 10} kg</span>
+                      </div>
+                      <div>
+                        <span className="text-slate-500 block text-[10px] uppercase font-bold">{athleteBObj?.name || 'Paula'}</span>
+                        <span className="font-mono font-bold text-pink-400">~{exercise.defaultWeightPaula || 6} kg</span>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="col-span-2">
+                      <span className="text-slate-500 block text-[10px] uppercase font-bold">Carga Sugerida</span>
+                      <span className="font-mono font-bold text-sky-400">
+                        ~{userProfile?.gender === 'female' ? (exercise.defaultWeightPaula || 6) : (exercise.defaultWeightDionicio || 10)} kg
+                      </span>
+                    </div>
+                  )}
                 </div>
 
                 <p className="text-[11px] text-slate-400 leading-relaxed line-clamp-2">
@@ -548,13 +599,13 @@ export function Timer({ onQuickLog }) {
           </div>
         </div>
 
-        {/* Treadmill Station Protocol Card (Differentiated for Dionicio & Paula) */}
+        {/* Treadmill Station Protocol Card */}
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <Footprints className="w-5 h-5 text-pink-400" />
               <h3 className="font-extrabold text-lg text-white">
-                Trotadora ({currentUser === 'dionicio' ? 'Dionicio' : 'Paula'})
+                Trotadora ({isDuoHousehold ? (currentUser === 'dionicio' ? 'Dionicio' : 'Paula') : (userProfile?.name || 'Cardio')})
               </h3>
             </div>
             <span className="text-[10px] font-mono uppercase bg-amber-500/20 text-amber-300 border border-amber-500/30 px-2 py-0.5 rounded-full font-bold">

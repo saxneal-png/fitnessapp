@@ -420,11 +420,59 @@ export async function getLiveSetFeedback({ userId, exerciseName, setNumber, weig
 /**
  * Guía contextual del Coach durante el temporizador en vivo (19:00 - 20:00)
  */
-export function getLiveTimerAdvice(interval, userAIsDionicio, selectedDayRoutine) {
-  const userA = userAIsDionicio ? USERS.dionicio : USERS.paula;
-  const userB = userAIsDionicio ? USERS.paula : USERS.dionicio;
+export function getLiveTimerAdvice(interval, userAIsFirst, selectedDayRoutine, athleteA = null, athleteB = null, isDuo = true) {
+  const userA = athleteA || USERS.dionicio;
+  const userB = athleteB || USERS.paula;
   const routine = WORKOUT_DAYS.find(d => d.id === selectedDayRoutine) || WORKOUT_DAYS[0];
 
+  if (!isDuo) {
+    // Modo cuenta privada o atleta individual
+    switch (interval.id) {
+      case 'warmup':
+        return {
+          badge: 'Movilidad & Activación (19:00 - 19:07)',
+          headline: '7 minutos de preparación articular',
+          userATip: `${userA.name}: Círculos articulares, rotación de hombros, movilidad de cadera y sentadillas suaves sin peso.`,
+          userBTip: `Respira profundamente, mantén postura erguida y eleva tu temperatura corporal de forma progresiva.`,
+          generalTip: 'No uses cargas pesadas aún. El objetivo es preparar articulaciones y sistema nervioso.'
+        };
+      case 'block1':
+        return {
+          badge: `Bloque de Fuerza • ${routine.name.split('(')[0]}`,
+          headline: `Estación Principal de Sobrecarga`,
+          userATip: `${userA.name}: Inicia con ${routine.exercises[0].name}. Descansos de ${routine.exercises[0].restSeconds}s. Mantén técnica estricta.`,
+          userBTip: `Asegura el control excéntrico (bajada en 2-3s) y no llegues al fallo en las primeras series.`,
+          generalTip: 'Mantén hidratación constante y registra cada serie completada.'
+        };
+      case 'transition':
+        return {
+          badge: 'Pausa & Transición Activa',
+          headline: '3 minutos de recuperación e hidratación',
+          userATip: `${userA.name}: Hidrátate, respira hondo y prepara el siguiente ejercicio o máquina cardiovascular.`,
+          userBTip: `Aprovecha de anotar tus cargas y calibrar los implementos para el siguiente bloque.`,
+          generalTip: 'Recupera el ritmo cardíaco antes de comenzar el siguiente bloque.'
+        };
+      case 'block2':
+        return {
+          badge: `Bloque Cardiovascular o Accesorios`,
+          headline: `Continuidad del Entrenamiento`,
+          userATip: `${userA.name}: Mantén ritmo constante en Zona 2 aeróbica o ejecuta accesorios cuidando tu postura.`,
+          userBTip: `Enfócate en la cadencia y estabilidad de la respiración.`,
+          generalTip: '¡Último esfuerzo de la sesión! Mantén la técnica impecable.'
+        };
+      case 'cooldown':
+      default:
+        return {
+          badge: 'Vuelta a la Calma & Recuperación',
+          headline: '¡Sesión cumplida con éxito!',
+          userATip: `${userA.name}: Estiramiento suave de los grupos musculares trabajados y respiraciones lentas.`,
+          userBTip: `Hidrátate con agua y prepárate para tu comida post-entrenamiento según tus metas.`,
+          generalTip: 'Gran trabajo hoy. La constancia es la clave del progreso.'
+        };
+    }
+  }
+
+  // Modo familiar Dúo
   switch (interval.id) {
     case 'warmup':
       return {
@@ -439,7 +487,7 @@ export function getLiveTimerAdvice(interval, userAIsDionicio, selectedDayRoutine
       return {
         badge: `Bloque 1 (19:07 - 19:32) • ${routine.name.split('(')[0]}`,
         headline: `${userA.name} en Mancuernas / ${userB.name} en Trotadora`,
-        userATip: `${userA.name} (Fuerza): Inicia con ${routine.exercises[0].name}. Descansos de ${routine.exercises[0].restSeconds}s. RPE ${userA.targetRPE}.`,
+        userATip: `${userA.name} (Fuerza): Inicia con ${routine.exercises[0].name}. Descansos de ${routine.exercises[0].restSeconds}s. RPE ${userA.targetRPE || '7'}.`,
         userBTip: `${userB.name} (Cardio): Sube a inclinación 4-6% (min 3-20). Mantén FC en Zona 2 sin apoyarte en los pasamanos.`,
         generalTip: 'Ambos entrenan al mismo tiempo. Mantengan botellas de agua a mano.'
       };
@@ -449,7 +497,7 @@ export function getLiveTimerAdvice(interval, userAIsDionicio, selectedDayRoutine
         badge: 'Rotación & Ajuste de Discos (19:32 - 19:35)',
         headline: '3 minutos de cambio de estación e hidratación',
         userATip: `${userA.name}: Pasa a la trotadora. Inicia a velocidad suave (3.8 - 4.0 km/h) para normalizar el pulso.`,
-        userBTip: `${userB.name}: Pasa a las mancuernas. Ajusta el peso de los discos a tu carga (${routine.exercises[0].defaultWeightPaula}kg aprox).`,
+        userBTip: `${userB.name}: Pasa a las mancuernas. Ajusta el peso de los discos a tu carga (${routine.exercises[0].defaultWeightPaula || 8}kg aprox).`,
         generalTip: 'Aprovechen de beber 200ml de agua y registrar las series del Bloque 1.'
       };
 

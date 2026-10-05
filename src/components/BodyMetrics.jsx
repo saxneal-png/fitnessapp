@@ -896,9 +896,9 @@ export function BodyMetrics({ onNavigateTab }) {
                             const paramKey = item.id === 'dumbbells' ? 'maxDumbbellWeightPerHandKg' : `${item.id}MaxWeightKg`;
                             handleEquipmentWeightChange(paramKey, e.target.value);
                           }}
-                          className="w-16 bg-gym-950 border border-gym-700 rounded-lg px-2 py-1 text-center font-mono font-bold text-white text-xs"
+                          className="w-20 bg-slate-900 border-2 border-sky-500/50 focus:border-sky-400 rounded-xl px-2.5 py-1 text-center font-mono font-black text-sky-300 text-sm focus:outline-none shadow-inner"
                         />
-                        <span className="text-[10px] text-slate-400 font-mono">{item.weightUnit || 'kg'}</span>
+                        <span className="text-xs text-slate-300 font-mono font-bold">{item.weightUnit || 'kg'}</span>
                       </div>
                     </div>
                   )}
