@@ -14,7 +14,8 @@ import {
   Printer,
   Utensils,
   LogOut,
-  Scale
+  Scale,
+  Dna
 } from 'lucide-react';
 
 export function Navbar({ currentTab, setCurrentTab, onOpenConfig, onLogout }) {
@@ -185,12 +186,12 @@ export function Navbar({ currentTab, setCurrentTab, onOpenConfig, onLogout }) {
             onClick={() => setCurrentTab('metrics')}
             className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all ${
               currentTab === 'metrics'
-                ? 'bg-indigo-500/20 text-indigo-400 border border-indigo-500/40 shadow-sm'
+                ? 'bg-gradient-to-r from-emerald-500/20 to-sky-500/20 text-emerald-400 border border-emerald-500/40 shadow-sm'
                 : 'text-slate-400 hover:text-slate-200 hover:bg-gym-800/60'
             }`}
           >
-            <Scale className="w-4 h-4" />
-            <span>Pesos & Medidas</span>
+            <Dna className="w-4 h-4 text-emerald-400" />
+            <span>Biometría & Equipamiento</span>
           </button>
 
           <button
@@ -274,12 +275,12 @@ export function Navbar({ currentTab, setCurrentTab, onOpenConfig, onLogout }) {
             onClick={() => setCurrentTab('metrics')}
             className={`flex flex-col items-center justify-center py-1 rounded-xl transition-all active:scale-95 ${
               currentTab === 'metrics'
-                ? 'text-indigo-400 bg-indigo-500/10 font-bold'
+                ? 'text-emerald-400 bg-emerald-500/10 font-bold'
                 : 'text-slate-400 hover:text-slate-200'
             }`}
           >
-            <Scale className="w-4 h-4 mb-0.5" />
-            <span className="text-[10px] leading-tight">Medidas</span>
+            <Dna className="w-4 h-4 mb-0.5 text-emerald-400" />
+            <span className="text-[10px] leading-tight">Biometría</span>
           </button>
 
           <button

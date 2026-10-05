@@ -80,7 +80,7 @@ function MainApp() {
         <Suspense fallback={<ViewSkeleton />}>
           {currentTab === 'timer' && <Timer onQuickLog={() => setCurrentTab('logger')} />}
           {currentTab === 'logger' && <WorkoutLogger />}
-          {currentTab === 'metrics' && <BodyMetrics />}
+          {currentTab === 'metrics' && <BodyMetrics onNavigateTab={setCurrentTab} />}
           {currentTab === 'dashboard' && <Dashboard />}
           {currentTab === 'planner' && <PrintablePlan />}
           {currentTab === 'pantry' && <PantryPlanner />}
