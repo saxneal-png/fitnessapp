@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { 
   X, 
   Dna, 
@@ -9,23 +9,33 @@ import {
   ShieldCheck, 
   Check, 
   Info, 
-  Sparkles,
-  TrendingDown,
-  TrendingUp,
-  HelpCircle,
-  Apple,
-  Zap,
-  Dumbbell,
-  Shield,
-  Ruler,
-  Award,
-  CheckCircle2,
-  ChevronRight,
-  ArrowRight,
-  AlertTriangle
+  Sparkles, 
+  TrendingDown, 
+  TrendingUp, 
+  HelpCircle, 
+  Apple, 
+  Zap, 
+  Dumbbell, 
+  Shield, 
+  Ruler, 
+  Award, 
+  CheckCircle2, 
+  ChevronRight, 
+  ArrowRight, 
+  AlertTriangle,
+  Clock,
+  Calendar,
+  Layers,
+  Heart
 } from 'lucide-react';
 import { USERS } from '../data/workoutCatalog';
-import { getAllAthletes } from '../services/authService';
+import { 
+  EQUIPMENT_ITEMS, 
+  DURATION_OPTIONS, 
+  WEEKLY_FREQUENCY_OPTIONS, 
+  FOCUS_AREAS, 
+  JOINT_CONCERNS 
+} from '../data/equipmentCatalog';
 import { 
   getAthleteBiometrics, 
   saveAthleteBiometrics, 
@@ -33,9 +43,9 @@ import {
   toggleAthleteDigestiveProtection,
   calculateAthleteNutrition,
   evaluateAthleteModeRecommendation,
+  calculateNavyBodyFat,
   ACTIVITY_MULTIPLIERS,
-  FITNESS_MODES,
-  GOAL_PRESETS 
+  FITNESS_MODES 
 } from '../services/nutritionCalculator';
 import { useAuth } from '../context/AuthContext';
 import confetti from 'canvas-confetti';
@@ -47,6 +57,7 @@ export function BiometricsModal({ isOpen, onClose, householdId, initialAthlete =
     : householdUsers;
   const startAthlete = isDuoHousehold ? initialAthlete : (authUser || initialAthlete);
 
+  const [activeTab, setActiveTab] = useState('biometrics'); // 'biometrics' | 'equipment' | 'schedule'
   const [selectedAthlete, setSelectedAthlete] = useState(startAthlete);
   const [formData, setFormData] = useState(() => getAthleteBiometrics(startAthlete, householdId));
   const [activePlan, setActivePlan] = useState(() => calculateAthleteNutrition(startAthlete, householdId));
@@ -75,10 +86,47 @@ export function BiometricsModal({ isOpen, onClose, householdId, initialAthlete =
   const handleFieldChange = (field, value) => {
     const updated = { ...formData, [field]: value };
     setFormData(updated);
-    // Recalcular dinámicamente el plan para visualización en vivo
     const tempPlan = calculateAthleteNutrition(selectedAthlete, householdId, updated.currentWeightKg);
     setActivePlan(tempPlan);
     setRecommendation(evaluateAthleteModeRecommendation(selectedAthlete, householdId));
+  };
+
+  const handleExtendedMeasurementChange = (field, value) => {
+    const updatedMeasurements = {
+      ...(formData.extendedMeasurements || {}),
+      [field]: value ? Number(value) : null
+    };
+    handleFieldChange('extendedMeasurements', updatedMeasurements);
+  };
+
+  const handleEquipmentToggle = (equipmentId) => {
+    const currentEquip = { ...(formData.equipment || {}) };
+    const key = `has${equipmentId.charAt(0).toUpperCase() + equipmentId.slice(1).replace(/_([a-z])/g, (_, g) => g.toUpperCase())}`;
+    currentEquip[key] = !currentEquip[key];
+    handleFieldChange('equipment', currentEquip);
+  };
+
+  const handleEquipmentWeightChange = (key, value) => {
+    const currentEquip = { ...(formData.equipment || {}) };
+    currentEquip[key] = Number(value) || 0;
+    handleFieldChange('equipment', currentEquip);
+  };
+
+  const handleScheduleChange = (field, value) => {
+    const updatedSchedule = {
+      ...(formData.schedule || {}),
+      [field]: value
+    };
+    handleFieldChange('schedule', updatedSchedule);
+  };
+
+  const handleToggleJointConcern = (concernId) => {
+    const currentConcerns = Array.isArray(formData.jointConcerns) ? [...formData.jointConcerns] : [];
+    const exists = currentConcerns.includes(concernId);
+    const nextConcerns = exists 
+      ? currentConcerns.filter(c => c !== concernId) 
+      : [...currentConcerns, concernId];
+    handleFieldChange('jointConcerns', nextConcerns);
   };
 
   const handleSelectMode = (modeId) => {
@@ -110,6 +158,17 @@ export function BiometricsModal({ isOpen, onClose, householdId, initialAthlete =
     setActivePlan(calculateAthleteNutrition(selectedAthlete, householdId, updated.currentWeightKg));
   };
 
+  // Cálculo en vivo del % de grasa corporal por método de la Marina
+  const navyFatPct = useMemo(() => {
+    return calculateNavyBodyFat({
+      gender: formData.gender || (selectedAthlete === 'paula' ? 'female' : 'male'),
+      heightCm: formData.heightCm,
+      waistCm: formData.waistCm,
+      neckCm: formData.extendedMeasurements?.neckCm,
+      hipsCm: formData.hipsCm
+    });
+  }, [formData.gender, formData.heightCm, formData.waistCm, formData.extendedMeasurements?.neckCm, formData.hipsCm, selectedAthlete]);
+
   const handleSubmit = (e) => {
     e.preventDefault();
     saveAthleteBiometrics(selectedAthlete, {
@@ -124,7 +183,11 @@ export function BiometricsModal({ isOpen, onClose, householdId, initialAthlete =
       digestiveProtection: Boolean(formData.digestiveProtection),
       maxFatsCap: Number(formData.maxFatsCap) || (selectedAthlete === 'paula' ? 42 : 45),
       proteinPerKg: Number(formData.proteinPerKg),
-      fatPerKg: Number(formData.fatPerKg)
+      fatPerKg: Number(formData.fatPerKg),
+      equipment: formData.equipment || {},
+      schedule: formData.schedule || {},
+      jointConcerns: formData.jointConcerns || [],
+      extendedMeasurements: formData.extendedMeasurements || {}
     }, householdId);
 
     try {
@@ -141,13 +204,12 @@ export function BiometricsModal({ isOpen, onClose, householdId, initialAthlete =
 
   if (!isOpen) return null;
 
-  const isDionicio = selectedAthlete === 'dionicio';
   const currentModeInfo = FITNESS_MODES[formData.activeMode] || FITNESS_MODES.visceral_fat_loss;
   const isRecommendedActive = formData.activeMode === recommendation.recommendedMode;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-gym-950/80 backdrop-blur-md animate-fadeIn">
-      <div className="bg-gym-900 border border-gym-700 rounded-3xl w-full max-w-2xl max-h-[92dvh] flex flex-col shadow-2xl overflow-hidden">
+      <div className="bg-gym-900 border border-gym-700 rounded-3xl w-full max-w-3xl max-h-[92dvh] flex flex-col shadow-2xl overflow-hidden">
         {/* Modal Header */}
         <div className="p-4 sm:p-5 border-b border-gym-800 flex items-center justify-between bg-gym-900/90 shrink-0">
           <div className="flex items-center gap-2.5">
@@ -156,10 +218,10 @@ export function BiometricsModal({ isOpen, onClose, householdId, initialAthlete =
             </div>
             <div>
               <h3 className="font-black text-white text-base sm:text-lg flex items-center gap-2">
-                <span>Modos Fisiológicos & Perfil Biométrico</span>
+                <span>Perfil Personalizado del Atleta</span>
               </h3>
               <p className="text-[11px] text-slate-400">
-                Ajuste inteligente por medidas corporales, grasa visceral y objetivos del atleta.
+                Biometría 360°, inventario de equipamiento y horarios para que el Coach diseñe planes focalizados.
               </p>
             </div>
           </div>
@@ -196,417 +258,560 @@ export function BiometricsModal({ isOpen, onClose, householdId, initialAthlete =
           ) : (
             <div className="flex items-center gap-2 p-3 bg-gym-950/80 rounded-2xl border border-gym-800 text-xs font-bold text-slate-300">
               <span className="text-base">{availableAthletes[selectedAthlete]?.avatar || '🏋️‍♂️'}</span>
-              <span>Perfil individual de <strong>{availableAthletes[selectedAthlete]?.name || 'Mi Perfil'}</strong></span>
+              <span>Configuración individual de <strong>{availableAthletes[selectedAthlete]?.name || 'Mi Perfil'}</strong></span>
             </div>
           )}
 
-          {/* TARJETA 1: RECOMENDACIÓN INTELIGENTE SEGÚN MEDIDAS REALES */}
-          <div className={`p-4 rounded-2xl border transition-all ${
-            isRecommendedActive
-              ? 'bg-gradient-to-br from-gym-950 via-gym-900 to-gym-950 border-emerald-500/40 shadow-lg shadow-emerald-500/5'
-              : 'bg-gradient-to-br from-amber-950/30 via-gym-900 to-gym-950 border-amber-500/50 shadow-lg shadow-amber-500/10'
-          }`}>
-            <div className="flex flex-wrap items-center justify-between gap-2 mb-2.5">
-              <div className="flex items-center gap-2">
-                <div className="w-7 h-7 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center">
-                  <Sparkles className="w-4 h-4" />
+          {/* Navigation Sub-Tabs */}
+          <div className="flex border-b border-gym-800 gap-2 pb-1">
+            <button
+              type="button"
+              onClick={() => setActiveTab('biometrics')}
+              className={`px-4 py-2 rounded-xl text-xs font-black transition-all flex items-center gap-1.5 ${
+                activeTab === 'biometrics'
+                  ? 'bg-gradient-to-r from-emerald-500 to-sky-500 text-gym-950 shadow-sm'
+                  : 'text-slate-400 hover:text-white hover:bg-gym-800/60'
+              }`}
+            >
+              <Dna className="w-3.5 h-3.5" />
+              <span>1. Medidas & Biometría</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab('equipment')}
+              className={`px-4 py-2 rounded-xl text-xs font-black transition-all flex items-center gap-1.5 ${
+                activeTab === 'equipment'
+                  ? 'bg-gradient-to-r from-emerald-500 to-sky-500 text-gym-950 shadow-sm'
+                  : 'text-slate-400 hover:text-white hover:bg-gym-800/60'
+              }`}
+            >
+              <Dumbbell className="w-3.5 h-3.5" />
+              <span>2. Mi Equipamiento</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab('schedule')}
+              className={`px-4 py-2 rounded-xl text-xs font-black transition-all flex items-center gap-1.5 ${
+                activeTab === 'schedule'
+                  ? 'bg-gradient-to-r from-emerald-500 to-sky-500 text-gym-950 shadow-sm'
+                  : 'text-slate-400 hover:text-white hover:bg-gym-800/60'
+              }`}
+            >
+              <Clock className="w-3.5 h-3.5" />
+              <span>3. Tiempos & Enfoque</span>
+            </button>
+          </div>
+
+          {/* TAB 1: BIOMETRÍA & MEDIDAS CORPORALES */}
+          {activeTab === 'biometrics' && (
+            <div className="space-y-5 animate-fadeIn">
+              {/* RECOMENDACIÓN INTELIGENTE */}
+              <div className={`p-4 rounded-2xl border transition-all ${
+                isRecommendedActive
+                  ? 'bg-gradient-to-br from-gym-950 via-gym-900 to-gym-950 border-emerald-500/40 shadow-lg shadow-emerald-500/5'
+                  : 'bg-gradient-to-br from-amber-950/30 via-gym-900 to-gym-950 border-amber-500/50 shadow-lg shadow-amber-500/10'
+              }`}>
+                <div className="flex flex-wrap items-center justify-between gap-2 mb-2.5">
+                  <div className="flex items-center gap-2">
+                    <div className="w-7 h-7 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center">
+                      <Sparkles className="w-4 h-4" />
+                    </div>
+                    <span className="text-xs font-black uppercase text-white tracking-wider">
+                      Recomendación del Asesor Deportivo
+                    </span>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <span className="text-[11px] font-mono text-slate-300 bg-gym-800/80 px-2 py-0.5 rounded-lg border border-gym-700">
+                      Cintura: <strong className="text-white">{recommendation.waistCm} cm</strong> (Ratio: <strong className="text-amber-400">{recommendation.waistHeightRatio}</strong>)
+                    </span>
+                    {navyFatPct && (
+                      <span className="text-[11px] font-mono text-sky-300 bg-sky-950/60 px-2 py-0.5 rounded-lg border border-sky-500/30">
+                        Grasa Navy: <strong>{navyFatPct}%</strong>
+                      </span>
+                    )}
+                  </div>
                 </div>
-                <span className="text-xs font-black uppercase text-white tracking-wider">
-                  Recomendación del Asesor Deportivo
-                </span>
+
+                <p className="text-xs text-slate-300 leading-relaxed mb-3">
+                  {recommendation.clinicalRationale}
+                </p>
+
+                {recommendation.isHypertrophyBlocked && (
+                  <div className="mb-3 p-2.5 rounded-xl bg-rose-950/40 border border-rose-500/40 text-xs text-rose-300 flex items-center gap-2">
+                    <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0" />
+                    <span>
+                      <strong>Aviso Clínico:</strong> El modo Aumento Muscular está bloqueado preventivamente por exceso de grasa visceral. Primero debes reducir la cintura a &lt; {recommendation.targetWaistGoalCm} cm.
+                    </span>
+                  </div>
+                )}
+
+                {/* Control Interactivo de Protección Digestiva */}
+                <div className={`mb-3 p-3 rounded-2xl border transition-all ${
+                  formData.digestiveProtection 
+                    ? 'bg-sky-950/40 border-sky-500/40' 
+                    : 'bg-gym-900/60 border-gym-750'
+                }`}>
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex items-start gap-2.5">
+                      <div className={`p-2 rounded-xl mt-0.5 shrink-0 ${
+                        formData.digestiveProtection 
+                          ? 'bg-sky-500/20 text-sky-400' 
+                          : 'bg-gym-800 text-slate-500'
+                      }`}>
+                        <ShieldCheck className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <strong className="text-xs text-white">
+                            Protección Digestiva Clínico-Intestinal
+                          </strong>
+                          <span className={`text-[10px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider ${
+                            formData.digestiveProtection 
+                              ? 'bg-sky-500/20 text-sky-300 border border-sky-500/30' 
+                              : 'bg-gym-800 text-slate-400 border border-gym-700'
+                          }`}>
+                            {formData.digestiveProtection ? 'Activada' : 'Desactivada'}
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-slate-300 mt-1 leading-relaxed">
+                          {formData.digestiveProtection ? (
+                            <>
+                              <strong>Techo estricto de grasa ({formData.maxFatsCap || (selectedAthlete === 'paula' ? 42 : 45)}g/día)</strong> para cuidar la vesícula biliar y prevenir reflujo o distensión.
+                            </>
+                          ) : (
+                            <>
+                              Límites liberados. Las grasas se calculan por ratio estándar del modo metabólico.
+                            </>
+                          )}
+                        </p>
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => handleToggleDigestive(!formData.digestiveProtection)}
+                      className={`px-3 py-1.5 rounded-xl font-bold text-xs transition-all shrink-0 flex items-center gap-1.5 shadow-sm active:scale-95 ${
+                        formData.digestiveProtection
+                          ? 'bg-sky-500 hover:bg-sky-400 text-gym-950'
+                          : 'bg-gym-800 hover:bg-gym-700 text-slate-300 border border-gym-700'
+                      }`}
+                    >
+                      <span>{formData.digestiveProtection ? 'Desactivar' : 'Activar'}</span>
+                    </button>
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap items-center justify-between gap-3 pt-2.5 border-t border-gym-800/80">
+                  <div className="text-[11px] text-slate-400 flex items-center gap-1.5">
+                    <Target className="w-3.5 h-3.5 text-sky-400 shrink-0" />
+                    <span>
+                      <strong>Próximo Hito:</strong> {recommendation.milestoneToNextMode}
+                    </span>
+                  </div>
+
+                  {!isRecommendedActive && (
+                    <button
+                      type="button"
+                      onClick={handleApplyRecommendation}
+                      className="px-3 py-1.5 rounded-xl bg-gradient-to-r from-amber-500 to-emerald-500 hover:from-amber-400 hover:to-emerald-400 text-gym-950 font-black text-xs shadow-md transition-all flex items-center gap-1.5 active:scale-95 shrink-0"
+                    >
+                      <Check className="w-3.5 h-3.5" />
+                      <span>Aplicar Modo ({recommendation.recommendedModeConfig?.shortName})</span>
+                    </button>
+                  )}
+                </div>
               </div>
 
-              <div className="flex items-center gap-2">
-                <span className="text-[11px] font-mono text-slate-300 bg-gym-800/80 px-2 py-0.5 rounded-lg border border-gym-700">
-                  Cintura: <strong className="text-white">{recommendation.waistCm} cm</strong> (Ratio: <strong className="text-amber-400">{recommendation.waistHeightRatio}</strong>)
-                </span>
-                <span className="text-[10px] uppercase font-black px-2 py-0.5 rounded-full bg-gym-800 text-slate-400 border border-gym-700">
-                  {recommendation.riskLevel}
-                </span>
+              {/* SELECTOR DE MODOS FISIOLÓGICOS */}
+              <div className="space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-black uppercase text-slate-300 tracking-wider flex items-center gap-1.5">
+                    <Target className="w-4 h-4 text-emerald-400" />
+                    <span>Modo Metabólico Activo</span>
+                  </label>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  {Object.entries(FITNESS_MODES).map(([modeKey, mode]) => {
+                    const isSelected = formData.activeMode === modeKey;
+                    const isRecommended = recommendation.recommendedMode === modeKey;
+                    const isBlocked = modeKey === 'hypertrophy_muscle_gain' && recommendation.isHypertrophyBlocked;
+
+                    return (
+                      <button
+                        key={modeKey}
+                        type="button"
+                        disabled={isBlocked}
+                        onClick={() => {
+                          if (isBlocked) return;
+                          handleSelectMode(modeKey);
+                        }}
+                        className={`p-3.5 rounded-2xl border text-left transition-all relative overflow-hidden flex flex-col justify-between ${
+                          isBlocked
+                            ? 'bg-gym-950/40 border-rose-900/30 opacity-60 cursor-not-allowed'
+                            : isSelected
+                              ? 'bg-gym-800/90 border-emerald-500/80 shadow-lg shadow-emerald-500/10 ring-1 ring-emerald-500/50'
+                              : 'bg-gym-950/60 border-gym-800 hover:border-gym-700 hover:bg-gym-900/60'
+                        }`}
+                      >
+                        <div className="space-y-1.5">
+                          <div className="flex items-center justify-between gap-1.5">
+                            <span className="text-sm font-black text-white flex items-center gap-1.5">
+                              <span>{mode.icon}</span>
+                              <span>{mode.name}</span>
+                            </span>
+                            {isSelected && (
+                              <span className="w-5 h-5 rounded-full bg-emerald-500 text-gym-950 flex items-center justify-center shrink-0">
+                                <Check className="w-3.5 h-3.5 stroke-[3]" />
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-[11px] text-slate-400 leading-relaxed line-clamp-2">
+                            {isBlocked ? recommendation.hypertrophyBlockedReason : mode.description}
+                          </p>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
-            </div>
 
-            <p className="text-xs text-slate-300 leading-relaxed mb-3">
-              {recommendation.clinicalRationale}
-            </p>
-
-            {/* Aviso de Bloqueo Clínico si WHtR >= 0.50 */}
-            {recommendation.isHypertrophyBlocked && (
-              <div className="mb-3 p-2.5 rounded-xl bg-rose-950/40 border border-rose-500/40 text-xs text-rose-300 flex items-center gap-2">
-                <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0" />
-                <span>
-                  <strong>Aviso Clínico:</strong> El modo Aumento Muscular está bloqueado preventivamente por exceso de grasa visceral. Primero debes reducir la cintura a &lt; {recommendation.targetWaistGoalCm} cm.
+              {/* MEDIDAS Y ANTROPOMETRÍA 360° */}
+              <div className="p-4 rounded-2xl bg-gym-950 border border-gym-800 space-y-3">
+                <span className="text-xs font-black uppercase text-slate-300 tracking-wider flex items-center gap-1.5">
+                  <Ruler className="w-4 h-4 text-pink-400" />
+                  <span>Medidas Corporales & Antropometría Completa</span>
                 </span>
-              </div>
-            )}
 
-            {/* Control Interactivo de Protección Digestiva según Atleta */}
-            <div className={`mb-3 p-3 rounded-2xl border transition-all ${
-              formData.digestiveProtection 
-                ? 'bg-sky-950/40 border-sky-500/40' 
-                : 'bg-gym-900/60 border-gym-750'
-            }`}>
-              <div className="flex items-center justify-between gap-3">
-                <div className="flex items-start gap-2.5">
-                  <div className={`p-2 rounded-xl mt-0.5 shrink-0 ${
-                    formData.digestiveProtection 
-                      ? 'bg-sky-500/20 text-sky-400' 
-                      : 'bg-gym-800 text-slate-500'
-                  }`}>
-                    <ShieldCheck className="w-4 h-4" />
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-300 mb-1">Edad (años)</label>
+                    <input
+                      type="number"
+                      min="18"
+                      max="90"
+                      value={formData.age}
+                      onChange={(e) => handleFieldChange('age', e.target.value)}
+                      className="w-full bg-gym-900 border border-gym-700 rounded-xl px-3 py-2 text-xs text-white font-mono focus:border-emerald-500"
+                      required
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-300 mb-1">Altura (cm)</label>
+                    <input
+                      type="number"
+                      min="130"
+                      max="220"
+                      value={formData.heightCm}
+                      onChange={(e) => handleFieldChange('heightCm', e.target.value)}
+                      className="w-full bg-gym-900 border border-gym-700 rounded-xl px-3 py-2 text-xs text-white font-mono focus:border-emerald-500"
+                      required
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-300 mb-1">Peso Activo (kg)</label>
+                    <input
+                      type="number"
+                      step="0.1"
+                      min="40"
+                      max="180"
+                      value={formData.currentWeightKg}
+                      onChange={(e) => handleFieldChange('currentWeightKg', e.target.value)}
+                      className="w-full bg-gym-900 border border-gym-700 rounded-xl px-3 py-2 text-xs text-white font-mono focus:border-emerald-500"
+                      required
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-bold text-pink-400 mb-1">Cintura (cm) *Visceral</label>
+                    <input
+                      type="number"
+                      step="0.5"
+                      min="50"
+                      max="160"
+                      value={formData.waistCm || ''}
+                      onChange={(e) => handleFieldChange('waistCm', e.target.value)}
+                      className="w-full bg-gym-900 border border-pink-500/40 rounded-xl px-3 py-2 text-xs text-pink-300 font-mono font-bold focus:border-pink-500"
+                    />
+                  </div>
+                </div>
+
+                {/* Medidas Circunferenciales Extendidas */}
+                <div className="pt-2 border-t border-gym-850 grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-300 mb-1">Cuello (cm) *Navy</label>
+                    <input
+                      type="number"
+                      step="0.5"
+                      placeholder="Ej: 39"
+                      value={formData.extendedMeasurements?.neckCm || ''}
+                      onChange={(e) => handleExtendedMeasurementChange('neckCm', e.target.value)}
+                      className="w-full bg-gym-900 border border-gym-700 rounded-xl px-3 py-2 text-xs text-white font-mono focus:border-emerald-500"
+                    />
                   </div>
                   <div>
-                    <div className="flex items-center gap-2">
-                      <strong className="text-xs text-white">
-                        Protección Digestiva Clínico-Intestinal
-                      </strong>
-                      <span className={`text-[10px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider ${
-                        formData.digestiveProtection 
-                          ? 'bg-sky-500/20 text-sky-300 border border-sky-500/30' 
-                          : 'bg-gym-800 text-slate-400 border border-gym-700'
-                      }`}>
-                        {formData.digestiveProtection ? 'Activada' : 'Desactivada'}
-                      </span>
-                    </div>
-                    <p className="text-[11px] text-slate-300 mt-1 leading-relaxed">
-                      {formData.digestiveProtection ? (
-                        <>
-                          <strong>Techo estricto de grasa ({formData.maxFatsCap || (selectedAthlete === 'paula' ? 42 : 45)}g/día)</strong> para cuidar la vesícula biliar y prevenir reflujo o colon irritable. La energía adicional se financia con carbohidratos limpios.
-                        </>
-                      ) : (
-                        <>
-                          Límites liberados. Las grasas se calculan por ratio estándar del modo metabólico sin hard cap estricto.
-                        </>
-                      )}
-                    </p>
+                    <label className="block text-[11px] font-bold text-slate-300 mb-1">Cadera (cm)</label>
+                    <input
+                      type="number"
+                      step="0.5"
+                      placeholder="Ej: 102"
+                      value={formData.hipsCm || ''}
+                      onChange={(e) => handleFieldChange('hipsCm', e.target.value)}
+                      className="w-full bg-gym-900 border border-gym-700 rounded-xl px-3 py-2 text-xs text-white font-mono focus:border-emerald-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-300 mb-1">Pecho (cm)</label>
+                    <input
+                      type="number"
+                      step="0.5"
+                      placeholder="Ej: 100"
+                      value={formData.extendedMeasurements?.chestCm || ''}
+                      onChange={(e) => handleExtendedMeasurementChange('chestCm', e.target.value)}
+                      className="w-full bg-gym-900 border border-gym-700 rounded-xl px-3 py-2 text-xs text-white font-mono focus:border-emerald-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-300 mb-1">Brazo (cm)</label>
+                    <input
+                      type="number"
+                      step="0.5"
+                      placeholder="Ej: 34"
+                      value={formData.extendedMeasurements?.armCm || ''}
+                      onChange={(e) => handleExtendedMeasurementChange('armCm', e.target.value)}
+                      className="w-full bg-gym-900 border border-gym-700 rounded-xl px-3 py-2 text-xs text-white font-mono focus:border-emerald-500"
+                    />
                   </div>
                 </div>
-
-                <button
-                  type="button"
-                  onClick={() => handleToggleDigestive(!formData.digestiveProtection)}
-                  className={`px-3 py-1.5 rounded-xl font-bold text-xs transition-all shrink-0 flex items-center gap-1.5 shadow-sm active:scale-95 ${
-                    formData.digestiveProtection
-                      ? 'bg-sky-500 hover:bg-sky-400 text-gym-950'
-                      : 'bg-gym-800 hover:bg-gym-700 text-slate-300 border border-gym-700'
-                  }`}
-                >
-                  <span>{formData.digestiveProtection ? 'Desactivar' : 'Activar'}</span>
-                </button>
               </div>
             </div>
+          )}
 
-            <div className="flex flex-wrap items-center justify-between gap-3 pt-2.5 border-t border-gym-800/80">
-              <div className="text-[11px] text-slate-400 flex items-center gap-1.5">
-                <Target className="w-3.5 h-3.5 text-sky-400 shrink-0" />
-                <span>
-                  <strong>Próximo Hito:</strong> {recommendation.milestoneToNextMode}
-                </span>
+          {/* TAB 2: MI EQUIPAMIENTO */}
+          {activeTab === 'equipment' && (
+            <div className="space-y-4 animate-fadeIn">
+              <div className="p-3.5 rounded-2xl bg-gradient-to-r from-sky-950/40 to-indigo-950/40 border border-sky-500/30">
+                <div className="flex items-center gap-2 text-sky-400 font-bold text-xs mb-1">
+                  <Dumbbell className="w-4 h-4" />
+                  <span>Inventario de Entrenamiento de {availableAthletes[selectedAthlete]?.name}</span>
+                </div>
+                <p className="text-[11px] text-slate-300">
+                  El Coach adaptará los ejercicios únicamente al material que marques como disponible aquí.
+                </p>
               </div>
 
-              {!isRecommendedActive && (
-                <button
-                  type="button"
-                  onClick={handleApplyRecommendation}
-                  className="px-3 py-1.5 rounded-xl bg-gradient-to-r from-amber-500 to-emerald-500 hover:from-amber-400 hover:to-emerald-400 text-gym-950 font-black text-xs shadow-md transition-all flex items-center gap-1.5 active:scale-95 shrink-0"
-                >
-                  <Check className="w-3.5 h-3.5" />
-                  <span>Aplicar Modo Recomendado ({recommendation.recommendedModeConfig?.shortName})</span>
-                </button>
-              )}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {EQUIPMENT_ITEMS.map((item) => {
+                  const key = `has${item.id.charAt(0).toUpperCase() + item.id.slice(1).replace(/_([a-z])/g, (_, g) => g.toUpperCase())}`;
+                  const isChecked = Boolean(formData.equipment?.[key]);
 
-              {isRecommendedActive && (
-                <span className="text-[11px] text-emerald-400 font-bold flex items-center gap-1">
-                  <CheckCircle2 className="w-3.5 h-3.5" />
-                  <span>Modo Óptimo Activo</span>
-                </span>
-              )}
-            </div>
-          </div>
+                  return (
+                    <div
+                      key={item.id}
+                      className={`p-3.5 rounded-2xl border transition-all ${
+                        isChecked 
+                          ? 'bg-gym-800/90 border-sky-500/60 shadow-md shadow-sky-500/5' 
+                          : 'bg-gym-950/60 border-gym-800 opacity-75'
+                      }`}
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex items-start gap-2.5">
+                          <span className="text-2xl mt-0.5">{item.icon}</span>
+                          <div>
+                            <span className="text-xs font-black text-white block">{item.name}</span>
+                            <p className="text-[10px] text-slate-400 leading-tight mt-0.5">{item.description}</p>
+                          </div>
+                        </div>
 
-          {/* TARJETA 2: SELECTOR INTERACTIVO DE MODOS */}
-          <div className="space-y-2.5">
-            <div className="flex items-center justify-between">
-              <label className="text-xs font-black uppercase text-slate-300 tracking-wider flex items-center gap-1.5">
-                <Target className="w-4 h-4 text-emerald-400" />
-                <span>Modo de Enfoque Fisiológico Activo</span>
-              </label>
-              <span className="text-[11px] text-slate-400">
-                Selecciona tu objetivo metabólico actual
-              </span>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-              {Object.entries(FITNESS_MODES).map(([modeKey, mode]) => {
-                const isSelected = formData.activeMode === modeKey;
-                const isRecommended = recommendation.recommendedMode === modeKey;
-                const isBlocked = modeKey === 'hypertrophy_muscle_gain' && recommendation.isHypertrophyBlocked;
-
-                return (
-                  <button
-                    key={modeKey}
-                    type="button"
-                    disabled={isBlocked}
-                    onClick={() => {
-                      if (isBlocked) return;
-                      handleSelectMode(modeKey);
-                    }}
-                    className={`p-3.5 rounded-2xl border text-left transition-all relative overflow-hidden flex flex-col justify-between ${
-                      isBlocked
-                        ? 'bg-gym-950/40 border-rose-900/30 opacity-60 cursor-not-allowed'
-                        : isSelected
-                          ? 'bg-gym-800/90 border-emerald-500/80 shadow-lg shadow-emerald-500/10 ring-1 ring-emerald-500/50'
-                          : 'bg-gym-950/60 border-gym-800 hover:border-gym-700 hover:bg-gym-900/60'
-                    }`}
-                  >
-                    <div className="space-y-1.5">
-                      <div className="flex items-center justify-between gap-1.5">
-                        <span className="text-sm font-black text-white flex items-center gap-1.5">
-                          <span>{mode.icon}</span>
-                          <span>{mode.name}</span>
-                        </span>
-                        {isSelected && (
-                          <span className="w-5 h-5 rounded-full bg-emerald-500 text-gym-950 flex items-center justify-center shrink-0">
-                            <Check className="w-3.5 h-3.5 stroke-[3]" />
-                          </span>
-                        )}
-                        {isBlocked && (
-                          <span className="text-[9px] bg-rose-500/20 text-rose-400 border border-rose-500/40 px-1.5 py-0.5 rounded font-bold uppercase shrink-0">
-                            Bloqueado
-                          </span>
-                        )}
+                        <button
+                          type="button"
+                          onClick={() => handleEquipmentToggle(item.id)}
+                          className={`w-6 h-6 rounded-lg flex items-center justify-center shrink-0 transition-colors ${
+                            isChecked
+                              ? 'bg-sky-500 text-gym-950 font-black'
+                              : 'bg-gym-900 border border-gym-700 text-transparent hover:border-slate-500'
+                          }`}
+                        >
+                          <Check className="w-4 h-4 stroke-[3]" />
+                        </button>
                       </div>
 
-                      <p className="text-[11px] text-slate-400 leading-relaxed line-clamp-2">
-                        {isBlocked ? recommendation.hypertrophyBlockedReason : mode.description}
-                      </p>
-                    </div>
-
-                    <div className="mt-2.5 pt-2 border-t border-gym-800/80 flex items-center justify-between text-[10px]">
-                      <span className="font-mono text-slate-300">
-                        {mode.targetDeficitKcal[selectedAthlete] > 0
-                          ? `Déficit -${mode.targetDeficitKcal[selectedAthlete]} kcal`
-                          : (mode.targetDeficitKcal[selectedAthlete] < 0 
-                              ? `Superávit +${Math.abs(mode.targetDeficitKcal[selectedAthlete])} kcal` 
-                              : '0 kcal (Mantenimiento)')}
-                      </span>
-
-                      {isRecommended && !isBlocked && (
-                        <span className="bg-amber-500/20 text-amber-300 border border-amber-500/40 px-1.5 py-0.5 rounded font-bold uppercase tracking-wider text-[9px]">
-                          Recomendado IA
-                        </span>
+                      {/* Parámetro de peso si está activo */}
+                      {isChecked && item.hasWeightParam && (
+                        <div className="mt-3 pt-2.5 border-t border-gym-750 flex items-center justify-between text-xs">
+                          <span className="text-[11px] text-slate-300 font-medium">Peso Máximo Disponible:</span>
+                          <div className="flex items-center gap-1.5">
+                            <input
+                              type="number"
+                              min="1"
+                              max="120"
+                              value={formData.equipment?.[`${item.id}MaxWeightKg`] || formData.equipment?.maxDumbbellWeightPerHandKg || (item.id === 'dumbbells' ? 20 : 16)}
+                              onChange={(e) => {
+                                const paramKey = item.id === 'dumbbells' ? 'maxDumbbellWeightPerHandKg' : `${item.id}MaxWeightKg`;
+                                handleEquipmentWeightChange(paramKey, e.target.value);
+                              }}
+                              className="w-16 bg-gym-950 border border-gym-700 rounded-lg px-2 py-1 text-center font-mono font-bold text-white text-xs"
+                            />
+                            <span className="text-[10px] text-slate-400 font-mono">{item.weightUnit || 'kg'}</span>
+                          </div>
+                        </div>
                       )}
                     </div>
-                  </button>
-                );
-              })}
+                  );
+                })}
+              </div>
             </div>
-          </div>
+          )}
 
-          {/* TARJETA 3: DIAGNÓSTICO METABÓLICO EN VIVO */}
-          <div className="p-4 rounded-2xl bg-gradient-to-br from-gym-950 to-gym-900 border border-gym-800 space-y-3">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <span className="text-xs font-black uppercase text-slate-300 flex items-center gap-1.5">
-                <Flame className="w-4 h-4 text-amber-400" />
-                <span>Metas Calculadas para el Modo: {currentModeInfo.shortName}</span>
-              </span>
-              <button
-                type="button"
-                onClick={() => setShowFormulaInfo(!showFormulaInfo)}
-                className="text-[11px] text-sky-400 hover:underline flex items-center gap-1"
-              >
-                <Info className="w-3.5 h-3.5" />
-                <span>{showFormulaInfo ? 'Ocultar ecuación' : 'Ver fórmula clínica'}</span>
-              </button>
-            </div>
-
-            {showFormulaInfo && (
-              <div className="p-3.5 rounded-xl bg-gym-900/95 border border-amber-500/40 text-[11px] text-slate-300 space-y-2 font-mono">
-                <div className="text-amber-400 font-bold flex items-center gap-1.5">
-                  <ShieldCheck className="w-4 h-4 text-amber-400 shrink-0" />
-                  <span>Calibración Realista por Masa Magra & Antropometría</span>
+          {/* TAB 3: TIEMPOS, FRECUENCIA & ENFOQUE FOCALIZADO */}
+          {activeTab === 'schedule' && (
+            <div className="space-y-5 animate-fadeIn">
+              {/* Duración de Sesión */}
+              <div className="space-y-2">
+                <label className="text-xs font-black uppercase text-slate-300 tracking-wider flex items-center gap-1.5">
+                  <Clock className="w-4 h-4 text-emerald-400" />
+                  <span>Duración Disponible por Sesión</span>
+                </label>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                  {DURATION_OPTIONS.map((dur) => {
+                    const isSelected = (formData.schedule?.sessionDurationMinutes || 60) === dur.value;
+                    return (
+                      <button
+                        key={dur.value}
+                        type="button"
+                        onClick={() => handleScheduleChange('sessionDurationMinutes', dur.value)}
+                        className={`p-3 rounded-2xl border text-left transition-all ${
+                          isSelected
+                            ? 'bg-emerald-500/20 border-emerald-500 text-white shadow-md shadow-emerald-500/10 ring-1 ring-emerald-500/50'
+                            : 'bg-gym-950/60 border-gym-800 text-slate-400 hover:border-gym-700'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="font-black text-sm text-white font-mono">{dur.value} min</span>
+                          <span className="text-[9px] uppercase font-bold px-1.5 py-0.5 rounded bg-gym-900 border border-gym-700 text-slate-300">
+                            {dur.badge}
+                          </span>
+                        </div>
+                        <p className="text-[10px] text-slate-400 leading-tight">{dur.description}</p>
+                      </button>
+                    );
+                  })}
                 </div>
-                <p className="text-slate-300 leading-relaxed font-sans text-xs">
-                  {activePlan.formulaDetails.formulaName}: TMB calculada con Mifflin-St Jeor multiplicada por el nivel de actividad física (PAL) calibrado para tu rutina y perfil antropométrico.
+              </div>
+
+              {/* Frecuencia Semanal */}
+              <div className="space-y-2">
+                <label className="text-xs font-black uppercase text-slate-300 tracking-wider flex items-center gap-1.5">
+                  <Calendar className="w-4 h-4 text-sky-400" />
+                  <span>Días por Semana Disponibles</span>
+                </label>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                  {WEEKLY_FREQUENCY_OPTIONS.map((freq) => {
+                    const isSelected = (formData.schedule?.weeklyDaysTarget || 4) === freq.days;
+                    return (
+                      <button
+                        key={freq.days}
+                        type="button"
+                        onClick={() => handleScheduleChange('weeklyDaysTarget', freq.days)}
+                        className={`p-2.5 rounded-xl border text-center transition-all ${
+                          isSelected
+                            ? 'bg-sky-500 text-gym-950 font-black shadow-md shadow-sky-500/20'
+                            : 'bg-gym-950/60 border-gym-800 text-slate-300 hover:border-gym-700'
+                        }`}
+                      >
+                        <span className="text-xs font-bold block">{freq.label}</span>
+                        <span className="text-[9px] opacity-80 block truncate">{freq.splitSuggestion}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Área de Enfoque Focalizado */}
+              <div className="space-y-2">
+                <label className="text-xs font-black uppercase text-slate-300 tracking-wider flex items-center gap-1.5">
+                  <Layers className="w-4 h-4 text-pink-400" />
+                  <span>Área Muscular Prioritaria / Enfoque</span>
+                </label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  {FOCUS_AREAS.map((f) => {
+                    const isSelected = (formData.schedule?.focusArea || 'balanced') === f.id;
+                    return (
+                      <button
+                        key={f.id}
+                        type="button"
+                        onClick={() => handleScheduleChange('focusArea', f.id)}
+                        className={`p-3 rounded-2xl border text-left transition-all ${
+                          isSelected
+                            ? 'bg-pink-950/40 border-pink-500 text-white shadow-md shadow-pink-500/10 ring-1 ring-pink-500/50'
+                            : 'bg-gym-950/60 border-gym-800 text-slate-400 hover:border-gym-700'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="text-lg">{f.icon}</span>
+                          <span className="text-xs font-black text-white">{f.label}</span>
+                        </div>
+                        <p className="text-[10px] text-slate-400 leading-tight">{f.desc}</p>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Cuidados Articulares y Lesiones */}
+              <div className="space-y-2 p-3.5 rounded-2xl bg-gym-950 border border-gym-800">
+                <label className="text-xs font-black uppercase text-slate-300 tracking-wider flex items-center gap-1.5">
+                  <Shield className="w-4 h-4 text-amber-400" />
+                  <span>Seguridad Biomecánica & Cuidados Articulares</span>
+                </label>
+                <p className="text-[11px] text-slate-400 mb-2">
+                  Selecciona si tienes zonas sensibles. El Coach filtrará ejercicios de riesgo (ej. cizalla lumbar o sobrecarga cervical):
                 </p>
-                <div className="p-2.5 rounded-lg bg-gym-950 border border-gym-800 space-y-1 text-[11px]">
-                  <div>• <strong>TMB Mifflin-St Jeor:</strong> {activePlan.bmr} kcal/día en reposo absoluto.</div>
-                  <div>• <strong>TDEE Total ({activePlan.activityLabel}):</strong> ~{activePlan.tdee} kcal/día.</div>
-                  <div>• <strong>Ajuste del Modo:</strong> {activePlan.formulaDetails.adjustment}.</div>
-                  <div>• <strong>Meta Diaria:</strong> <strong className="text-emerald-400">{activePlan.targetCals} kcal</strong>.</div>
-                  <div>• <strong>Proteína ({activePlan.targetProtein}g):</strong> {activePlan.formulaDetails.proteinTargetInfo}.</div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  {JOINT_CONCERNS.map((c) => {
+                    const isChecked = Array.isArray(formData.jointConcerns) && formData.jointConcerns.includes(c.id);
+                    return (
+                      <button
+                        key={c.id}
+                        type="button"
+                        onClick={() => handleToggleJointConcern(c.id)}
+                        className={`p-2.5 rounded-xl border text-left text-xs transition-all flex items-start gap-2 ${
+                          isChecked
+                            ? 'bg-amber-950/40 border-amber-500/60 text-amber-200'
+                            : 'bg-gym-900/60 border-gym-800 text-slate-400 hover:text-slate-300'
+                        }`}
+                      >
+                        <span className="text-sm shrink-0">{c.icon}</span>
+                        <span className="text-[11px] leading-tight font-medium">{c.label}</span>
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
-            )}
-
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-              <div className="bg-gym-900/80 p-2.5 rounded-xl border border-gym-800 text-center">
-                <span className="text-[10px] text-slate-400 block uppercase font-bold">Tasa Basal (BMR)</span>
-                <strong className="text-sm sm:text-base font-black text-white font-mono">{activePlan.bmr}</strong>
-                <span className="text-[9px] text-slate-500 block">kcal/día reposo</span>
-              </div>
-              <div className="bg-gym-900/80 p-2.5 rounded-xl border border-gym-800 text-center">
-                <span className="text-[10px] text-slate-400 block uppercase font-bold">Gasto Total (TDEE)</span>
-                <strong className="text-sm sm:text-base font-black text-amber-400 font-mono">{activePlan.tdee}</strong>
-                <span className="text-[9px] text-slate-500 block">kcal con entreno</span>
-              </div>
-              <div className="bg-gym-900/80 p-2.5 rounded-xl border border-emerald-500/40 text-center bg-emerald-500/10">
-                <span className="text-[10px] text-emerald-300 block uppercase font-bold">Meta Calórica</span>
-                <strong className="text-sm sm:text-base font-black text-emerald-400 font-mono">{activePlan.targetCals}</strong>
-                <span className="text-[9px] text-emerald-300/80 block">kcal objetivo</span>
-              </div>
-              <div className="bg-gym-900/80 p-2.5 rounded-xl border border-gym-800 text-center">
-                <span className="text-[10px] text-slate-400 block uppercase font-bold">IMC & Estado</span>
-                <strong className="text-sm sm:text-base font-black text-sky-400 font-mono">{activePlan.bmi}</strong>
-                <span className="text-[9px] text-slate-400 block truncate">{activePlan.bmiCategory}</span>
-              </div>
             </div>
+          )}
 
-            {/* Target Macronutrient Breakdown */}
-            <div className="pt-2 border-t border-gym-800 grid grid-cols-3 gap-2 text-center text-xs font-mono">
-              <div className="p-2 rounded-xl bg-sky-950/40 border border-sky-500/30">
-                <span className="text-[10px] text-sky-400 block font-bold">Proteína ({activePlan.macroPercentages.proteinPct}%)</span>
-                <strong className="text-white text-sm">{activePlan.targetProtein}g</strong>
-                <span className="text-[9px] text-slate-400 block">({(activePlan.targetProtein / activePlan.weightKg).toFixed(1)} g/kg)</span>
-              </div>
-              <div className="p-2 rounded-xl bg-amber-950/40 border border-amber-500/30">
-                <span className="text-[10px] text-amber-400 block font-bold">Carbohidratos ({activePlan.macroPercentages.carbsPct}%)</span>
-                <strong className="text-white text-sm">{activePlan.targetCarbs}g</strong>
-                <span className="text-[9px] text-slate-400 block">(energía entreno)</span>
-              </div>
-              <div className="p-2 rounded-xl bg-pink-950/40 border border-pink-500/30">
-                <span className="text-[10px] text-pink-400 block font-bold">Grasas ({activePlan.macroPercentages.fatsPct}%)</span>
-                <strong className="text-white text-sm">{activePlan.targetFats}g</strong>
-                <span className="text-[9px] text-slate-400 block">({(activePlan.targetFats / activePlan.weightKg).toFixed(2)} g/kg)</span>
-              </div>
-            </div>
+          {/* Form Actions Footer */}
+          <div className="pt-3 border-t border-gym-800 flex gap-3">
+            <button
+              type="button"
+              onClick={onClose}
+              className="flex-1 py-2.5 rounded-xl bg-gym-800 hover:bg-gym-700 text-slate-300 font-bold text-xs transition-colors"
+            >
+              Cerrar
+            </button>
+            <button
+              type="button"
+              onClick={handleSubmit}
+              className="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-emerald-500 to-sky-500 hover:from-emerald-400 hover:to-sky-400 text-gym-950 font-black text-xs transition-all shadow-lg shadow-emerald-500/20 flex items-center justify-center gap-1.5"
+            >
+              <Check className="w-4 h-4" />
+              <span>Guardar Perfil & Equipamiento</span>
+            </button>
           </div>
-
-          {/* FORMULARIO DE MEDIDAS & CALIBRACIÓN BIOMÉTRICA */}
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="border-t border-gym-800 pt-3">
-              <span className="text-xs font-black uppercase text-slate-300 tracking-wider block mb-2">
-                Medidas Corporales & Antropometría
-              </span>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                <div>
-                  <label className="block text-[11px] font-bold text-slate-300 mb-1">
-                    Edad (años)
-                  </label>
-                  <input
-                    type="number"
-                    min="18"
-                    max="90"
-                    value={formData.age}
-                    onChange={(e) => handleFieldChange('age', e.target.value)}
-                    className="w-full bg-gym-950 border border-gym-700 rounded-xl px-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-emerald-500"
-                    required
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-[11px] font-bold text-slate-300 mb-1">
-                    Altura (cm)
-                  </label>
-                  <input
-                    type="number"
-                    min="130"
-                    max="220"
-                    value={formData.heightCm}
-                    onChange={(e) => handleFieldChange('heightCm', e.target.value)}
-                    className="w-full bg-gym-950 border border-gym-700 rounded-xl px-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-emerald-500"
-                    required
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-[11px] font-bold text-slate-300 mb-1">
-                    Peso Activo (kg)
-                  </label>
-                  <input
-                    type="number"
-                    step="0.1"
-                    min="40"
-                    max="180"
-                    value={formData.currentWeightKg}
-                    onChange={(e) => handleFieldChange('currentWeightKg', e.target.value)}
-                    className="w-full bg-gym-950 border border-gym-700 rounded-xl px-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-emerald-500"
-                    required
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-[11px] font-bold text-pink-400 mb-1 flex items-center gap-1">
-                    <Ruler className="w-3 h-3" />
-                    <span>Cintura (cm)</span>
-                  </label>
-                  <input
-                    type="number"
-                    step="0.5"
-                    min="50"
-                    max="160"
-                    placeholder="Ej: 92"
-                    value={formData.waistCm || ''}
-                    onChange={(e) => handleFieldChange('waistCm', e.target.value)}
-                    className="w-full bg-gym-950 border border-pink-500/40 rounded-xl px-3 py-2 text-xs text-pink-300 font-mono font-bold focus:outline-none focus:border-pink-500"
-                  />
-                </div>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div>
-                <label className="block text-[11px] font-bold text-slate-300 mb-1">
-                  Nivel de Actividad Física (PAL)
-                </label>
-                <select
-                  value={formData.activityLevel}
-                  onChange={(e) => handleFieldChange('activityLevel', e.target.value)}
-                  className="w-full bg-gym-950 border border-gym-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500"
-                >
-                  {Object.entries(ACTIVITY_MULTIPLIERS).map(([key, opt]) => (
-                    <option key={key} value={key}>
-                      {opt.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-[11px] font-bold text-slate-300 mb-1">
-                  Cadera Opcional (cm)
-                </label>
-                <input
-                  type="number"
-                  step="0.5"
-                  min="60"
-                  max="160"
-                  placeholder="Ej: 102"
-                  value={formData.hipsCm || ''}
-                  onChange={(e) => handleFieldChange('hipsCm', e.target.value)}
-                  className="w-full bg-gym-950 border border-gym-700 rounded-xl px-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-emerald-500"
-                />
-              </div>
-            </div>
-
-            {/* Actions */}
-            <div className="pt-2 flex gap-3">
-              <button
-                type="button"
-                onClick={onClose}
-                className="flex-1 py-2.5 rounded-xl bg-gym-800 hover:bg-gym-700 text-slate-300 font-bold text-xs transition-colors"
-              >
-                Cancelar
-              </button>
-              <button
-                type="submit"
-                className="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-emerald-500 to-sky-500 hover:from-emerald-400 hover:to-sky-400 text-gym-950 font-black text-xs transition-all shadow-lg shadow-emerald-500/20 flex items-center justify-center gap-1.5"
-              >
-                <Check className="w-4 h-4" />
-                <span>Guardar Modos & Medidas</span>
-              </button>
-            </div>
-          </form>
         </div>
       </div>
     </div>

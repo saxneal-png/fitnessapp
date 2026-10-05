@@ -9,7 +9,10 @@ import {
   subscribeToWeeklyMenu,
   saveNutritionLog,
   deleteNutritionLog,
-  subscribeToNutritionLogs
+  subscribeToNutritionLogs,
+  getLocalPantryItems,
+  getLocalWeeklyMenu,
+  DUO_DEFAULT_PANTRY
 } from '../firebase/config';
 import { calculateAthleteNutrition } from '../services/nutritionCalculator';
 import { subscribeToFoodCatalog, saveFoodItemToKnowledgeBase } from '../services/foodKnowledgeService';
@@ -61,39 +64,35 @@ const MENU_STORAGE_KEY = 'fitness_duo_weekly_menu';
 const DEFAULT_COMMON_INGREDIENTS = [
   { id: 'p1', name: 'Huevos', category: 'Proteína' },
   { id: 'p2', name: 'Pechuga de pollo', category: 'Proteína' },
-  { id: 'p3', name: 'Atún en lata / agua', category: 'Proteína' },
-  { id: 'p4', name: 'Carne magra / molida', category: 'Proteína' },
-  { id: 'p5', name: 'Yogurt griego natural', category: 'Proteína' },
+  { id: 'p3', name: 'Salmón', category: 'Proteína' },
+  { id: 'p4', name: 'Merluza', category: 'Proteína' },
+  { id: 'p5', name: 'Atún en lata / agua', category: 'Proteína' },
+  { id: 'p6', name: 'Carne magra / Posta rosada', category: 'Proteína' },
+  { id: 'p7', name: 'Yogurt griego natural', category: 'Proteína' },
   { id: 'c1', name: 'Arroz integral / blanco', category: 'Carbohidratos' },
   { id: 'c2', name: 'Avena integral', category: 'Carbohidratos' },
-  { id: 'c3', name: 'Papas / Camote', category: 'Carbohidratos' },
-  { id: 'c4', name: 'Pan integral', category: 'Carbohidratos' },
-  { id: 'v1', name: 'Espinacas / Hojas verdes', category: 'Verduras' },
-  { id: 'v2', name: 'Tomates', category: 'Verduras' },
-  { id: 'v3', name: 'Brócoli / Zanahorias', category: 'Verduras' },
-  { id: 'v4', name: 'Palta / Aguacate', category: 'Grasas' },
-  { id: 'g1', name: 'Aceite de oliva', category: 'Grasas' },
-  { id: 'g2', name: 'Frutos secos / Nueces', category: 'Grasas' },
+  { id: 'c3', name: 'Marraqueta', category: 'Carbohidratos' },
+  { id: 'c4', name: 'Papas / Camote', category: 'Carbohidratos' },
+  { id: 'c5', name: 'Pan integral', category: 'Carbohidratos' },
+  { id: 'v1', name: 'Zapallo italiano', category: 'Verduras' },
+  { id: 'v2', name: 'Espinacas / Hojas verdes', category: 'Verduras' },
+  { id: 'v3', name: 'Tomates', category: 'Verduras' },
+  { id: 'v4', name: 'Brócoli / Zanahorias', category: 'Verduras' },
+  { id: 'g1', name: 'Palta / Aguacate', category: 'Grasas' },
+  { id: 'g2', name: 'Aceite de oliva', category: 'Grasas' },
+  { id: 'g3', name: 'Frutos secos / Nueces', category: 'Grasas' },
 ];
 
 export function PantryPlanner() {
   const { currentUser, householdId, isCloudOnline, isDuoHousehold, userProfile } = useAuth();
   
   const [pantryItems, setPantryItems] = useState(() => {
-    try {
-      const saved = localStorage.getItem(PANTRY_STORAGE_KEY);
-      if (saved) return JSON.parse(saved);
-    } catch (e) {}
-    return ['Huevos', 'Pechuga de pollo', 'Arroz integral / blanco', 'Avena integral', 'Atún en lata / agua', 'Palta / Aguacate', 'Espinacas / Hojas verdes', 'Aceite de oliva'];
+    return getLocalPantryItems(householdId || 'hogar-dionicio-paula');
   });
 
   const [customItemInput, setCustomItemInput] = useState('');
   const [generatedMenu, setGeneratedMenu] = useState(() => {
-    try {
-      const saved = localStorage.getItem(MENU_STORAGE_KEY);
-      if (saved) return JSON.parse(saved);
-    } catch (e) {}
-    return null;
+    return getLocalWeeklyMenu(householdId || 'hogar-dionicio-paula');
   });
 
   const [isLoading, setIsLoading] = useState(false);
@@ -1077,6 +1076,7 @@ export function PantryPlanner() {
             customInput={customItemInput}
             onCustomInputChange={setCustomItemInput}
             presetIngredients={DEFAULT_COMMON_INGREDIENTS}
+            isDuoHousehold={isDuoHousehold}
           />
 
           {/* BASE DE CONOCIMIENTO DE MARCAS Y ALIMENTOS APRENDIDOS (FIRESTORE) */}

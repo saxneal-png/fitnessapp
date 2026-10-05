@@ -8,7 +8,8 @@ export function PantryList({
   onAddCustom,
   customInput,
   onCustomInputChange,
-  presetIngredients = []
+  presetIngredients = [],
+  isDuoHousehold = false
 }) {
   return (
     <div className="bg-gym-800/90 border border-gym-700 rounded-2xl p-5 shadow-xl space-y-4">
@@ -17,7 +18,9 @@ export function PantryList({
           <ShoppingBag className="w-5 h-5 text-emerald-400" />
           <span>Ingredientes en Despensa ({pantryItems.length})</span>
         </h3>
-        <span className="text-xs text-slate-400 font-mono">Compartido Dúo</span>
+        <span className="text-xs text-slate-400 font-mono">
+          {isDuoHousehold ? 'Compartido Dúo' : 'Despensa Personal'}
+        </span>
       </div>
 
       {/* Preset quick buttons */}

@@ -28,23 +28,37 @@ import {
   EXERCISE_MUSCLE_CATEGORIES, 
   getExerciseAdaptation, 
   calculateDailyMuscleCategories, 
-  calculateStrengthCaloriesBurned 
+  calculateStrengthCaloriesBurned,
+  getStoredCustomWorkoutPlan
 } from '../services/adaptiveWorkoutService';
 import { Layers } from 'lucide-react';
 
 export function WorkoutLogger() {
   const { currentUser, householdId, isDuoHousehold, userProfile, allUsers } = useAuth();
   
+  const customPlan = useMemo(() => getStoredCustomWorkoutPlan(currentUser, householdId), [currentUser, householdId]);
+  const activeWorkoutDays = (customPlan && Array.isArray(customPlan.days) && customPlan.days.length > 0)
+    ? customPlan.days
+    : WORKOUT_DAYS;
+
   const [logType, setLogType] = useState('strength'); // 'strength' or 'treadmill'
-  const [selectedDay, setSelectedDay] = useState('torso'); // 'torso' or 'pierna_core'
-  const [selectedExerciseId, setSelectedExerciseId] = useState('floor_press');
+  const [selectedDay, setSelectedDay] = useState(() => activeWorkoutDays[0]?.id || 'torso');
+  const [selectedExerciseId, setSelectedExerciseId] = useState(() => activeWorkoutDays[0]?.exercises?.[0]?.id || 'floor_press');
   const [workoutDate, setWorkoutDate] = useState(() => getLocalDateString());
   
-  const currentWorkoutDay = WORKOUT_DAYS.find(d => d.id === selectedDay) || WORKOUT_DAYS[0];
-  const currentExercise = currentWorkoutDay.exercises.find(e => e.id === selectedExerciseId) || currentWorkoutDay.exercises[0];
+  // Update selected day/exercise if activeWorkoutDays changes
+  useEffect(() => {
+    if (activeWorkoutDays.length > 0 && !activeWorkoutDays.some(d => d.id === selectedDay)) {
+      setSelectedDay(activeWorkoutDays[0].id);
+      setSelectedExerciseId(activeWorkoutDays[0].exercises?.[0]?.id || 'floor_press');
+    }
+  }, [activeWorkoutDays, selectedDay]);
+
+  const currentWorkoutDay = activeWorkoutDays.find(d => d.id === selectedDay) || activeWorkoutDays[0];
+  const currentExercise = currentWorkoutDay?.exercises?.find(e => e.id === selectedExerciseId) || currentWorkoutDay?.exercises?.[0] || WORKOUT_DAYS[0].exercises[0];
 
   const isMale = (userProfile?.gender || (currentUser === 'dionicio' ? 'male' : 'female')) === 'male';
-  const defaultWeight = isMale ? currentExercise.defaultWeightDionicio : currentExercise.defaultWeightPaula;
+  const defaultWeight = isMale ? (currentExercise.defaultWeightDionicio || 10) : (currentExercise.defaultWeightPaula || 4);
 
   const [sets, setSets] = useState([
     { setNumber: 1, weightKg: defaultWeight, reps: 10, rpe: 7.5 },

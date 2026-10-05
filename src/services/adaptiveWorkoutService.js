@@ -16,6 +16,13 @@ export const EXERCISE_MUSCLE_CATEGORIES = {
     type: 'compound',
     movementPattern: 'Empuje horizontal en suelo'
   },
+  pushups: {
+    category: 'Pectoral & Empuje Corporal',
+    shortCategory: 'Pectoral / Core',
+    primaryMuscle: 'Pectoral mayor, tríceps, serrato anterior',
+    type: 'compound',
+    movementPattern: 'Empuje horizontal con peso corporal'
+  },
   remo_unilateral: {
     category: 'Espalda & Tirón Unilateral',
     shortCategory: 'Espalda',
@@ -23,12 +30,33 @@ export const EXERCISE_MUSCLE_CATEGORIES = {
     type: 'compound',
     movementPattern: 'Tracción horizontal unilateral'
   },
+  pullups_dominadas: {
+    category: 'Espalda & Tirón Vertical',
+    shortCategory: 'Dorsal',
+    primaryMuscle: 'Dorsal ancho, bíceps braquial, core',
+    type: 'compound',
+    movementPattern: 'Tracción vertical en barra'
+  },
+  remo_con_banda: {
+    category: 'Espalda & Activación Escapular',
+    shortCategory: 'Espalda / Postura',
+    primaryMuscle: 'Romboides, deltoides posterior, dorsal',
+    type: 'compound',
+    movementPattern: 'Tracción horizontal con resistencia progresiva'
+  },
   press_militar: {
     category: 'Hombros & Empuje Vertical',
     shortCategory: 'Hombros',
     primaryMuscle: 'Deltoides anterior y lateral, tríceps',
     type: 'compound',
     movementPattern: 'Empuje vertical'
+  },
+  elevaciones_laterales: {
+    category: 'Hombros & Aislamiento',
+    shortCategory: 'Deltoides',
+    primaryMuscle: 'Deltoides lateral',
+    type: 'isolation',
+    movementPattern: 'Abducción de hombro'
   },
   curl_triceps: {
     category: 'Brazos & Aislamiento',
@@ -44,12 +72,33 @@ export const EXERCISE_MUSCLE_CATEGORIES = {
     type: 'compound',
     movementPattern: 'Sentadilla dominante de rodilla'
   },
+  sentadillas_aire: {
+    category: 'Cuádriceps & Movilidad',
+    shortCategory: 'Pierna / Cadera',
+    primaryMuscle: 'Cuádriceps, glúteo mayor',
+    type: 'compound',
+    movementPattern: 'Sentadilla con peso corporal'
+  },
   peso_muerto_rumano: {
     category: 'Cadera & Cadena Posterior',
     shortCategory: 'Isquiotibiales / Glúteos',
     primaryMuscle: 'Isquiotibiales, glúteos, erectores espinales',
     type: 'compound',
     movementPattern: 'Bisagra de cadera'
+  },
+  zancadas_estaticas: {
+    category: 'Pierna Unilateral & Estabilidad',
+    shortCategory: 'Pierna / Glúteos',
+    primaryMuscle: 'Cuádriceps, glúteo medio y mayor',
+    type: 'compound',
+    movementPattern: 'Zancada unilateral'
+  },
+  kettlebell_swing: {
+    category: 'Cadena Posterior & Potencia',
+    shortCategory: 'Glúteos / Cardio',
+    primaryMuscle: 'Glúteos, isquiotibiales, core, cardiovascular',
+    type: 'compound',
+    movementPattern: 'Bisagra explosiva balística'
   },
   puente_gluteos: {
     category: 'Glúteos & Estabilidad Pélvica',
@@ -249,17 +298,310 @@ export function getExerciseAdaptation(userId, exercise, logs = [], activeMode = 
   };
 }
 
+export const CUSTOM_PLAN_STORAGE_KEY = 'fitness_duo_custom_plan';
+
+/**
+ * Guarda el plan individualizado y focalizado diseñado para un atleta
+ */
+export function saveCustomWorkoutPlan(userId, plan, householdId = 'hogar-dionicio-paula') {
+  try {
+    const key = `${CUSTOM_PLAN_STORAGE_KEY}_${householdId}_${userId}`;
+    localStorage.setItem(key, JSON.stringify(plan));
+    return plan;
+  } catch (e) {
+    console.error('Error saving custom workout plan:', e);
+    return null;
+  }
+}
+
+/**
+ * Obtiene el plan personalizado activo del atleta si existe
+ */
+export function getStoredCustomWorkoutPlan(userId, householdId = 'hogar-dionicio-paula') {
+  try {
+    const key = `${CUSTOM_PLAN_STORAGE_KEY}_${householdId}_${userId}`;
+    const raw = localStorage.getItem(key);
+    if (raw) return JSON.parse(raw);
+  } catch (e) {}
+  return null;
+}
+
+/**
+ * Elimina o resetea el plan personalizado para volver a la rutina base
+ */
+export function clearCustomWorkoutPlan(userId, householdId = 'hogar-dionicio-paula') {
+  try {
+    const key = `${CUSTOM_PLAN_STORAGE_KEY}_${householdId}_${userId}`;
+    localStorage.removeItem(key);
+  } catch (e) {}
+}
+
+/**
+ * Generador determinístico de contingencia (Offline Fallback)
+ * Diseña un plan individual y focalizado respetando el equipamiento, los minutos disponibles,
+ * la edad, el modo fisiológico y los cuidados articulares del atleta.
+ */
+export function generateDeterministicWorkoutPlan(userId = 'dionicio', householdId = 'hogar-dionicio-paula') {
+  const biometrics = getAthleteBiometrics(userId, householdId);
+  const equip = biometrics.equipment || {};
+  const sched = biometrics.schedule || {};
+  const concerns = Array.isArray(biometrics.jointConcerns) ? biometrics.jointConcerns : [];
+  const durationMin = Number(sched.sessionDurationMinutes) || 45;
+  const daysCount = Number(sched.weeklyDaysTarget) || 4;
+  const focus = sched.focusArea || 'balanced';
+  const isDionicio = userId === 'dionicio';
+  const userConfig = USERS[userId] || USERS.dionicio;
+
+  const hasDumbbells = Boolean(equip.hasDumbbells);
+  const maxDumbbellKg = equip.maxDumbbellWeightPerHandKg || (isDionicio ? 20 : 10);
+  const hasPullUpBar = Boolean(equip.hasPullUpBar);
+  const hasBands = Boolean(equip.hasResistanceBands);
+  const hasKettlebell = Boolean(equip.hasKettlebell);
+  const hasTreadmill = Boolean(equip.hasTreadmill);
+
+  // Pool de ejercicios según equipamiento y restricciones articulares
+  // 1. Ejercicios de Empuje Torso
+  let chestExercise = {
+    id: 'floor_press',
+    name: 'Floor press con mancuernas modulares',
+    targetSets: '3',
+    targetReps: '10 - 12',
+    restSeconds: 60,
+    equipment: 'Mancuernas + Mat',
+    instructions: ['Codos a 45° respecto al torso', 'Empuje vertical y descenso controlado de 2-3 seg.'],
+    defaultWeightDionicio: 10,
+    defaultWeightPaula: 4
+  };
+
+  if (!hasDumbbells) {
+    chestExercise = {
+      id: 'pushups',
+      name: concerns.includes('shoulder_safe') ? 'Flexiones inclinadas seguras con manos elevadas' : 'Flexiones de brazos (Push-ups)',
+      targetSets: '3',
+      targetReps: '10 - 15',
+      restSeconds: 60,
+      equipment: 'Peso Corporal',
+      instructions: ['Cuerpo recto en plancha activa', 'Pecho casi tocando el suelo o apoyo elevado'],
+      defaultWeightDionicio: 0,
+      defaultWeightPaula: 0
+    };
+  }
+
+  // 2. Ejercicios de Tirón / Espalda
+  let backExercise = {
+    id: 'remo_unilateral',
+    name: 'Remo unilateral con mancuerna',
+    targetSets: '3',
+    targetReps: '10 - 12 por brazo',
+    restSeconds: 45,
+    equipment: 'Mancuerna + Apoyo',
+    instructions: ['Espalda alineada a 45°', 'Tira llevando el codo al bolsillo sin rotar el torso'],
+    defaultWeightDionicio: 8,
+    defaultWeightPaula: 4
+  };
+
+  if (hasPullUpBar && !concerns.includes('shoulder_safe')) {
+    backExercise = {
+      id: 'pullups_dominadas',
+      name: 'Dominadas / Tracciones en barra fija (asistidas o libres)',
+      targetSets: '3',
+      targetReps: '6 - 10',
+      restSeconds: 75,
+      equipment: 'Barra de Dominadas',
+      instructions: ['Agarre al ancho de hombros', 'Pecho hacia la barra retrayendo escápulas'],
+      defaultWeightDionicio: 0,
+      defaultWeightPaula: 0
+    };
+  } else if (!hasDumbbells && hasBands) {
+    backExercise = {
+      id: 'remo_con_banda',
+      name: 'Remo horizontal sentado con banda elástica',
+      targetSets: '3',
+      targetReps: '12 - 15',
+      restSeconds: 45,
+      equipment: 'Bandas Elásticas',
+      instructions: ['Espalda erguida, aprieta escápulas durante 1 segundo al final'],
+      defaultWeightDionicio: 0,
+      defaultWeightPaula: 0
+    };
+  }
+
+  // 3. Ejercicio de Pierna (Dominante rodilla)
+  let quadExercise = {
+    id: 'goblet_squat',
+    name: 'Goblet squat con mancuerna al pecho',
+    targetSets: '3',
+    targetReps: '10 - 12',
+    restSeconds: 60,
+    equipment: hasDumbbells ? 'Mancuerna' : (hasKettlebell ? 'Kettlebell' : 'Peso Corporal'),
+    instructions: ['Pies al ancho de hombros, puntas ligeramente hacia afuera', 'Desciende en 3 segundos'],
+    defaultWeightDionicio: hasDumbbells ? 10 : 0,
+    defaultWeightPaula: hasDumbbells ? 6 : 0
+  };
+
+  if (concerns.includes('knee_friendly')) {
+    quadExercise = {
+      id: 'sentadillas_aire',
+      name: 'Sentadilla en caja / banco (Box Squat rodillas seguras)',
+      targetSets: '3',
+      targetReps: '12',
+      restSeconds: 60,
+      equipment: 'Silla / Banco + Mat',
+      instructions: ['Toca el asiento suavemente y sube empujando los talones', 'Cero impacto ni dolor en rótula'],
+      defaultWeightDionicio: hasDumbbells ? 6 : 0,
+      defaultWeightPaula: hasDumbbells ? 3 : 0
+    };
+  }
+
+  // 4. Ejercicio de Cadena Posterior (Isquiotibiales & Glúteos)
+  let posteriorExercise = {
+    id: concerns.includes('lower_back_safe') ? 'puente_gluteos' : 'peso_muerto_rumano',
+    name: concerns.includes('lower_back_safe') 
+      ? 'Puente de glúteos con pausa isométrica (Espalda 100% protegida)' 
+      : 'Peso muerto rumano con mancuernas (Bisagra de cadera)',
+    targetSets: '3',
+    targetReps: '10 - 12',
+    restSeconds: 60,
+    equipment: hasDumbbells ? 'Mancuernas + Mat' : 'Mat de suelo',
+    instructions: concerns.includes('lower_back_safe') 
+      ? ['Eleva la cadera contrayendo glúteos arriba', 'Sin forzar la columna lumbar']
+      : ['Micro-flexión de rodillas', 'Lleva la cadera hacia atrás con espalda neutra'],
+    defaultWeightDionicio: hasDumbbells ? (concerns.includes('lower_back_safe') ? 8 : 12) : 0,
+    defaultWeightPaula: hasDumbbells ? (concerns.includes('lower_back_safe') ? 4 : 6) : 0
+  };
+
+  if (hasKettlebell && !concerns.includes('lower_back_safe') && focus === 'fat_loss_metabolic') {
+    posteriorExercise = {
+      id: 'kettlebell_swing',
+      name: 'Kettlebell swing balístico (Cadena posterior & Quema calórica)',
+      targetSets: '3',
+      targetReps: '15',
+      restSeconds: 45,
+      equipment: 'Kettlebell',
+      instructions: ['Bisagra potente de cadera', 'Los brazos son ganchos, la potencia sale de los glúteos'],
+      defaultWeightDionicio: 12,
+      defaultWeightPaula: 8
+    };
+  }
+
+  // 5. Ejercicio de Core & Hombros/Brazos
+  const coreExercise = {
+    id: 'plancha_abdominal',
+    name: 'Plancha abdominal isométrica anti-extensión',
+    targetSets: '3',
+    targetReps: '25 - 35 seg',
+    restSeconds: 45,
+    equipment: 'Mat de suelo',
+    instructions: ['Cuerpo en línea recta desde nuca a talones', 'Activa abdomen y glúteos'],
+    defaultWeightDionicio: 0,
+    defaultWeightPaula: 0
+  };
+
+  const shoulderArmsExercise = {
+    id: concerns.includes('shoulder_safe') ? 'elevaciones_laterales' : 'press_militar',
+    name: concerns.includes('shoulder_safe')
+      ? 'Elevaciones laterales con mancuernas / banda (Plano escapular)'
+      : 'Press militar de hombros con mancuernas',
+    targetSets: '3',
+    targetReps: '10 - 12',
+    restSeconds: 45,
+    equipment: hasDumbbells ? 'Mancuernas' : 'Bandas',
+    instructions: ['Codos ligeramente al frente del torso', 'Sin tirones de cuello'],
+    defaultWeightDionicio: hasDumbbells ? 5 : 0,
+    defaultWeightPaula: hasDumbbells ? 3 : 0
+  };
+
+  // Armar días de rutina según duración y días por semana
+  // Si duración es corta (<= 35 min), menos ejercicios por día con alta densidad
+  const maxExercisesPerDay = durationMin <= 25 ? 3 : (durationMin <= 35 ? 4 : (durationMin <= 45 ? 5 : 5));
+
+  let day1Exercises = [chestExercise, backExercise, shoulderArmsExercise];
+  let day2Exercises = [quadExercise, posteriorExercise, coreExercise];
+
+  if (maxExercisesPerDay >= 4) {
+    day1Exercises.push(coreExercise);
+    day2Exercises.push(shoulderArmsExercise);
+  }
+  if (maxExercisesPerDay >= 5) {
+    day1Exercises.push({
+      id: 'curl_triceps',
+      name: 'Curl bíceps & Extensión tríceps en superserie',
+      targetSets: '2 - 3',
+      targetReps: '10 - 12',
+      restSeconds: 45,
+      equipment: hasDumbbells ? 'Mancuernas' : 'Bandas',
+      instructions: ['Control estricto en la bajada sin balancear la espalda'],
+      defaultWeightDionicio: hasDumbbells ? 6 : 0,
+      defaultWeightPaula: hasDumbbells ? 3 : 0
+    });
+    day2Exercises.push({
+      id: 'zancadas_estaticas',
+      name: 'Zancadas estáticas unilaterales (Split Squat)',
+      targetSets: '2 - 3',
+      targetReps: '10 por pierna',
+      restSeconds: 45,
+      equipment: hasDumbbells ? 'Mancuernas' : 'Peso Corporal',
+      instructions: ['Paso amplio, baja la rodilla trasera hacia el suelo con torso erguido'],
+      defaultWeightDionicio: hasDumbbells ? 8 : 0,
+      defaultWeightPaula: hasDumbbells ? 4 : 0
+    });
+  }
+
+  const generatedPlan = {
+    userId,
+    athleteName: userConfig.name,
+    generatedAt: new Date().toISOString(),
+    isCustomPlan: true,
+    planTitle: `Plan Focalizado ${focus.replace('_', ' ').toUpperCase()} • ${durationMin} min`,
+    durationMinutes: durationMin,
+    weeklyDaysTarget: daysCount,
+    focusArea: focus,
+    equipmentSummary: Object.entries(equip).filter(([k, v]) => v === true).map(([k]) => k.replace('has', '')).join(', ') || 'Peso Corporal',
+    jointConcernsApplied: concerns,
+    days: [
+      {
+        id: 'custom_day_1',
+        name: `Día 1: Torso, Empuje & Tirón (${durationMin} min)`,
+        description: `Rutina focalizada para ${durationMin} minutos optimizada con ${hasDumbbells ? 'mancuernas' : 'equipamiento disponible'}.`,
+        days: daysCount <= 3 ? ['Lunes'] : ['Lunes', 'Jueves'],
+        exercises: day1Exercises
+      },
+      {
+        id: 'custom_day_2',
+        name: `Día 2: Pierna, Cadena Posterior & Core (${durationMin} min)`,
+        description: `Estímulo de tren inferior y estabilidad central adaptado a ${userConfig.name} (${biometrics.age} años).`,
+        days: daysCount <= 3 ? ['Miércoles'] : ['Martes', 'Viernes'],
+        exercises: day2Exercises
+      }
+    ],
+    cardioFinisher: hasTreadmill && durationMin >= 45 ? {
+      name: 'Cardio Inclinado Zona 2',
+      durationMinutes: durationMin >= 60 ? 20 : 10,
+      protocol: 'Caminata en pendiente (inclinación 5-8%, 4.2 km/h) para quema de grasa visceral sin impacto'
+    } : null
+  };
+
+  saveCustomWorkoutPlan(userId, generatedPlan, householdId);
+  return generatedPlan;
+}
+
 /**
  * Genera el Plan de Entrenamiento Adaptativo Completo para un Atleta
- * evaluando los días Torso y Pierna/Core.
+ * Si el atleta tiene un plan individual y focalizado guardado, adapta sus ejercicios en vivo.
  */
 export function getAdaptiveWorkoutPlan(userId = 'dionicio', logs = [], householdId = 'hogar-dionicio-paula') {
   const biometrics = getAthleteBiometrics(userId, householdId);
   const activeMode = biometrics.activeMode || 'visceral_fat_loss';
   const userConfig = USERS[userId] || USERS.dionicio;
 
-  const adaptedDays = WORKOUT_DAYS.map(day => {
-    const adaptedExercises = day.exercises.map(exercise => {
+  // 1. Revisar si el usuario tiene un Plan Personalizado Focalizado activo
+  const customPlan = getStoredCustomWorkoutPlan(userId, householdId);
+  const baseDays = (customPlan && Array.isArray(customPlan.days) && customPlan.days.length > 0)
+    ? customPlan.days
+    : WORKOUT_DAYS;
+
+  const adaptedDays = baseDays.map(day => {
+    const adaptedExercises = (day.exercises || []).map(exercise => {
       return getExerciseAdaptation(userId, exercise, logs, activeMode);
     });
 
@@ -267,7 +609,7 @@ export function getAdaptiveWorkoutPlan(userId = 'dionicio', logs = [], household
       id: day.id,
       name: day.name,
       description: day.description,
-      days: day.days,
+      days: day.days || ['Lunes', 'Jueves'],
       exercises: adaptedExercises
     };
   });
@@ -277,6 +619,11 @@ export function getAdaptiveWorkoutPlan(userId = 'dionicio', logs = [], household
     athleteName: userConfig.name,
     activeMode,
     biometrics,
+    isCustomPlan: Boolean(customPlan),
+    customPlanTitle: customPlan?.planTitle || null,
+    durationMinutes: customPlan?.durationMinutes || 60,
+    weeklyDaysTarget: customPlan?.weeklyDaysTarget || 4,
+    cardioFinisher: customPlan?.cardioFinisher || null,
     days: adaptedDays
   };
 }

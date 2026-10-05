@@ -7,7 +7,9 @@ import {
   subscribeToWeeklyMenu,
   saveNutritionLog,
   deleteNutritionLog,
-  subscribeToNutritionLogs
+  subscribeToNutritionLogs,
+  getLocalPantryItems,
+  getLocalWeeklyMenu
 } from '../firebase/config';
 import { generateStrictPantryMenu, getStoredGeminiKey, analyzeCoachChatWithAction } from '../services/geminiService';
 import { subscribeToFoodCatalog } from '../services/foodKnowledgeService';
@@ -16,26 +18,15 @@ import { calculateAthleteNutrition } from '../services/nutritionCalculator';
 import { getLocalDateString } from '../utils/dateUtils';
 import confetti from 'canvas-confetti';
 
-const PANTRY_STORAGE_KEY = 'fitness_duo_pantry_items';
-const MENU_STORAGE_KEY = 'fitness_duo_weekly_menu';
-
 export function usePantryNutrition(selectedAthlete = 'dionicio') {
   const { householdId, isCloudOnline } = useAuth();
 
   const [pantryItems, setPantryItems] = useState(() => {
-    try {
-      const saved = localStorage.getItem(PANTRY_STORAGE_KEY);
-      if (saved) return JSON.parse(saved);
-    } catch (e) {}
-    return ['Huevos', 'Pechuga de pollo', 'Arroz integral / blanco', 'Avena integral', 'Atún en lata / agua', 'Palta / Aguacate', 'Espinacas / Hojas verdes', 'Aceite de oliva'];
+    return getLocalPantryItems(householdId || 'hogar-dionicio-paula');
   });
 
   const [generatedMenu, setGeneratedMenu] = useState(() => {
-    try {
-      const saved = localStorage.getItem(MENU_STORAGE_KEY);
-      if (saved) return JSON.parse(saved);
-    } catch (e) {}
-    return null;
+    return getLocalWeeklyMenu(householdId || 'hogar-dionicio-paula');
   });
 
   const [nutritionLogs, setNutritionLogs] = useState([]);

@@ -35,7 +35,32 @@ export const DEFAULT_BIOMETRICS = {
     targetFats: 55, // 0.64 g/kg de peso total (55g = 495 kcal)
     targetCarbs: 145, // Remanente glucolítico (145g = 580 kcal) -> 520+495+580 = 1595 ~ 1600 kcal
     digestiveProtection: false, // Configurable: techo estricto de grasas
-    maxFatsCap: 45 // Límite cuando la protección está activa
+    maxFatsCap: 45, // Límite cuando la protección está activa
+    equipment: {
+      hasDumbbells: true,
+      maxDumbbellWeightPerHandKg: 20, // 40kg total modular set
+      hasTreadmill: true,
+      hasPullUpBar: false,
+      hasResistanceBands: true,
+      hasKettlebell: true,
+      hasBench: false,
+      hasExerciseMat: true,
+      hasStationaryBike: false,
+      bodyweightOnly: false
+    },
+    schedule: {
+      weeklyDaysTarget: 4,
+      sessionDurationMinutes: 60,
+      preferredTimeSlot: '19:00 - 20:00',
+      focusArea: 'torso_posture'
+    },
+    jointConcerns: ['shoulder_safe', 'lower_back_safe'],
+    extendedMeasurements: {
+      neckCm: 41,
+      chestCm: 104,
+      armCm: 36,
+      thighCm: 59
+    }
   },
   paula: {
     userId: 'paula',
@@ -55,7 +80,32 @@ export const DEFAULT_BIOMETRICS = {
     targetFats: 40, // Piso biológico y Techo Digestivo Estricto (Máx 42g/día)
     targetCarbs: 132, // Remanente con carbohidratos limpios (132g = 528 kcal)
     digestiveProtection: true, // Protección digestiva activa por defecto
-    maxFatsCap: 42 // Techo duro estándar 42g
+    maxFatsCap: 42, // Techo duro estándar 42g
+    equipment: {
+      hasDumbbells: true,
+      maxDumbbellWeightPerHandKg: 10,
+      hasTreadmill: true,
+      hasPullUpBar: false,
+      hasResistanceBands: true,
+      hasKettlebell: false,
+      hasBench: false,
+      hasExerciseMat: true,
+      hasStationaryBike: false,
+      bodyweightOnly: false
+    },
+    schedule: {
+      weeklyDaysTarget: 4,
+      sessionDurationMinutes: 60,
+      preferredTimeSlot: '19:00 - 20:00',
+      focusArea: 'legs_glutes'
+    },
+    jointConcerns: ['cervical_protection', 'knee_friendly'],
+    extendedMeasurements: {
+      neckCm: 34,
+      chestCm: 92,
+      armCm: 28,
+      thighCm: 53
+    }
   }
 };
 
@@ -232,9 +282,30 @@ export function getAthleteBiometrics(userId = 'dionicio', householdId = 'hogar-d
     : Boolean(base.digestiveProtection);
   const maxFatsCap = Number(userStored.maxFatsCap) || Number(base.maxFatsCap) || (userId === 'paula' ? 42 : 45);
 
+  const equipment = {
+    ...(base.equipment || {}),
+    ...(userStored.equipment || {})
+  };
+
+  const schedule = {
+    ...(base.schedule || {}),
+    ...(userStored.schedule || {})
+  };
+
+  const jointConcerns = userStored.jointConcerns || base.jointConcerns || [];
+
+  const extendedMeasurements = {
+    ...(base.extendedMeasurements || {}),
+    ...(userStored.extendedMeasurements || {})
+  };
+
   return {
     ...base,
     ...userStored,
+    equipment,
+    schedule,
+    jointConcerns,
+    extendedMeasurements,
     activeMode,
     digestiveProtection,
     maxFatsCap,
@@ -244,6 +315,38 @@ export function getAthleteBiometrics(userId = 'dionicio', householdId = 'hogar-d
     isWeightFromLog,
     lastWeightDate
   };
+}
+
+/**
+ * Cálculo del Porcentaje de Grasa Corporal por el Método de la Marina de EE.UU. (US Navy Fitness Formula)
+ */
+export function calculateNavyBodyFat({ gender = 'male', heightCm = 175, waistCm, neckCm, hipsCm = null }) {
+  if (!waistCm || !neckCm || !heightCm) return null;
+  const h = Number(heightCm);
+  const w = Number(waistCm);
+  const n = Number(neckCm);
+  const hip = Number(hipsCm);
+
+  if (w <= n || h <= 0) return null;
+
+  try {
+    if (gender === 'female') {
+      if (!hip) return null;
+      // Formula para mujeres: 495 / (1.29579 - 0.35004 * log10(waist + hip - neck) + 0.22100 * log10(height)) - 450
+      const diff = w + hip - n;
+      if (diff <= 0) return null;
+      const pct = 495 / (1.29579 - (0.35004 * Math.log10(diff)) + (0.22100 * Math.log10(h))) - 450;
+      return Number(Math.max(5, Math.min(60, pct)).toFixed(1));
+    } else {
+      // Formula para hombres: 495 / (1.0324 - 0.19077 * log10(waist - neck) + 0.15456 * log10(height)) - 450
+      const diff = w - n;
+      if (diff <= 0) return null;
+      const pct = 495 / (1.0324 - (0.19077 * Math.log10(diff)) + (0.15456 * Math.log10(h))) - 450;
+      return Number(Math.max(4, Math.min(55, pct)).toFixed(1));
+    }
+  } catch (e) {
+    return null;
+  }
 }
 
 export function saveAthleteBiometrics(userId, data, householdId = 'hogar-dionicio-paula') {

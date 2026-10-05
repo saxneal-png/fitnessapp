@@ -516,10 +516,74 @@ export function subscribeToNutritionLogs(householdId = 'hogar-dionicio-paula', o
   }
 }
 
+export const DUO_DEFAULT_PANTRY = [
+  'Huevos',
+  'Pechuga de pollo',
+  'Salmón',
+  'Merluza',
+  'Atún en lata / agua',
+  'Carne magra / Posta rosada',
+  'Arroz integral / blanco',
+  'Zapallo italiano',
+  'Avena integral',
+  'Espinacas / Hojas verdes',
+  'Tomates',
+  'Palta / Aguacate',
+  'Aceite de oliva',
+  'Marraqueta'
+];
+
+export function getLocalPantryItems(householdId = 'hogar-dionicio-paula') {
+  try {
+    const raw = localStorage.getItem(`${LOCAL_STORAGE_PANTRY_KEY}_${householdId}`);
+    if (raw) return JSON.parse(raw);
+    // Backward compatibility: check legacy key
+    const legacy = localStorage.getItem(LOCAL_STORAGE_PANTRY_KEY);
+    if (legacy) {
+      const parsed = JSON.parse(legacy);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        // If it's the family household or only has old items, save to scoped key
+        localStorage.setItem(`${LOCAL_STORAGE_PANTRY_KEY}_${householdId}`, JSON.stringify(parsed));
+        return parsed;
+      }
+    }
+  } catch (e) {
+    console.error('Error loading local pantry items', e);
+  }
+  return householdId === 'hogar-dionicio-paula' ? [...DUO_DEFAULT_PANTRY] : ['Huevos', 'Pechuga de pollo', 'Arroz integral / blanco', 'Avena integral', 'Atún en lata / agua', 'Palta / Aguacate', 'Espinacas / Hojas verdes', 'Aceite de oliva'];
+}
+
+export function saveLocalPantryItems(items, householdId = 'hogar-dionicio-paula') {
+  localStorage.setItem(`${LOCAL_STORAGE_PANTRY_KEY}_${householdId}`, JSON.stringify(items));
+}
+
+export function getLocalWeeklyMenu(householdId = 'hogar-dionicio-paula') {
+  try {
+    const raw = localStorage.getItem(`${LOCAL_STORAGE_MENU_KEY}_${householdId}`);
+    if (raw) return JSON.parse(raw);
+    const legacy = localStorage.getItem(LOCAL_STORAGE_MENU_KEY);
+    if (legacy && householdId === 'hogar-dionicio-paula') {
+      const parsed = JSON.parse(legacy);
+      localStorage.setItem(`${LOCAL_STORAGE_MENU_KEY}_${householdId}`, JSON.stringify(parsed));
+      return parsed;
+    }
+  } catch (e) {
+    console.error('Error loading local weekly menu', e);
+  }
+  return null;
+}
+
+export function saveLocalWeeklyMenu(menuData, householdId = 'hogar-dionicio-paula') {
+  localStorage.setItem(`${LOCAL_STORAGE_MENU_KEY}_${householdId}`, JSON.stringify(menuData));
+}
+
 // Pantry Items Cloud Sync
 
 export async function saveCloudPantryItems(items, householdId = 'hogar-dionicio-paula') {
-  localStorage.setItem(LOCAL_STORAGE_PANTRY_KEY, JSON.stringify(items));
+  saveLocalPantryItems(items, householdId);
+  if (householdId === 'hogar-dionicio-paula') {
+    localStorage.setItem(LOCAL_STORAGE_PANTRY_KEY, JSON.stringify(items));
+  }
   if (db && isInitialized) {
     try {
       await ensureAnonymousAuth();
@@ -533,11 +597,13 @@ export async function saveCloudPantryItems(items, householdId = 'hogar-dionicio-
 }
 
 export function subscribeToPantryItems(householdId, onPantryUpdate) {
+  // Inicializar inmediatamente con los datos locales correctos para este household
+  const cached = getLocalPantryItems(householdId);
+  if (cached && Array.isArray(cached) && cached.length > 0) {
+    onPantryUpdate(cached);
+  }
+
   if (!db || !isInitialized) {
-    try {
-      const saved = localStorage.getItem(LOCAL_STORAGE_PANTRY_KEY);
-      if (saved) onPantryUpdate(JSON.parse(saved));
-    } catch (e) {}
     return () => {};
   }
 
@@ -545,10 +611,15 @@ export function subscribeToPantryItems(householdId, onPantryUpdate) {
     const unsub = onSnapshot(
       doc(db, 'households', householdId, 'pantry', 'items'),
       (snap) => {
-        if (snap.exists() && snap.data()?.items) {
+        if (snap.exists() && snap.data()?.items && Array.isArray(snap.data().items) && snap.data().items.length > 0) {
           const items = snap.data().items;
-          localStorage.setItem(LOCAL_STORAGE_PANTRY_KEY, JSON.stringify(items));
+          saveLocalPantryItems(items, householdId);
           onPantryUpdate(items);
+        } else if (!snap.exists() && householdId === 'hogar-dionicio-paula') {
+          // Si el documento en la nube aún no existe para el hogar familiar, inicializar con la despensa curada
+          const defaultItems = [...DUO_DEFAULT_PANTRY];
+          saveCloudPantryItems(defaultItems, householdId);
+          onPantryUpdate(defaultItems);
         }
       },
       (err) => console.warn('Pantry listener notice:', err)
@@ -561,7 +632,10 @@ export function subscribeToPantryItems(householdId, onPantryUpdate) {
 
 // Weekly Menu Cloud Sync
 export async function saveCloudWeeklyMenu(menuData, householdId = 'hogar-dionicio-paula') {
-  localStorage.setItem(LOCAL_STORAGE_MENU_KEY, JSON.stringify(menuData));
+  saveLocalWeeklyMenu(menuData, householdId);
+  if (householdId === 'hogar-dionicio-paula') {
+    localStorage.setItem(LOCAL_STORAGE_MENU_KEY, JSON.stringify(menuData));
+  }
   if (db && isInitialized) {
     try {
       await ensureAnonymousAuth();
@@ -575,11 +649,12 @@ export async function saveCloudWeeklyMenu(menuData, householdId = 'hogar-dionici
 }
 
 export function subscribeToWeeklyMenu(householdId, onMenuUpdate) {
+  const cached = getLocalWeeklyMenu(householdId);
+  if (cached) {
+    onMenuUpdate(cached);
+  }
+
   if (!db || !isInitialized) {
-    try {
-      const saved = localStorage.getItem(LOCAL_STORAGE_MENU_KEY);
-      if (saved) onMenuUpdate(JSON.parse(saved));
-    } catch (e) {}
     return () => {};
   }
 
@@ -589,7 +664,7 @@ export function subscribeToWeeklyMenu(householdId, onMenuUpdate) {
       (snap) => {
         if (snap.exists()) {
           const data = snap.data();
-          localStorage.setItem(LOCAL_STORAGE_MENU_KEY, JSON.stringify(data));
+          saveLocalWeeklyMenu(data, householdId);
           onMenuUpdate(data);
         }
       },

@@ -1,8 +1,9 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { USERS, WORKOUT_DAYS, TREADMILL_PROTOCOLS } from '../data/workoutCatalog';
-import { getLocalLogs, getLocalWeightEntries, getLocalNutritionLogs } from '../firebase/config';
-import { calculateAthleteNutrition, getAthleteBiometrics } from './nutritionCalculator';
+import { getLocalLogs, getLocalWeightEntries, getLocalNutritionLogs, getLocalPantryItems, getLocalWeeklyMenu } from '../firebase/config';
+import { calculateAthleteNutrition, getAthleteBiometrics, calculateNavyBodyFat } from './nutritionCalculator';
 import { getLocalFoodCatalog, searchFoodInKnowledgeBase, saveFoodItemToKnowledgeBase } from './foodKnowledgeService';
+import { saveCustomWorkoutPlan, generateDeterministicWorkoutPlan } from './adaptiveWorkoutService';
 import { getLocalMealSettings } from './mealSettingsService';
 import { getLocalDateString } from '../utils/dateUtils';
 
@@ -265,17 +266,8 @@ export function buildHouseholdContext(householdId = 'hogar-dionicio-paula', targ
   const logs = getLocalLogs(householdId);
   const weights = getLocalWeightEntries(householdId);
   
-  let pantry = [];
-  try {
-    const rawPantry = localStorage.getItem('fitness_duo_pantry_items');
-    if (rawPantry) pantry = JSON.parse(rawPantry);
-  } catch (e) {}
-
-  let activeMenu = null;
-  try {
-    const rawMenu = localStorage.getItem('fitness_duo_weekly_menu');
-    if (rawMenu) activeMenu = JSON.parse(rawMenu);
-  } catch (e) {}
+  const pantry = getLocalPantryItems(householdId);
+  const activeMenu = getLocalWeeklyMenu(householdId);
 
   // Extraer métricas para todos los atletas relevantes
   const dionicioMetrics = extractAthleteMetrics(logs, weights, 'dionicio');
@@ -1299,6 +1291,135 @@ ${c.suggestedRecipe}`;
       detectedMeal: estimated
     };
   }
+}
+
+/**
+ * Diseña un Plan de Entrenamiento 100% Individualizado y Focalizado mediante Gemini
+ * integrando equipamiento propio, tiempo disponible, composición corporal, edad y cuidados articulares.
+ */
+export async function generateAICoachCustomWorkoutPlan({
+  userId = 'dionicio',
+  householdId = 'hogar-dionicio-paula',
+  apiKey = null,
+  preferredModel = null
+}) {
+  const biometrics = getAthleteBiometrics(userId, householdId);
+  const equip = biometrics.equipment || {};
+  const sched = biometrics.schedule || {};
+  const concerns = Array.isArray(biometrics.jointConcerns) ? biometrics.jointConcerns : [];
+  const durationMin = Number(sched.sessionDurationMinutes) || 45;
+  const daysTarget = Number(sched.weeklyDaysTarget) || 4;
+  const focusArea = sched.focusArea || 'balanced';
+
+  const userKey = apiKey || getStoredGeminiKey(userId);
+  const athletes = getAthletesList();
+  const user = athletes[userId] || USERS[userId] || USERS.dionicio;
+
+  // Si no hay API Key, retornar inmediatamente el generador determinístico inteligente de alta precisión
+  if (!userKey) {
+    console.log('Gemini API Key no provista. Diseñando plan con generador determinístico deportivo.');
+    return generateDeterministicWorkoutPlan(userId, householdId);
+  }
+
+  const context = buildHouseholdContext(householdId, userId);
+  const metrics = extractAthleteMetrics(context.recentLogs, context.bodyweights, userId);
+
+  // Resumen de equipamiento disponible
+  const equipList = [];
+  if (equip.hasDumbbells) equipList.push(`Mancuernas modulares (hasta ${equip.maxDumbbellWeightPerHandKg || 20}kg por mano)`);
+  if (equip.hasTreadmill) equipList.push('Trotadora eléctrica con inclinación');
+  if (equip.hasPullUpBar) equipList.push('Barra de dominadas fija');
+  if (equip.hasResistanceBands) equipList.push('Bandas elásticas de resistencia');
+  if (equip.hasKettlebell) equipList.push('Kettlebell / Pesa rusa');
+  if (equip.hasBench) equipList.push('Banco de entrenamiento');
+  if (equip.hasBarbell) equipList.push('Barra con discos');
+  if (equip.hasExerciseMat) equipList.push('Mat de suelo acolchado');
+  if (equip.hasStationaryBike) equipList.push('Bicicleta estática');
+  if (equip.bodyweightOnly || equipList.length === 0) equipList.push('Peso corporal (calistenia pura)');
+
+  const systemInstruction = `Eres un ENTRENADOR DEPORTIVO DE ÉLITE Y ESPECIALISTA EN BIOMECÁNICA para ${user.name}.
+Tu misión es diseñar un Plan de Entrenamiento Semanal de Fuerza y Acondicionamiento 100% INDIVIDUALIZADO, REALISTA Y FOCALIZADO.
+
+REGLAS ESTRICTAS DE DISEÑO:
+1. EXCLUSIVIDAD DE EQUIPAMIENTO: Usa ÚNICA Y EXCLUSIVAMENTE los implementos que el atleta posee:
+   ${equipList.join(', ')}.
+   NO inventes máquinas de gimnasio comercial (como poleas complejas o prensas de 45°) si no están listadas.
+2. TIEMPO EXACTO: La sesión debe durar EXACTAMENTE ${durationMin} MINUTOS.
+   - Si dura 25-35 min: Programa 3 a 4 ejercicios de alta densidad (superseries o pausas cortas).
+   - Si dura 45 min: 4 a 5 ejercicios bien descansados.
+   - Si dura 60 min: 5 ejercicios de fuerza + bloque cardio o movilidad final.
+3. ADAPTACIÓN A EDAD Y COMPOSICIÓN CORPORAL:
+   - Atleta: ${user.name}, ${biometrics.age} años, ${biometrics.gender}, ${biometrics.heightCm} cm, ${biometrics.currentWeightKg} kg.
+   - Cintura: ${biometrics.waistCm || 85} cm (Ratio Cintura/Altura: ${Number(((biometrics.waistCm || 85) / biometrics.heightCm).toFixed(2))}).
+   - Modo Activo: ${biometrics.activeMode || 'Pérdida de Grasa Visceral'}.
+   - Si tiene > 40 años o reporta cuidados articulares, prioriza cadencia controlada (2-3s excéntrica), descansos adecuados y variantes amigables.
+4. CUIDADOS ARTICULARES INFORMADOS: ${concerns.length > 0 ? concerns.join(', ') : 'Ninguna lesión reportada'}.
+   - Si tiene cuidado lumbar: Prohíbe peso muerto con tirones bruscos; prefiere puente de glúteos o soporte.
+   - Si tiene cuidado de hombros: Usa floor press con codos a 45° o agarre neutro; cero presses tras nuca.
+   - Si tiene cuidado de rodillas: Sentadilla box squat controlada sin saltos ni impacto.
+5. FRECUENCIA: Distribuir en ${daysTarget} días a la semana con área de enfoque prioritario: "${focusArea}".
+
+FORMATO DE RESPUESTA OBLIGATORIO:
+Debes proporcionar tu explicación motivadora y pedagógica en Markdown y AL FINAL incluir OBLIGATORIAMENTE un bloque de código JSON con este esquema exacto:
+\`\`\`json:workout_plan
+{
+  "planTitle": "Título del Plan",
+  "durationMinutes": ${durationMin},
+  "weeklyDaysTarget": ${daysTarget},
+  "focusArea": "${focusArea}",
+  "coachRationale": "Explicación breve de por qué este plan se adapta a sus medidas y tiempo",
+  "days": [
+    {
+      "id": "dia_1",
+      "name": "Día 1: Nombre",
+      "description": "Descripción",
+      "days": ["Lunes", "Jueves"],
+      "exercises": [
+        {
+          "id": "id_ejercicio",
+          "name": "Nombre exacto del ejercicio",
+          "targetSets": "3",
+          "targetReps": "10 - 12",
+          "restSeconds": 60,
+          "equipment": "Mancuernas",
+          "instructions": ["Paso 1", "Paso 2"],
+          "defaultWeightDionicio": 10,
+          "defaultWeightPaula": 4
+        }
+      ]
+    }
+  ],
+  "cardioFinisher": {
+    "name": "Cardio Final",
+    "durationMinutes": 15,
+    "protocol": "Inclinación 5-7%"
+  }
+}
+\`\`\``;
+
+  const userPrompt = `Por favor diseña mi nuevo Plan de Entrenamiento Semanal Focalizado para ${durationMin} minutos y ${daysTarget} días por semana.`;
+
+  try {
+    const rawResponse = await callGemini(systemInstruction, userPrompt, userKey, preferredModel);
+    const jsonMatch = rawResponse.match(/```json:workout_plan\s*([\s\S]*?)\s*```/);
+
+    if (jsonMatch && jsonMatch[1]) {
+      const parsedPlan = JSON.parse(jsonMatch[1]);
+      parsedPlan.userId = userId;
+      parsedPlan.athleteName = user.name;
+      parsedPlan.generatedAt = new Date().toISOString();
+      parsedPlan.isCustomPlan = true;
+      parsedPlan.rawCoachExplanation = rawResponse.replace(/```json:workout_plan\s*[\s\S]*?\s*```/, '').trim();
+
+      saveCustomWorkoutPlan(userId, parsedPlan, householdId);
+      return parsedPlan;
+    }
+  } catch (err) {
+    console.warn('Error llamando a Gemini para plan personalizado:', err);
+  }
+
+  // Si falló el parseo o la llamada remota, usar el generador determinístico seguro
+  return generateDeterministicWorkoutPlan(userId, householdId);
 }
 
 

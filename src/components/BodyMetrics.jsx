@@ -71,6 +71,7 @@ export function BodyMetrics() {
   });
   const [weightKg, setWeightKg] = useState('');
   const [waistCm, setWaistCm] = useState('');
+  const [neckCm, setNeckCm] = useState('');
   const [hipsCm, setHipsCm] = useState('');
   const [chestCm, setChestCm] = useState('');
   const [armCm, setArmCm] = useState('');
@@ -149,7 +150,7 @@ export function BodyMetrics() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!weightKg && !waistCm && !hipsCm && !chestCm && !armCm && !thighCm) {
+    if (!weightKg && !waistCm && !neckCm && !hipsCm && !chestCm && !armCm && !thighCm) {
       setFeedback({ type: 'error', message: 'Ingresa al menos el peso o una medida corporal.' });
       return;
     }
@@ -164,6 +165,7 @@ export function BodyMetrics() {
       frequencySelected: frequency,
       weightKg: weightKg ? parseFloat(weightKg) : null,
       waistCm: waistCm ? parseFloat(waistCm) : null,
+      neckCm: neckCm ? parseFloat(neckCm) : null,
       hipsCm: hipsCm ? parseFloat(hipsCm) : null,
       chestCm: chestCm ? parseFloat(chestCm) : null,
       armCm: armCm ? parseFloat(armCm) : null,
@@ -178,6 +180,7 @@ export function BodyMetrics() {
       setFeedback({ type: 'success', message: '¡Registro guardado con éxito! (Local y sincronizado en Nube)' });
       setWeightKg('');
       setWaistCm('');
+      setNeckCm('');
       setHipsCm('');
       setChestCm('');
       setArmCm('');
@@ -480,7 +483,7 @@ export function BodyMetrics() {
 
               <div>
                 <label className="block text-xs font-bold text-slate-300 mb-1">
-                  Cintura (cm)
+                  Cintura (cm) *Visceral
                 </label>
                 <input
                   type="number"
@@ -493,8 +496,22 @@ export function BodyMetrics() {
               </div>
             </div>
 
-            {/* Secondary measures: Hips, Chest */}
-            <div className="grid grid-cols-2 gap-3">
+            {/* Secondary measures: Cuello, Hips, Chest */}
+            <div className="grid grid-cols-3 gap-3">
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 mb-1">
+                  Cuello (cm) *Navy
+                </label>
+                <input
+                  type="number"
+                  step="0.1"
+                  placeholder="ej. 39.0"
+                  value={neckCm}
+                  onChange={(e) => setNeckCm(e.target.value)}
+                  className="w-full bg-gym-800 border border-gym-700 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-sky-500"
+                />
+              </div>
+
               <div>
                 <label className="block text-xs font-semibold text-slate-300 mb-1">
                   Cadera (cm)

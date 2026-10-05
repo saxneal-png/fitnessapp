@@ -9,7 +9,8 @@ import {
   saveGeminiKey,
   getStoredGeminiModel,
   saveGeminiModel,
-  GEMINI_AVAILABLE_MODELS
+  GEMINI_AVAILABLE_MODELS,
+  generateAICoachCustomWorkoutPlan
 } from '../services/geminiService';
 import { saveNutritionLog } from '../firebase/config';
 import { calculateAthleteNutrition } from '../services/nutritionCalculator';
@@ -64,6 +65,7 @@ export function GeminiCoach() {
 
   const [inputQuery, setInputQuery] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [isDesigningWorkout, setIsDesigningWorkout] = useState(false);
 
   const [messages, setMessages] = useState(() => [
     {
@@ -185,6 +187,51 @@ Estoy conectado en tiempo real a tus entrenamientos, series de pesas, cardio y t
       alert('Error al guardar la comida en la base de datos: ' + err.message);
     } finally {
       setSavingMealIdx(null);
+    }
+  };
+
+  const handleTriggerWorkoutDesign = async () => {
+    setIsDesigningWorkout(true);
+    try {
+      const plan = await generateAICoachCustomWorkoutPlan({
+        userId: currentUser,
+        householdId,
+        apiKey,
+        preferredModel: selectedModel
+      });
+
+      setMessages((prev) => [
+        ...prev,
+        {
+          role: 'user',
+          content: 'Por favor diseña mi plan individual y focalizado considerando mi equipamiento disponible, mis tiempos y mis medidas corporales.'
+        },
+        {
+          role: 'assistant',
+          content: `🏋️‍♂️ **¡Tu Plan Individualizado & Focalizado ha sido diseñado con éxito!**
+📌 **Título:** ${plan.planTitle}
+⏱️ **Duración por sesión:** ${plan.durationMinutes} minutos
+📅 **Frecuencia semanal:** ${plan.weeklyDaysTarget} días / semana
+🎯 **Enfoque:** ${plan.focusArea?.replace('_', ' ').toUpperCase()}
+
+${plan.rawCoachExplanation || plan.coachRationale || 'He estructurado tus ejercicios utilizando únicamente tu equipamiento registrado, protegiendo tus articulaciones y adaptando las series a tus medidas y tiempo disponible.'}
+
+👉 *Ya puedes revisar tu pauta adaptativa completa y descargar el calendario en la pestaña **Planificador**.*`
+        }
+      ]);
+
+      try {
+        confetti({
+          particleCount: 55,
+          spread: 65,
+          origin: { y: 0.75 }
+        });
+      } catch (e) {}
+    } catch (err) {
+      console.error('Error generando plan personalizado:', err);
+      alert('Error al diseñar el plan: ' + err.message);
+    } finally {
+      setIsDesigningWorkout(false);
     }
   };
 
@@ -515,10 +562,24 @@ Estoy conectado en tiempo real a tus entrenamientos, series de pesas, cardio y t
       )}
 
       {/* 1-Click Smart Action Buttons */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+        <button
+          onClick={handleTriggerWorkoutDesign}
+          disabled={isDesigningWorkout}
+          className="p-3.5 rounded-2xl bg-gradient-to-br from-indigo-900/60 to-emerald-950/50 border border-emerald-500/40 hover:border-emerald-400 text-left transition-all group active:scale-95 disabled:opacity-50"
+        >
+          <div className="flex items-center gap-2 text-emerald-400 font-bold text-xs mb-1">
+            <Zap className={`w-4 h-4 ${isDesigningWorkout ? 'animate-spin' : 'group-hover:scale-110'} transition-transform`} />
+            <span>⚡ {isDesigningWorkout ? 'Diseñando Plan...' : 'Diseñar Plan Focalizado'}</span>
+          </div>
+          <p className="text-[11px] text-slate-300">
+            Crea tu rutina con IA según tu equipamiento, tiempos y medidas corporales.
+          </p>
+        </button>
+
         <button
           onClick={() => handlePresetPrompt('evaluate_mode')}
-          className="p-3.5 rounded-2xl bg-gradient-to-br from-gym-800 to-rose-950/40 border border-rose-500/30 hover:border-rose-400 text-left transition-all group"
+          className="p-3.5 rounded-2xl bg-gradient-to-br from-gym-800 to-rose-950/40 border border-rose-500/30 hover:border-rose-400 text-left transition-all group active:scale-95"
         >
           <div className="flex items-center gap-2 text-rose-400 font-bold text-xs mb-1">
             <Target className="w-4 h-4 group-hover:scale-110 transition-transform" />
@@ -531,7 +592,7 @@ Estoy conectado en tiempo real a tus entrenamientos, series de pesas, cardio y t
 
         <button
           onClick={() => handlePresetPrompt('analyze_fatigue')}
-          className="p-3.5 rounded-2xl bg-gradient-to-br from-gym-800 to-sky-950/40 border border-sky-500/30 hover:border-sky-400 text-left transition-all group"
+          className="p-3.5 rounded-2xl bg-gradient-to-br from-gym-800 to-sky-950/40 border border-sky-500/30 hover:border-sky-400 text-left transition-all group active:scale-95"
         >
           <div className="flex items-center gap-2 text-sky-400 font-bold text-xs mb-1">
             <Dumbbell className="w-4 h-4 group-hover:scale-110 transition-transform" />
@@ -544,7 +605,7 @@ Estoy conectado en tiempo real a tus entrenamientos, series de pesas, cardio y t
 
         <button
           onClick={() => handlePresetPrompt('sync_dinner')}
-          className="p-3.5 rounded-2xl bg-gradient-to-br from-gym-800 to-emerald-950/40 border border-emerald-500/30 hover:border-emerald-400 text-left transition-all group"
+          className="p-3.5 rounded-2xl bg-gradient-to-br from-gym-800 to-emerald-950/40 border border-emerald-500/30 hover:border-emerald-400 text-left transition-all group active:scale-95"
         >
           <div className="flex items-center gap-2 text-emerald-400 font-bold text-xs mb-1">
             <Coffee className="w-4 h-4 group-hover:scale-110 transition-transform" />
@@ -557,10 +618,10 @@ Estoy conectado en tiempo real a tus entrenamientos, series de pesas, cardio y t
 
         <button
           onClick={() => handlePresetPrompt('joint_comfort')}
-          className="p-3.5 rounded-2xl bg-gradient-to-br from-gym-800 to-pink-950/40 border border-pink-500/30 hover:border-pink-400 text-left transition-all group"
+          className="p-3.5 rounded-2xl bg-gradient-to-br from-gym-800 to-pink-950/40 border border-pink-500/30 hover:border-pink-400 text-left transition-all group active:scale-95"
         >
           <div className="flex items-center gap-2 text-pink-400 font-bold text-xs mb-1">
-            <Zap className="w-4 h-4 group-hover:scale-110 transition-transform" />
+            <ShieldCheck className="w-4 h-4 group-hover:scale-110 transition-transform" />
             <span>🛡️ Ajustes Biomecánicos</span>
           </div>
           <p className="text-[11px] text-slate-400">
