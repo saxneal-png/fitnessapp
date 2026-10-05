@@ -66,7 +66,7 @@ export function getDailyAthleteSummary(userId, dateStr, logs = [], nutritionLogs
 
   // 5. Gasto Energético Total Diario (TDEE Real Dinámico)
   // Base sedentaria de oficina (BMR * 1.18) + gasto real medido en la sesión
-  const bmr = calculateMifflinBMR(biometrics.currentWeightKg, biometrics.heightCm, biometrics.age, biometrics.gender);
+  const bmr = nutritionPlan.bmr || calculateMifflinBMR(biometrics.currentWeightKg, biometrics.heightCm, biometrics.age, biometrics.gender);
   const sedentaryNeatBaseline = Math.round(bmr * 1.18);
   
   // Si entrenó hoy, TDEE Real = Sedentario + Entrenamiento; si no, base según perfil

@@ -587,6 +587,64 @@ export function BiometricsModal({ isOpen, onClose, householdId, initialAthlete =
                   </div>
                 </div>
               </div>
+
+              {/* DESGLOSE CLÍNICO: MASA MAGRA & METAS BIOQUÍMICAS */}
+              {activePlan && (
+                <div className="p-4 rounded-2xl bg-gym-900/90 border border-emerald-500/40 space-y-3">
+                  <div className="flex items-center justify-between border-b border-gym-800 pb-2">
+                    <div className="flex items-center gap-2">
+                      <Dna className="w-4 h-4 text-emerald-400" />
+                      <span className="text-xs font-black uppercase text-white tracking-wider">
+                        Composición Corporal & Metas Nutricionales de Precisión
+                      </span>
+                    </div>
+                    <span className="text-[10px] font-mono text-emerald-300 bg-emerald-950/60 border border-emerald-500/30 px-2 py-0.5 rounded-full font-bold">
+                      Proteína: {activePlan.proteinMultiplierLbm} g/kg LBM
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 text-center">
+                    <div className="bg-gym-950/80 p-2.5 rounded-xl border border-gym-800">
+                      <span className="text-[10px] text-slate-400 uppercase block font-semibold">Masa Magra (LBM)</span>
+                      <span className="text-sm font-black text-white font-mono">{activePlan.leanMassKg} kg</span>
+                      <span className="text-[9px] text-slate-400 block mt-0.5">Tejido muscular activo</span>
+                    </div>
+
+                    <div className="bg-gym-950/80 p-2.5 rounded-xl border border-gym-800">
+                      <span className="text-[10px] text-pink-400 uppercase block font-semibold">Masa Grasa</span>
+                      <span className="text-sm font-black text-pink-300 font-mono">{activePlan.fatMassKg} kg</span>
+                      <span className="text-[9px] text-pink-400/80 block mt-0.5">{activePlan.bodyFatPct}% Grasa</span>
+                    </div>
+
+                    <div className="bg-gym-950/80 p-2.5 rounded-xl border border-gym-800">
+                      <span className="text-[10px] text-sky-400 uppercase block font-semibold">BMR Katch-McArdle</span>
+                      <span className="text-sm font-black text-sky-300 font-mono">{activePlan.bmr} kcal</span>
+                      <span className="text-[9px] text-sky-400/80 block mt-0.5">TDEE ~{activePlan.tdee} kcal</span>
+                    </div>
+
+                    <div className="bg-gym-950/80 p-2.5 rounded-xl border border-gym-800">
+                      <span className="text-[10px] text-emerald-400 uppercase block font-semibold">Meta Calórica</span>
+                      <span className="text-sm font-black text-emerald-300 font-mono">{activePlan.targetCals} kcal</span>
+                      <span className="text-[9px] text-emerald-400/80 block mt-0.5">
+                        {activePlan.deficitKcal > 0 ? `-${activePlan.deficitKcal} déficit` : 'Mantenimiento'}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Macronutrientes Resultantes */}
+                  <div className="p-2.5 bg-gym-950/90 rounded-xl border border-gym-800 flex flex-wrap items-center justify-between gap-2 text-xs font-mono">
+                    <span className="text-emerald-300 font-bold">
+                      🍗 Proteína: {activePlan.targetProtein}g ({activePlan.proteinMultiplierLbm} g/kg LBM)
+                    </span>
+                    <span className="text-amber-300 font-bold">
+                      🥑 Grasas: {activePlan.targetFats}g {activePlan.digestiveProtection && '(🛡️ Techo)'}
+                    </span>
+                    <span className="text-sky-300 font-bold">
+                      🍚 Carbos: {activePlan.targetCarbs}g
+                    </span>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 

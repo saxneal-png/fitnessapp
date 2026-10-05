@@ -486,7 +486,7 @@ export function BodyMetrics({ onNavigateTab }) {
       </div>
 
       {/* KPI Cards Strip */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
         <div className="bg-gym-800/90 border border-gym-700/80 rounded-2xl p-3.5 space-y-1">
           <span className="text-[10px] text-slate-400 uppercase font-bold block">Peso Corporal Activo</span>
           <div className="text-xl font-black text-white font-mono flex items-baseline gap-1">
@@ -500,6 +500,17 @@ export function BodyMetrics({ onNavigateTab }) {
           </div>
           <span className="text-[10px] text-slate-500 block truncate">
             {bioProfile.isWeightFromLog ? `Último pesaje: ${bioProfile.lastWeightDate}` : 'Línea base calibrada'}
+          </span>
+        </div>
+
+        <div className="bg-gym-800/90 border border-gym-700/80 rounded-2xl p-3.5 space-y-1">
+          <span className="text-[10px] text-emerald-400 uppercase font-bold block">Masa Magra (LBM)</span>
+          <div className="text-xl font-black text-emerald-300 font-mono flex items-baseline gap-1">
+            <span>{activePlan.leanMassKg || bioProfile.leanMassKg || '--'}</span>
+            <span className="text-xs font-normal text-slate-400">kg</span>
+          </div>
+          <span className="text-[10px] text-slate-400 block truncate">
+            {activePlan.fatMassKg ? `${activePlan.fatMassKg} kg grasa (${activePlan.bodyFatPct}%)` : 'Tejido activo muscular'}
           </span>
         </div>
 
@@ -522,20 +533,20 @@ export function BodyMetrics({ onNavigateTab }) {
         <div className="bg-gym-800/90 border border-gym-700/80 rounded-2xl p-3.5 space-y-1">
           <span className="text-[10px] text-sky-400 uppercase font-bold block">% Grasa (Método Navy)</span>
           <div className="text-xl font-black text-sky-300 font-mono">
-            {liveNavyFat ? `${liveNavyFat}%` : `${bioProfile.bodyFatPct || 23}%`}
+            {activePlan.bodyFatPct ? `${activePlan.bodyFatPct}%` : (liveNavyFat ? `${liveNavyFat}%` : `${bioProfile.bodyFatPct || 23}%`)}
           </div>
-          <span className="text-[10px] text-slate-400 block">
-            {liveNavyFat ? 'Calculado con cuello y cintura' : 'Estimación inicial'}
+          <span className="text-[10px] text-slate-400 block truncate">
+            {liveNavyFat ? 'Calculado con cuello y cintura' : 'Estimación antropométrica'}
           </span>
         </div>
 
-        <div className="bg-gym-800/90 border border-emerald-500/30 bg-emerald-500/5 rounded-2xl p-3.5 space-y-1">
-          <span className="text-[10px] text-emerald-400 uppercase font-bold block">Gasto & Meta Calórica</span>
+        <div className="bg-gym-800/90 border border-emerald-500/30 bg-emerald-500/5 rounded-2xl p-3.5 space-y-1 col-span-2 sm:col-span-1">
+          <span className="text-[10px] text-emerald-400 uppercase font-bold block">Meta & Proteína Magra</span>
           <div className="text-xl font-black text-emerald-300 font-mono">
             {activePlan.targetCals} <span className="text-xs text-slate-400 font-normal">kcal</span>
           </div>
-          <span className="text-[10px] text-slate-400 block truncate">
-            TDEE ~{activePlan.tdee} • {activePlan.targetProtein}g prot
+          <span className="text-[10px] text-emerald-300 font-medium block truncate" title={activePlan.formulaDetails?.proteinTargetInfo}>
+            {activePlan.targetProtein}g prot ({activePlan.proteinMultiplierLbm} g/kg LBM)
           </span>
         </div>
       </div>
@@ -557,6 +568,35 @@ export function BodyMetrics({ onNavigateTab }) {
       {/* ============================================================ */}
       {activeTab === 'measurements' && (
         <div className="space-y-5 animate-fadeIn">
+          {/* Tarjeta de Transparencia de la Fórmula: 100% Masa Magra */}
+          <div className="p-4 rounded-2xl bg-gradient-to-r from-gym-950 via-gym-900 to-sky-950/30 border border-sky-500/40 shadow-lg flex flex-wrap items-center justify-between gap-3 text-xs">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-xl bg-sky-500/20 text-sky-400 flex items-center justify-center shrink-0 border border-sky-500/30">
+                <Dna className="w-5 h-5" />
+              </div>
+              <div className="space-y-0.5">
+                <div className="font-extrabold text-white text-xs sm:text-sm flex items-center gap-2">
+                  <span>Fórmula Adaptada: Proteína sobre Masa Magra (LBM)</span>
+                  <span className="px-2 py-0.5 rounded-full bg-sky-500/20 text-sky-300 text-[10px] font-mono font-bold border border-sky-500/30">
+                    {activePlan.proteinMultiplierLbm} g/kg LBM
+                  </span>
+                </div>
+                <p className="text-slate-300 text-[11px] leading-relaxed">
+                  <strong>{activePlan.leanMassKg} kg masa magra</strong> × {activePlan.proteinMultiplierLbm} g/kg = <strong>{activePlan.targetProtein}g proteína</strong> ({activePlan.targetProtein * 4} kcal). Gasto Basal Katch-McArdle: <strong>{activePlan.bmr} kcal</strong>.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 font-mono text-[11px]">
+              <span className="text-slate-300 bg-gym-950/80 px-2.5 py-1 rounded-xl border border-gym-800">
+                Grasas: <strong className="text-amber-300">{activePlan.targetFats}g</strong> {activePlan.digestiveProtection && '(🛡️ Techo)'}
+              </span>
+              <span className="text-slate-300 bg-gym-950/80 px-2.5 py-1 rounded-xl border border-gym-800">
+                Carbos: <strong className="text-sky-300">{activePlan.targetCarbs}g</strong>
+              </span>
+            </div>
+          </div>
+
           {/* Tarjeta de Recomendación Clínica del Asesor */}
           <div className="p-4 rounded-2xl bg-gradient-to-br from-gym-950 to-gym-900 border border-amber-500/40 space-y-3">
             <div className="flex flex-wrap items-center justify-between gap-2">

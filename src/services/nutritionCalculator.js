@@ -299,6 +299,24 @@ export function getAthleteBiometrics(userId = 'dionicio', householdId = 'hogar-d
     ...(userStored.extendedMeasurements || {})
   };
 
+  const heightCm = Number(userStored.heightCm) || Number(base.heightCm) || (isMale ? 180 : 160);
+  const neckCm = Number(extendedMeasurements.neckCm) || (isMale ? 41 : 34);
+
+  const navyBodyFat = calculateNavyBodyFat({
+    gender: isMale ? 'male' : 'female',
+    heightCm,
+    waistCm: activeWaist,
+    neckCm,
+    hipsCm: activeHips
+  });
+
+  const activeBodyFatPct = navyBodyFat !== null 
+    ? navyBodyFat 
+    : (Number(userStored.bodyFatPct) || Number(base.bodyFatPct) || (isMale ? 23.0 : 28.0));
+  
+  const activeLeanMassKg = Number((activeWeight * (1 - (activeBodyFatPct / 100))).toFixed(1));
+  const activeFatMassKg = Number((activeWeight - activeLeanMassKg).toFixed(1));
+
   return {
     ...base,
     ...userStored,
@@ -309,9 +327,14 @@ export function getAthleteBiometrics(userId = 'dionicio', householdId = 'hogar-d
     activeMode,
     digestiveProtection,
     maxFatsCap,
+    heightCm,
     currentWeightKg: activeWeight,
     waistCm: activeWaist,
     hipsCm: activeHips,
+    bodyFatPct: activeBodyFatPct,
+    leanMassKg: activeLeanMassKg,
+    fatMassKg: activeFatMassKg,
+    navyBodyFatPct: navyBodyFat,
     isWeightFromLog,
     lastWeightDate
   };
@@ -506,6 +529,11 @@ export function evaluateAthleteModeRecommendation(userId = 'dionicio', household
   };
 }
 
+export function calculateKatchMcArdleBMR(leanMassKg) {
+  const lbm = Number(leanMassKg) || 50;
+  return Math.round(370 + (21.6 * lbm));
+}
+
 export function calculateMifflinBMR(weightKg, heightCm, age, gender) {
   const w = Number(weightKg) || 70;
   const h = Number(heightCm) || 170;
@@ -534,7 +562,11 @@ export function calculateBMI(weightKg, heightCm) {
 }
 
 /**
- * Motor Clínico de Nutrición de Precisión (Sin Trampa de Factor Inflado)
+ * Motor Clínico de Nutrición de Precisión (Fórmula Adaptada Dionicio & Paula)
+ * - La proteína se calcula 100% sobre la Masa Magra (LBM en kg), NUNCA sobre el peso total con tejido adiposo.
+ * - Tasa Metabólica Basal por Katch-McArdle sobre masa activa, con Mifflin-St Jeor como referencia.
+ * - Hard Cap Digestivo para grasas (Paula <= 42g) para proteger vesícula y colon irritable.
+ * - Carbohidratos como balance glucolítico exacto.
  */
 export function calculateAthleteNutrition(userId = 'dionicio', householdId = 'hogar-dionicio-paula', customWeight = null) {
   const profile = getAthleteBiometrics(userId, householdId);
@@ -543,113 +575,140 @@ export function calculateAthleteNutrition(userId = 'dionicio', householdId = 'ho
   const age = Number(profile.age) || (userId === 'dionicio' ? 40 : 41);
   const gender = profile.gender || (userId === 'dionicio' ? 'male' : 'female');
 
-  // 1. Tasa Metabólica Basal (BMR) con Mifflin-St Jeor
-  // Dionicio: 10*86 + 6.25*180 - 5*40 + 5 = 1790 kcal
-  // Paula (63kg): 10*63 + 6.25*160 - 5*41 - 161 = 630 + 1000 - 205 - 161 = 1264 kcal
-  const bmr = calculateMifflinBMR(weightKg, heightCm, age, gender);
+  // 1. Cálculo Dinámico de Porcentaje de Grasa Corporal (US Navy o Perfil)
+  const navyFatPct = calculateNavyBodyFat({
+    gender,
+    heightCm,
+    waistCm: profile.waistCm,
+    neckCm: profile.extendedMeasurements?.neckCm || (gender === 'male' ? 41 : 34),
+    hipsCm: profile.hipsCm
+  });
+  const bodyFatPct = navyFatPct !== null ? navyFatPct : (Number(profile.bodyFatPct) || (gender === 'male' ? 23.0 : 28.0));
 
-  // 2. Gasto Energético Total Diario (TDEE Real de Oficina + Entreno)
-  // Dionicio: PAL 1.32 (~2.360 kcal) | Paula: PAL 1.28 (~1.618 kcal)
+  // 2. Composición Corporal Exacta: Masa Magra (LBM) y Masa Grasa
+  // Fórmula: LBM = Peso Total × (1 - (%Grasa / 100))
+  const leanMassKg = Number((weightKg * (1 - (bodyFatPct / 100))).toFixed(1));
+  const fatMassKg = Number((weightKg - leanMassKg).toFixed(1));
+
+  // 3. Tasa Metabólica Basal: Katch-McArdle (Estándar de Oro por Tejido Magro Activo)
+  // BMR = 370 + (21.6 × LBM)
+  // Dionicio (65.5kg magros): 370 + 21.6*65.5 = 1785 kcal exactas
+  // Paula (45.4kg magros): 370 + 21.6*45.4 = 1351 kcal (Mifflin: 1264 kcal)
+  const katchBmr = calculateKatchMcArdleBMR(leanMassKg);
+  const mifflinBmr = calculateMifflinBMR(weightKg, heightCm, age, gender);
+  // Para Dionicio se utiliza Katch-McArdle (1.785 kcal); para Paula el piso clínico Mifflin (1.264 kcal) o Katch
+  const bmr = userId === 'paula' ? mifflinBmr : katchBmr;
+
+  // 4. Gasto Energético Total Diario (TDEE Real de Oficina + Entreno)
   const defaultPal = userId === 'dionicio' ? 1.32 : 1.28;
   const palMultiplier = ACTIVITY_MULTIPLIERS[profile.activityLevel]?.value || defaultPal;
   const tdee = Math.round(bmr * palMultiplier);
-
-  // 3. Masa Magra Estimada
-  // Dionicio con 86kg y ~23% grasa = ~65.5kg magros
-  // Paula con 63kg y ~28% grasa = ~45.4kg magros
-  const bodyFatPct = Number(profile.bodyFatPct) || (gender === 'male' ? 23.0 : 28.0);
-  const leanMassKg = Number((weightKg * (1 - (bodyFatPct / 100))).toFixed(1));
 
   const activeMode = profile.activeMode || 'visceral_fat_loss';
   const modeConfig = FITNESS_MODES[activeMode] || FITNESS_MODES.visceral_fat_loss;
   const recommendation = evaluateAthleteModeRecommendation(userId, householdId);
 
-  // 4. Déficit o Superávit Calórico según el Modo Activo
-  let targetCals = tdee;
+  // 5. CÁLCULO DE PROTEÍNA ESTRICTAMENTE POR MASA MAGRA (LBM)
+  // Regla Clínica: La síntesis proteica miofibrilar satura entre 1.8 y 2.2 g por kg de MASA MAGRA.
+  // Nunca sobre peso total con tejido adiposo para evitar exceso calórico y estrés gastrointestinal.
+  let proteinMultiplierLbm = 2.0;
+
+  if (activeMode === 'visceral_fat_loss') {
+    proteinMultiplierLbm = userId === 'dionicio' ? 2.00 : (userId === 'paula' ? 1.82 : (gender === 'male' ? 2.00 : 1.85));
+  } else if (activeMode === 'body_recomposition') {
+    proteinMultiplierLbm = userId === 'dionicio' ? 2.15 : (userId === 'paula' ? 1.90 : (gender === 'male' ? 2.15 : 1.90));
+  } else if (activeMode === 'hypertrophy_muscle_gain') {
+    proteinMultiplierLbm = userId === 'dionicio' ? 2.20 : (userId === 'paula' ? 2.00 : (gender === 'male' ? 2.20 : 2.00));
+  } else {
+    // metabolic_maintenance
+    proteinMultiplierLbm = userId === 'dionicio' ? 2.00 : (userId === 'paula' ? 1.80 : (gender === 'male' ? 1.95 : 1.80));
+  }
+
+  const targetProteinG = Math.round(leanMassKg * proteinMultiplierLbm);
+
+  // 6. CÁLCULO DE GRASAS: PISO HORMONAL + TECHO DIGESTIVO ESTRICTO
+  let targetFatsG = 55;
+  const isDigestiveProtectionActive = Boolean(profile.digestiveProtection);
+  const maxFatsCap = Number(profile.maxFatsCap) || (userId === 'paula' ? 42 : 45);
+
+  if (activeMode === 'visceral_fat_loss') {
+    if (userId === 'dionicio') {
+      targetFatsG = Math.round(weightKg * 0.64); // ~55g
+    } else if (userId === 'paula') {
+      targetFatsG = isDigestiveProtectionActive ? 40 : 45;
+    } else {
+      targetFatsG = Math.round(weightKg * 0.65);
+    }
+  } else if (activeMode === 'body_recomposition') {
+    if (userId === 'dionicio') {
+      targetFatsG = Math.round(weightKg * 0.72); // ~62g
+    } else if (userId === 'paula') {
+      targetFatsG = isDigestiveProtectionActive ? 42 : 50;
+    } else {
+      targetFatsG = Math.round(weightKg * 0.72);
+    }
+  } else if (activeMode === 'hypertrophy_muscle_gain') {
+    if (userId === 'dionicio') {
+      targetFatsG = Math.round(weightKg * 0.85); // ~73g
+    } else if (userId === 'paula') {
+      targetFatsG = isDigestiveProtectionActive ? 42 : 54;
+    } else {
+      targetFatsG = Math.round(weightKg * 0.85);
+    }
+  } else {
+    // metabolic_maintenance
+    if (userId === 'dionicio') {
+      targetFatsG = Math.round(weightKg * 0.78); // ~67g
+    } else if (userId === 'paula') {
+      targetFatsG = isDigestiveProtectionActive ? 42 : 52;
+    } else {
+      targetFatsG = Math.round(weightKg * 0.80);
+    }
+  }
+
+  // Hard Cap de Protección Digestiva (Innegociable para Paula / Sensibilidad gastrointestinal)
+  if (isDigestiveProtectionActive) {
+    targetFatsG = Math.min(targetFatsG, maxFatsCap);
+  }
+
+  // 7. DÉFICIT / SUPERÁVIT Y METAS CALÓRICAS
   let deficitKcal = 0;
-  let targetProteinG = 130;
-  let targetFatsG = 57;
+  let targetCals = tdee;
 
   if (activeMode === 'visceral_fat_loss') {
     if (userId === 'dionicio') {
       deficitKcal = 760;
       targetCals = 1600;
-      targetProteinG = 130;
-      targetFatsG = 55;
     } else if (userId === 'paula') {
       deficitKcal = 400;
       targetCals = 1220;
-      targetProteinG = 82;
-      targetFatsG = profile.digestiveProtection ? 40 : 48;
     } else {
       deficitKcal = Math.round(Math.min(550, Math.max(300, tdee * 0.22)));
       const minFloor = gender === 'male' ? 1500 : 1200;
       targetCals = Math.max(minFloor, tdee - deficitKcal);
-      targetProteinG = Math.round(weightKg * (gender === 'male' ? 1.8 : 1.6));
-      targetFatsG = Math.round(weightKg * 0.7);
     }
   } else if (activeMode === 'body_recomposition') {
     if (userId === 'dionicio') {
       deficitKcal = 350;
       targetCals = Math.round(tdee - 350);
-      targetProteinG = 140;
-      targetFatsG = 65;
     } else if (userId === 'paula') {
       deficitKcal = 200;
       targetCals = Math.round(tdee - 200);
-      targetProteinG = 85;
-      targetFatsG = profile.digestiveProtection ? 42 : 52;
     } else {
       deficitKcal = Math.round(Math.min(350, Math.max(200, tdee * 0.12)));
       targetCals = Math.round(tdee - deficitKcal);
-      targetProteinG = Math.round(weightKg * (gender === 'male' ? 2.0 : 1.7));
-      targetFatsG = Math.round(weightKg * 0.8);
     }
   } else if (activeMode === 'hypertrophy_muscle_gain') {
-    if (userId === 'dionicio') {
-      const surplusKcal = 250;
-      deficitKcal = -surplusKcal;
-      targetCals = Math.round(tdee + surplusKcal);
-      targetProteinG = 145;
-      targetFatsG = 75;
-    } else if (userId === 'paula') {
-      const surplusKcal = 150;
-      deficitKcal = -surplusKcal;
-      targetCals = Math.round(tdee + surplusKcal);
-      targetProteinG = 88;
-      targetFatsG = profile.digestiveProtection ? 42 : 56;
-    } else {
-      const surplusKcal = gender === 'male' ? 250 : 150;
-      deficitKcal = -surplusKcal;
-      targetCals = Math.round(tdee + surplusKcal);
-      targetProteinG = Math.round(weightKg * (gender === 'male' ? 1.9 : 1.7));
-      targetFatsG = Math.round(weightKg * 0.9);
-    }
+    const surplusKcal = userId === 'dionicio' ? 250 : (userId === 'paula' ? 150 : (gender === 'male' ? 250 : 150));
+    deficitKcal = -surplusKcal;
+    targetCals = Math.round(tdee + surplusKcal);
   } else {
     // metabolic_maintenance
     deficitKcal = 0;
     targetCals = tdee;
-    if (userId === 'dionicio') {
-      targetProteinG = 135;
-      targetFatsG = 70;
-    } else if (userId === 'paula') {
-      targetProteinG = 82;
-      targetFatsG = profile.digestiveProtection ? 42 : 54;
-    } else {
-      targetProteinG = Math.round(weightKg * (gender === 'male' ? 1.8 : 1.5));
-      targetFatsG = Math.round(weightKg * 0.8);
-    }
   }
 
-  // PROTECCIÓN DIGESTIVA (Techo Estricto de Grasas / Vesícula y Colon Sensible)
-  // Si está activada para el atleta, aplica el hard cap definido (ej: 42g para Paula, o 45g para Dionicio)
-  const isDigestiveProtectionActive = Boolean(profile.digestiveProtection);
-  if (isDigestiveProtectionActive) {
-    const hardCap = profile.maxFatsCap || (userId === 'paula' ? 42 : 45);
-    targetFatsG = Math.min(targetFatsG, hardCap);
-  }
-
-  // 5. Reparto Bioquímico de Macronutrientes
+  // 8. REPARTO BIOQUÍMICO: CARBOHIDRATOS COMO REMANENTE GLUCOLÍTICO
   const proteinKcal = targetProteinG * 4;
   const fatsKcal = targetFatsG * 9;
   const remainingKcal = Math.max(0, targetCals - (proteinKcal + fatsKcal));
@@ -668,11 +727,15 @@ export function calculateAthleteNutrition(userId = 'dionicio', householdId = 'ho
     hipsCm: profile.hipsCm,
     bodyFatPct,
     leanMassKg,
+    fatMassKg,
+    proteinMultiplierLbm,
     isWeightFromLog: profile.isWeightFromLog,
     lastWeightDate: profile.lastWeightDate,
     bmi: bmiData.bmi,
     bmiCategory: bmiData.category,
     bmr,
+    katchBmr,
+    mifflinBmr,
     tdee,
     palMultiplier,
     activityLabel: ACTIVITY_MULTIPLIERS[profile.activityLevel]?.label || 'Oficina + Entreno Dúo (PAL 1.32)',
@@ -687,7 +750,7 @@ export function calculateAthleteNutrition(userId = 'dionicio', householdId = 'ho
     targetCarbs: targetCarbsG,
     targetFats: targetFatsG,
     digestiveProtection: isDigestiveProtectionActive,
-    maxFatsCap: profile.maxFatsCap || (userId === 'paula' ? 42 : 45),
+    maxFatsCap,
     foodPreferences: HOUSEHOLD_NUTRITION_CONTEXT.athletes[userId]?.foodPreferences || null,
     supplementation: HOUSEHOLD_NUTRITION_CONTEXT.athletes[userId]?.supplementation || null,
     clinicalConstraints: HOUSEHOLD_NUTRITION_CONTEXT.athletes[userId]?.clinicalConstraints || null,
@@ -697,14 +760,19 @@ export function calculateAthleteNutrition(userId = 'dionicio', householdId = 'ho
       fatsPct: Math.round((fatsKcal / targetCals) * 100)
     },
     formulaDetails: {
-      formulaName: `Mifflin-St Jeor + Modo ${modeConfig.shortName}`,
-      equation: `${gender === 'male' ? '10*(86kg) + 6.25*(180cm) - 5*(40a) + 5 = 1790 kcal' : '10*(65kg) + 6.25*(160cm) - 5*(41a) - 161 = 1284 kcal'}`,
-      bmrResult: `${bmr} kcal/día en reposo absoluto`,
-      tdeeResult: `${tdee} kcal/día (gasto real de oficina sedentaria + 1h de entreno)`,
-      adjustment: deficitKcal > 0 ? `Déficit de -${deficitKcal} kcal/día` : (deficitKcal < 0 ? `Superávit de +${Math.abs(deficitKcal)} kcal/día` : 'Calorías de Mantenimiento (0 déficit)'),
-      proteinTargetInfo: `${targetProteinG}g sobre masa magra de ${leanMassKg}kg`,
-      fatsTargetInfo: `${targetFatsG}g (${(targetFatsG / weightKg).toFixed(2)} g/kg)`,
-      carbsTargetInfo: `${targetCarbsG}g (remanente para energía en trotadora y mancuernas)`
+      formulaName: `Katch-McArdle + Proteína sobre Masa Magra (${modeConfig.shortName})`,
+      equation: `LBM: ${leanMassKg}kg × ${proteinMultiplierLbm} g/kg = ${targetProteinG}g Proteína`,
+      bmrFormula: `Katch-McArdle: 370 + (21.6 × ${leanMassKg}kg) = ${katchBmr} kcal`,
+      mifflinFormula: `Mifflin-St Jeor: ${mifflinBmr} kcal`,
+      bmrResult: `${bmr} kcal/día en reposo activo`,
+      tdeeResult: `${tdee} kcal/día (gasto real con entreno Dúo)`,
+      adjustment: deficitKcal > 0 ? `Déficit de -${deficitKcal} kcal/día` : (deficitKcal < 0 ? `Superávit de +${Math.abs(deficitKcal)} kcal/día` : 'Mantenimiento (0 déficit)'),
+      proteinMultiplier: `${proteinMultiplierLbm} g/kg LBM`,
+      proteinTargetInfo: `${targetProteinG}g calculados estrictamente sobre ${leanMassKg}kg de masa magra (${proteinMultiplierLbm} g/kg LBM)`,
+      fatsTargetInfo: isDigestiveProtectionActive 
+        ? `${targetFatsG}g (🛡️ Techo digestivo estricto máx ${maxFatsCap}g)` 
+        : `${targetFatsG}g (${(targetFatsG / weightKg).toFixed(2)} g/kg peso total)`,
+      carbsTargetInfo: `${targetCarbsG}g (remanente glucolítico para fuerza y trotadora)`
     }
   };
 }

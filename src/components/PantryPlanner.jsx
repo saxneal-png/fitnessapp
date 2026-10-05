@@ -871,10 +871,10 @@ export function PantryPlanner() {
                     type="button"
                     onClick={() => setShowBiometricsModal(true)}
                     className="text-[10px] text-sky-400 hover:text-sky-300 bg-sky-500/10 border border-sky-500/30 px-2 py-0.5 rounded-full font-bold flex items-center gap-1 transition-all"
-                    title="Ver y calibrar fórmula clínica de Mifflin-St Jeor"
+                    title="Ver y calibrar fórmula clínica sobre Masa Magra (LBM)"
                   >
                     <Dna className="w-3 h-3" />
-                    <span>Mifflin: {athletePlan.bmr} kcal • {athletePlan.weightKg}kg</span>
+                    <span>LBM: {athletePlan.leanMassKg}kg • BMR: {athletePlan.bmr} kcal</span>
                   </button>
                   <button
                     type="button"
@@ -918,8 +918,8 @@ export function PantryPlanner() {
                 <div className="text-base sm:text-lg font-black text-sky-400 font-mono mt-0.5">
                   {totalProteinToday}g <span className="text-[10px] text-slate-400 font-normal">/ {targetProtein}g</span>
                 </div>
-                <span className="text-[9px] text-sky-300/80 block mt-0.5 font-mono">
-                  {selectedAthlete === 'paula' ? '80-85g liviano (antidistensión)' : athletePlan.formulaDetails.proteinTargetInfo}
+                <span className="text-[9px] text-sky-300/80 block mt-0.5 font-mono truncate" title={athletePlan.formulaDetails?.proteinTargetInfo}>
+                  {athletePlan.leanMassKg}kg LBM × {athletePlan.proteinMultiplierLbm} g/kg
                 </span>
               </div>
               <div className="bg-gym-900/80 border border-amber-500/30 rounded-xl p-3 text-center">
